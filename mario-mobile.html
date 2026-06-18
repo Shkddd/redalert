@@ -16,17 +16,14 @@ canvas { display: block; width: 100%; height: auto; border: 2px solid #444; bord
   font-size: clamp(12px, 3vw, 18px); color: #fff; text-shadow: 2px 2px 0 #000; pointer-events: none;
   z-index: 10;
 }
-#jumpHint {
-  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-  color: rgba(255,255,255,0.3); font-size: clamp(14px, 4vw, 24px);
-  font-family: 'Courier New', monospace; pointer-events: none; z-index: 10;
-  text-shadow: 1px 1px 0 #000;
-  animation: pulse 2s ease-in-out infinite;
+#countdownOverlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; justify-content: center; align-items: center;
+  background: rgba(0,0,0,0.7); z-index: 25; border-radius: 4px;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.7; }
-}
+#countdownOverlay.hidden { display: none; }
+#countdownText { font-family: 'Courier New', monospace; font-size: clamp(60px, 20vw, 120px); color: #fff; text-shadow: 4px 4px 0 #000; }
+#countdownSub { font-family: 'Courier New', monospace; font-size: clamp(14px, 4vw, 24px); color: #aaa; text-shadow: 2px 2px 0 #000; margin-top: 10px; text-align: center; }
 #gameOverlay {
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   display: none; justify-content: center; align-items: center;
@@ -47,7 +44,12 @@ canvas { display: block; width: 100%; height: auto; border: 2px solid #444; bord
     <span>🪙 <span id="coinDisplay">0</span></span>
     <span>❤️ <span id="livesDisplay">3</span></span>
   </div>
-  <div id="jumpHint">👆 点击跳跃</div>
+  <div id="countdownOverlay">
+    <div style="text-align:center">
+      <div id="countdownText">5</div>
+      <div id="countdownSub">点击跳过</div>
+    </div>
+  </div>
   <div id="gameOverlay">
     <h1 id="overlayTitle">超级跑者</h1>
     <p id="overlayMsg"></p>
@@ -56,7 +58,7 @@ canvas { display: block; width: 100%; height: auto; border: 2px solid #444; bord
 </div>
 <script>
 // ============================================================
-// 超级跑者 — 手机版自动跑酷
+// 超级跑者 — 手机版自动跑酷（安全版）
 // ============================================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -75,7 +77,9 @@ const livesEl = document.getElementById('livesDisplay');
 const overlay = document.getElementById('gameOverlay');
 const overlayTitle = document.getElementById('overlayTitle');
 const overlayMsg = document.getElementById('overlayMsg');
-const jumpHint = document.getElementById('jumpHint');
+const countdownOverlay = document.getElementById('countdownOverlay');
+const countdownText = document.getElementById('countdownText');
+const countdownSub = document.getElementById('countdownSub');
 
 // ---- 游戏状态 ----
 let score = 0;
@@ -100,6 +104,7 @@ let player = {
   invincible: 0,
   alive: true, won: false,
   wallSlide: false, wallSlideDir: 0,
+  stuckCount: 0,
 };
 
 // ---- 游戏对象 ----
@@ -109,205 +114,175 @@ let coinObjects = [];
 let particles = [];
 let decorations = [];
 let flagPole = null;
-let autoRunSpeed = MAX_SPEED;
+
+// ---- 安全机制 ----
+let rescueTimer = 0;
 
 // ============================================================
-// 关卡构建
+// 安全关卡构建（无卡点设计）
 // ============================================================
 function buildLevel() {
-  platforms = [];
-  enemies = [];
-  coinObjects = [];
-  particles = [];
-  decorations = [];
-  flagPole = null;
+  platforms = []; enemies = []; coinObjects = [];
+  particles = []; decorations = []; flagPole = null;
   distTraveled = 0;
 
   const GY = 460;
 
-  // 生成连续地面（有坑洞）
-  let gx = 0;
-  const segments = [
-    [0, 50],    // start ground
-    [54, 25],   // after gap
-    [82, 30],
-    [116, 20],
-    [140, 35],
-    [180, 25],
-    [210, 30],
-    [245, 25],
-    [275, 35],
-    [315, 20],
-    [340, 30],
-    [375, 25],
-    [405, 20],
-    [430, 30],
-    [465, 20],
-    [490, 25],
-    [520, 30],
-    [555, 20],
-    [580, 35],
-    [620, 30],
-    [655, 25],
-    [685, 30],
-    [720, 20],
-    [745, 35],
-    [785, 25],
-    [815, 30],
-    [850, 20],
-    [875, 35],
-    [915, 30],
-    [950, 25],
-    [980, 20],
-    [1005, 30],
-    [1040, 25],
-    [1070, 35],
-    [1110, 30],
-    [1145, 20],
-    [1170, 35],
-    [1210, 25],
-    [1240, 30],
+  // ---- 地面 ----
+  // 用连续小段地面 + 小间隙保证可跳越
+  // 格式: [起始格, 长度]
+  const segs = [
+    [0, 35],      // 开场安全区
+    [38, 20],     // 3格间隙 (96px)
+    [60, 22],     // 2格间隙 (64px)
+    [84, 20],     // 2格间隙
+    [106, 25],    // 2格间隙
+    [133, 20],    // 2格间隙
+    [155, 22],    // 2格间隙
+    [179, 20],    // 2格间隙
+    [201, 25],    // 2格间隙
+    [228, 20],    // 2格间隙
+    [250, 22],    // 2格间隙
+    [274, 20],    // 2格间隙
+    [296, 25],    // 2格间隙
+    [323, 20],    // 2格间隙
+    [345, 22],    // 2格间隙
+    [369, 25],    // 2格间隙
+    [396, 20],    // 2格间隙
+    [418, 22],    // 2格间隙
+    [442, 20],    // 2格间隙
+    [464, 25],    // 2格间隙
+    [491, 20],    // 2格间隙
+    [513, 22],    // 2格间隙
+    [537, 20],    // 2格间隙
+    [559, 25],    // 2格间隙
+    [586, 20],    // 2格间隙
+    [608, 22],    // 2格间隙
+    [632, 20],    // 2格间隙
+    [654, 25],    // 2格间隙
+    [681, 20],    // 2格间隙
+    [703, 22],    // 2格间隙
+    [727, 25],    // 2格间隙
+    [754, 20],    // 2格间隙
+    [776, 22],    // 2格间隙
+    [800, 25],    // 2格间隙
+    [827, 20],    // 2格间隙
+    [849, 22],    // 2格间隙
+    [873, 25],    // 2格间隙
+    [900, 20],    // 2格间隙
+    [922, 22],    // 2格间隙
+    [946, 20],    // 2格间隙
+    [968, 25],    // 2格间隙
+    [995, 20],    // 2格间隙
+    [1017, 22],   // 2格间隙
+    [1041, 20],   // 2格间隙
+    [1063, 25],   // 2格间隙
+    [1090, 20],   // 2格间隙
+    [1112, 22],   // 2格间隙
+    [1136, 20],   // 2格间隙
+    [1158, 30],   // 最后大段安全区
   ];
 
-  for (const seg of segments) {
-    const [start, count] = seg;
+  for (const s of segs) {
+    const [start, count] = s;
     for (let t = 0; t < count; t++) {
       const bx = (start + t) * TILE;
       platforms.push({ x: bx, y: GY, w: TILE, h: TILE, type: 'ground' });
       platforms.push({ x: bx, y: GY + TILE, w: TILE, h: TILE, type: 'ground' });
     }
-    // 草皮
     for (let t = 0; t < count; t++) {
       platforms.push({ x: (start + t) * TILE, y: GY - 4, w: TILE, h: 4, type: 'grass' });
     }
   }
 
-  // 浮空砖块平台（给玩家跳上去躲避敌人）
-  addBrickRow(8, 16, 4);
-  addBrickRow(16, 13, 5);
-  addBrickRow(24, 14, 3);
-  addBrickRow(30, 10, 6);
-  addBrickRow(38, 12, 4);
-  addBrickRow(44, 14, 3);
-  addBrickRow(50, 11, 4);
-  addBrickRow(56, 13, 5);
-  addBrickRow(64, 10, 3);
-  addBrickRow(70, 14, 4);
-  addBrickRow(78, 12, 3);
-  addBrickRow(84, 10, 5);
-  addBrickRow(92, 13, 4);
-  addBrickRow(100, 11, 3);
-  addBrickRow(108, 14, 5);
-  addBrickRow(116, 12, 4);
-  addBrickRow(124, 10, 3);
-  addBrickRow(130, 13, 5);
-  addBrickRow(138, 11, 4);
-  addBrickRow(146, 14, 3);
-
-  // 问号金币块
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    for (let j = 0; j < Math.min(3, seg[1] / 6); j++) {
-      const qx = seg[0] + 3 + j * 8;
-      addQuestionBlock(qx, 11, 'coin');
-    }
+  // ---- 安全浮空平台（每个间隙上方都有落脚点）----
+  // 每个间隙上方放一个平台
+  const gapPositions = [36, 58, 82, 104, 131, 153, 177, 199, 226, 248, 272, 294, 321, 343, 367, 394, 416, 440, 462, 489, 511, 535, 557, 584, 606, 630, 652, 679, 701, 725, 752, 774, 798, 825, 847, 871, 898, 920, 944, 966, 993, 1015, 1039, 1061, 1088, 1110, 1134];
+  for (const gx of gapPositions) {
+    // 在间隙上方2格高处放安全平台
+    addBrickRow(gx - 1, 13, 3);
+    // 再高一层放金币
+    addCoin(gx, 10);
+    addCoin(gx + 1, 10);
   }
 
-  // 空中金币
-  for (let x = 5; x < 1200; x += 6) {
-    addCoinRow(x, 7, 3);
+  // ---- 高空金币路线 ----
+  for (let x = 5; x < 1160; x += 5) {
+    addCoinRow(x, 9, 2);
+    addCoinRow(x + 2, 6, 2);
   }
 
-  // 低处金币
-  for (let x = 3; x < 1200; x += 4) {
-    if (Math.random() < 0.5) addCoin(x, 13);
+  // ---- 问号块 ----
+  for (let x = 4; x < 1150; x += 12) {
+    addQuestionBlock(x, 12, 'coin');
   }
 
-  // 敌人
-  addGoomba(12, GY);
-  addGoomba(20, GY);
-  addGoomba(28, GY);
-  addGoomba(40, GY);
-  addGoomba(48, GY);
-  addGoomba(58, GY);
-  addGoomba(66, GY);
-  addGoomba(76, GY);
-  addGoomba(86, GY);
-  addGoomba(98, GY);
-  addGoomba(110, GY);
-  addGoomba(122, GY);
-  addGoomba(134, GY);
-  addGoomba(148, GY);
-  addGoomba(160, GY);
-  addGoomba(172, GY);
-  addGoomba(188, GY);
-  addGoomba(200, GY);
-  addGoomba(215, GY);
-  addGoomba(230, GY);
-  addGoomba(250, GY);
-  addGoomba(268, GY);
-  addGoomba(285, GY);
-  addGoomba(305, GY);
-  addGoomba(325, GY);
-  addGoomba(350, GY);
-  addGoomba(370, GY);
-  addGoomba(395, GY);
-  addGoomba(415, GY);
-  addGoomba(440, GY);
-  addGoomba(465, GY);
-  addGoomba(490, GY);
-  addGoomba(515, GY);
-  addGoomba(540, GY);
-  addGoomba(565, GY);
-  addGoomba(590, GY);
-  addGoomba(615, GY);
-  addGoomba(640, GY);
-  addGoomba(665, GY);
-  addGoomba(690, GY);
-  addGoomba(715, GY);
-  addGoomba(745, GY);
-  addGoomba(775, GY);
-  addGoomba(805, GY);
-  addGoomba(835, GY);
-  addGoomba(865, GY);
-  addGoomba(895, GY);
-  addGoomba(930, GY);
-  addGoomba(960, GY);
-  addGoomba(995, GY);
-  addGoomba(1025, GY);
-  addGoomba(1060, GY);
-  addGoomba(1095, GY);
-  addGoomba(1130, GY);
-  addGoomba(1165, GY);
-  addGoomba(1200, GY);
+  // ---- 水管（只放在地面中间，远离间隙）----
+  addPipeSafe(8);
+  addPipeSafe(42);
+  addPipeSafe(68);
+  addPipeSafe(92);
+  addPipeSafe(112);
+  addPipeSafe(140);
+  addPipeSafe(165);
+  addPipeSafe(188);
+  addPipeSafe(210);
+  addPipeSafe(238);
+  addPipeSafe(260);
+  addPipeSafe(282);
+  addPipeSafe(304);
+  addPipeSafe(330);
+  addPipeSafe(355);
+  addPipeSafe(375);
+  addPipeSafe(405);
+  addPipeSafe(428);
+  addPipeSafe(450);
+  addPipeSafe(475);
+  addPipeSafe(500);
+  addPipeSafe(522);
+  addPipeSafe(547);
+  addPipeSafe(570);
+  addPipeSafe(592);
+  addPipeSafe(618);
+  addPipeSafe(640);
+  addPipeSafe(665);
+  addPipeSafe(690);
+  addPipeSafe(712);
+  addPipeSafe(738);
+  addPipeSafe(762);
+  addPipeSafe(785);
+  addPipeSafe(810);
+  addPipeSafe(835);
+  addPipeSafe(858);
+  addPipeSafe(882);
+  addPipeSafe(905);
+  addPipeSafe(930);
+  addPipeSafe(952);
+  addPipeSafe(975);
+  addPipeSafe(1002);
+  addPipeSafe(1025);
+  addPipeSafe(1050);
+  addPipeSafe(1072);
+  addPipeSafe(1098);
+  addPipeSafe(1120);
+  addPipeSafe(1145);
 
-  // 水管
-  addPipe(14, 2);
-  addPipe(34, 2);
-  addPipe(62, 2);
-  addPipe(90, 2);
-  addPipe(114, 2);
-  addPipe(142, 2);
-  addPipe(226, 2);
-  addPipe(362, 2);
-  addPipe(498, 2);
-  addPipe(638, 2);
-  addPipe(782, 2);
-  addPipe(910, 2);
-  addPipe(1050, 2);
+  // ---- 敌人（分散放置，不堵路）----
+  const enemyPositions = [10, 18, 28, 40, 48, 62, 72, 86, 95, 110, 120, 136, 148, 160, 172, 184, 196, 208, 220, 232, 244, 256, 268, 280, 292, 302, 315, 328, 340, 352, 365, 378, 392, 404, 415, 425, 438, 448, 460, 472, 485, 497, 508, 520, 532, 545, 555, 568, 580, 592, 602, 615, 628, 640, 650, 662, 675, 688, 698, 710, 722, 735, 745, 758, 770, 782, 795, 805, 820, 830, 845, 855, 870, 880, 895, 908, 920, 930, 945, 958, 970, 982, 995, 1005, 1020, 1032, 1045, 1055, 1070, 1080, 1095, 1105, 1120];
+  for (const ex of enemyPositions) {
+    addGoomba(ex, GY);
+  }
 
-  // 云朵
-  for (let x = 50; x < 4000; x += 200 + Math.random() * 200) {
+  // ---- 装饰 ----
+  for (let x = 50; x < 8000; x += 200 + Math.random() * 300) {
     addCloud(x, 30 + Math.random() * 40, 0.8 + Math.random() * 0.6);
   }
-
-  // 山丘
-  for (let x = 100; x < 4000; x += 400 + Math.random() * 300) {
+  for (let x = 100; x < 4000; x += 300 + Math.random() * 400) {
     addHill(x, GY, 0.8 + Math.random() * 0.5);
   }
 
-  levelWidth = 4000;
-  flagPole = { x: 3900, y: 120, h: 340 };
+  levelWidth = 3700;
+  flagPole = { x: 3650, y: 120, h: 340 };
 
   // 重置玩家
   player.x = 80;
@@ -319,6 +294,14 @@ function buildLevel() {
   player.invincible = 0;
   player.canDoubleJump = false;
   player.wallSlide = false;
+  player.stuckCount = 0;
+  rescueTimer = 0;
+}
+
+// ---- 安全水管（放在地面段中间）----
+function addPipeSafe(tileX) {
+  // 只需要放水管本体，pipe_top 在碰撞中已忽略
+  addPipe(tileX, 2);
 }
 
 // ---- 关卡辅助 ----
@@ -363,13 +346,10 @@ function updatePlayer() {
 
   // 自动向右跑
   if (player.onGround) {
-    player.vx = autoRunSpeed;
+    player.vx = MAX_SPEED;
     player.facing = 1;
-  } else {
-    // 空中保持速度（但允许蹭墙改变方向）
-    if (!player.wallSlide) {
-      player.vx = Math.max(player.vx, autoRunSpeed * 0.5);
-    }
+  } else if (!player.wallSlide) {
+    player.vx = Math.max(player.vx, MAX_SPEED * 0.4);
   }
 
   // 跳跃
@@ -385,32 +365,24 @@ function updatePlayer() {
       player.vy = JUMP_FORCE;
       player.canDoubleJump = false;
       if (player.wallSlide) {
-        player.vx = -player.wallSlideDir * autoRunSpeed * 1.5;
+        player.vx = -player.wallSlideDir * MAX_SPEED * 1.5;
         player.facing = -player.wallSlideDir;
         player.wallSlide = false;
       } else {
-        player.vx = autoRunSpeed * 1.2;
+        player.vx = MAX_SPEED * 1.2;
       }
       playJump();
     }
-  }
-
-  // 摩擦（空中减速）
-  if (!player.onGround && !player.wallSlide) {
-    player.vx = Math.max(player.vx, autoRunSpeed * 0.5);
   }
 
   // 重力
   player.vy += GRAVITY;
   if (player.vy > 15) player.vy = 15;
 
-  // 跑动动画
+  // 动画
   if (player.onGround) {
     player.frameTimer++;
-    if (player.frameTimer > 5) {
-      player.frame = (player.frame + 1) % 4;
-      player.frameTimer = 0;
-    }
+    if (player.frameTimer > 5) { player.frame = (player.frame + 1) % 4; player.frameTimer = 0; }
   }
 
   if (player.invincible > 0) player.invincible--;
@@ -426,7 +398,7 @@ function updatePlayer() {
     if (isColliding(player, p)) {
       if (player.vx > 0) {
         player.x = p.x - player.w;
-        player.vx = autoRunSpeed * 0.3;
+        player.vx = MAX_SPEED * 0.3;
         if (!player.onGround) {
           player.canDoubleJump = true;
           player.vy = Math.min(player.vy, 3);
@@ -435,7 +407,7 @@ function updatePlayer() {
         }
       } else if (player.vx < 0) {
         player.x = p.x + p.w;
-        player.vx = autoRunSpeed;
+        player.vx = MAX_SPEED;
         if (!player.onGround) {
           player.canDoubleJump = true;
           player.vy = Math.min(player.vy, 3);
@@ -471,6 +443,7 @@ function updatePlayer() {
         player.onGround = true;
         player.canDoubleJump = false;
         player.wallSlide = false;
+        player.stuckCount = 0;
       } else if (player.vy < 0) {
         player.y = p.y + p.h;
         player.vy = 1;
@@ -482,17 +455,53 @@ function updatePlayer() {
     }
   }
 
-  // 边界
-  if (player.x < 0) { player.x = 0; player.vx = autoRunSpeed; }
+  // 左边界保护
+  if (player.x < 0) { player.x = 0; player.vx = MAX_SPEED; }
 
-  // 金币收集
+  // ---- 防卡死救援机制 ----
+  // 如果玩家持续3秒没有站在地上（掉坑或卡住），传送回最近安全位置
+  if (!player.onGround) {
+    player.stuckCount++;
+    if (player.stuckCount > 180) {  // 约3秒
+      player.stuckCount = 0;
+      // 找到最近的平台上面
+      let rescueY = 460 - player.h;
+      let rescueX = player.x;
+      // 向后搜索安全地面
+      for (let bx = Math.floor(player.x / TILE) - 5; bx >= 0; bx--) {
+        const testX = bx * TILE;
+        let found = false;
+        for (const p of platforms) {
+          if ((p.type === 'ground' || p.type === 'brick' || p.type === 'hard') &&
+              testX + player.w > p.x && testX < p.x + p.w) {
+            rescueY = p.y - player.h;
+            rescueX = testX;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      player.x = rescueX;
+      player.y = rescueY;
+      player.vy = 0;
+      player.vx = MAX_SPEED;
+      player.onGround = true;
+      player.canDoubleJump = false;
+      showStatus('🚑 救援！');
+    }
+  } else {
+    player.stuckCount = 0;
+  }
+
+  // ---- 金币收集 ----
   for (const c of coinObjects) {
     if (c.collected) continue;
     const dx = player.x + player.w/2 - c.x, dy = player.y + player.h/2 - c.y;
     if (dx * dx + dy * dy < 400) { c.collected = true; addScore(200); coins++; playCoin(); spawnCoinParticle(c.x, c.y); }
   }
 
-  // 敌人碰撞
+  // ---- 敌人碰撞 ----
   for (const e of enemies) {
     if (!e.alive || e.squished) continue;
     if (isColliding(player, { x: e.x, y: e.y, w: e.w, h: e.h })) {
@@ -505,7 +514,7 @@ function updatePlayer() {
     }
   }
 
-  // 旗杆
+  // ---- 旗杆 ----
   if (flagPole) {
     const px = player.x + player.w/2;
     if (px > flagPole.x && px < flagPole.x + 20 && player.y + player.h > flagPole.y && player.y < flagPole.y + flagPole.h) {
@@ -513,12 +522,10 @@ function updatePlayer() {
     }
   }
 
-  // 掉坑
+  // ---- 掉坑重置 ----
   if (player.y > 520) playerDie();
 
-  // 记录距离
   distTraveled = Math.max(distTraveled, Math.floor(player.x / TILE));
-
   updateCamera();
 }
 
@@ -573,20 +580,19 @@ function playerHit() {
   if (player.invincible > 0) return;
   lives--; updateUI();
   if (lives <= 0) playerDie();
-  else { player.invincible = 60; player.vy = -8; player.vx = autoRunSpeed; playHit(); }
+  else { player.invincible = 60; player.vy = -8; player.vx = MAX_SPEED; playHit(); }
 }
 function playerDie() {
   if (!player.alive) return;
   player.alive = false; player.vy = -10; player.vx = 0;
   playDie();
-  setTimeout(() => showOverlay('GAME OVER', `得分: ${score}  金币: ${coins}`, '👆 点击重新开始'), 800);
+  setTimeout(() => startCountdown(`得分: ${score}  金币: ${coins}`), 800);
 }
 function playerWins() {
   if (player.won) return;
   player.won = true; player.vx = 0;
-  addScore(2000);
-  playWin();
-  showOverlay('🎉 通关！', `得分: ${score}  金币: ${coins}`, '👆 点击再来一次');
+  addScore(2000); playWin();
+  setTimeout(() => startCountdown(`🎉 通关！得分: ${score}  金币: ${coins}`), 500);
 }
 function addScore(pts) { score += pts; updateUI(); }
 function updateUI() {
@@ -594,33 +600,16 @@ function updateUI() {
 }
 
 // ============================================================
-// 绘制（手机版简化）
+// 绘制
 // ============================================================
 function draw() {
   ctx.clearRect(0, 0, W, H);
-
-  // 天空
   const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, '#5c94fc');
-  grad.addColorStop(0.5, '#87CEEB');
-  grad.addColorStop(1, '#b8d8f8');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
+  grad.addColorStop(0, '#5c94fc'); grad.addColorStop(0.5, '#87CEEB'); grad.addColorStop(1, '#b8d8f8');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
-  // 装饰（云、山）
-  drawDecorations();
-  // 平台
-  drawPlatforms();
-  // 金币
-  drawCoins();
-  // 敌人
-  drawEnemies();
-  // 旗杆
-  drawFlagPole();
-  // 玩家
-  drawPlayer();
-  // 粒子
-  drawParticles();
+  drawDecorations(); drawPlatforms(); drawCoins();
+  drawEnemies(); drawFlagPole(); drawPlayer(); drawParticles();
 }
 
 function drawDecorations() {
@@ -654,8 +643,6 @@ function drawPlatforms() {
       case 'ground':
         ctx.fillStyle = '#c88444'; ctx.fillRect(sx, sy, p.w, p.h);
         ctx.strokeStyle = '#a06830'; ctx.lineWidth = 1; ctx.strokeRect(sx, sy, p.w, p.h);
-        ctx.fillStyle = '#b07838';
-        for (let i = 0; i < 3; i++) ctx.fillRect(sx + (i * 10 + 5) % p.w, sy + (i * 7 + 3) % p.h, 3, 3);
         break;
       case 'grass':
         ctx.fillStyle = '#44aa44'; ctx.fillRect(sx, sy, p.w, p.h);
@@ -675,8 +662,7 @@ function drawPlatforms() {
         ctx.strokeStyle = p.used ? '#664422' : '#ccaa33'; ctx.lineWidth = 2; ctx.strokeRect(sx, sy, p.w, p.h);
         if (!p.used) {
           ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('?', sx + TILE/2 + 1, sy + TILE/2 + 1);
-          ctx.fillStyle = '#ffd700'; ctx.fillText('?', sx + TILE/2, sy + TILE/2);
+          ctx.fillText('?', sx + TILE/2, sy + TILE/2);
         }
         break;
       case 'pipe':
@@ -803,22 +789,57 @@ function playDie() { tone(600,0.1,'square',0.06); setTimeout(()=>tone(500,0.1,'s
 function playWin() { [523,659,784,1047].forEach((n,i)=>setTimeout(()=>tone(n,0.15,'square',0.06),i*120)); }
 
 // ============================================================
-// UI
+// 状态消息
 // ============================================================
-function showOverlay(title, msg, hint) {
-  overlayTitle.textContent = title; overlayMsg.textContent = msg;
-  overlay.querySelector('.hint').textContent = hint || '';
-  overlay.classList.add('show'); gameRunning = false;
+let statusTimer = 0;
+function showStatus(msg) {
+  document.querySelector('#ui-overlay span:last-child').textContent = msg;
+  statusTimer = 100;
 }
-function hideOverlay() { overlay.classList.remove('show'); }
+
+// ============================================================
+// 倒计时自动开始
+// ============================================================
+let countdownInterval = null;
+
+function startCountdown(msg) {
+  overlay.classList.remove('show');
+  gameRunning = false;
+
+  let count = 5;
+  countdownText.textContent = count;
+  countdownSub.textContent = msg || '点击跳过';
+  countdownOverlay.classList.remove('hidden');
+
+  clearInterval(countdownInterval);
+  countdownInterval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      countdownText.textContent = count;
+      // 倒计时音效
+      tone(440, 0.08, 'square', 0.05);
+    } else if (count === 0) {
+      countdownText.textContent = 'GO!';
+      tone(880, 0.15, 'square', 0.08);
+    } else {
+      clearInterval(countdownInterval);
+      countdownOverlay.classList.add('hidden');
+      startGame();
+    }
+  }, 1000);
+}
 
 // ============================================================
 // 游戏循环
 // ============================================================
 function update() {
-  updatePlayer();
-  updateEnemies();
-  updateParticles();
+  if (statusTimer > 0) {
+    statusTimer--;
+    if (statusTimer === 0) {
+      document.querySelector('#ui-overlay span:last-child').textContent = '';
+    }
+  }
+  updatePlayer(); updateEnemies(); updateParticles();
 }
 function gameLoop() {
   if (gameRunning) update();
@@ -831,10 +852,9 @@ function gameLoop() {
 // ============================================================
 function startGame() {
   score = 0; coins = 0; lives = 3;
-  hideOverlay(); buildLevel();
+  buildLevel();
   camera.x = 0; camera.y = 0; updateUI();
   gameRunning = true;
-  jumpHint.style.display = 'none';
 }
 
 // ============================================================
@@ -842,9 +862,15 @@ function startGame() {
 // ============================================================
 function handleTap(e) {
   e.preventDefault();
-  if (!gameRunning) { startGame(); return; }
+  // 倒计时中点击 → 跳过倒计时立即开始
+  if (!countdownOverlay.classList.contains('hidden')) {
+    clearInterval(countdownInterval);
+    countdownOverlay.classList.add('hidden');
+    startGame();
+    return;
+  }
+  if (!gameRunning) { startCountdown(); return; }
   jumpJustPressed = true;
-  // 震动反馈
   if (navigator.vibrate) navigator.vibrate(10);
 }
 
@@ -853,8 +879,14 @@ canvas.addEventListener('touchstart', handleTap, { passive: false });
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
     e.preventDefault();
-    if (!gameRunning) startGame();
-    else jumpJustPressed = true;
+    if (!countdownOverlay.classList.contains('hidden')) {
+      clearInterval(countdownInterval);
+      countdownOverlay.classList.add('hidden');
+      startGame();
+      return;
+    }
+    if (!gameRunning) { startCountdown(); return; }
+    jumpJustPressed = true;
   }
 });
 
@@ -862,7 +894,6 @@ document.addEventListener('keydown', (e) => {
 // 适配移动端
 // ============================================================
 function resizeCanvas() {
-  const wrapper = canvas.parentElement;
   const maxW = window.innerWidth - 8;
   const maxH = window.innerHeight - 8;
   const ratio = W / H;
@@ -879,7 +910,7 @@ resizeCanvas();
 // ============================================================
 buildLevel();
 updateUI();
-showOverlay('超级跑者', '👆 点击跳跃 · 自动向右跑', '点击屏幕开始');
+startCountdown('点击跳跃 · 可二段跳');
 gameLoop();
 
 </script>
