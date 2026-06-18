@@ -2,18 +2,20 @@
 
 [![HTML5](https://img.shields.io/badge/HTML5-%23E34F26.svg?logo=html5&logoColor=white)]()
 [![Canvas](https://img.shields.io/badge/Canvas-API-black)]()
+[![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
-一个纯前端实现的 **红色警戒风格 RTS 游戏** —— 单 HTML 文件，无任何外部依赖，打开浏览器即玩。
+一个纯前端实现的 **红色警戒风格 RTS 游戏** —— 基于 HTML5 Canvas，无任何外部依赖，打开浏览器即玩。
 
 ## 🕹️ 试玩
-
-直接下载 `index.html` 在浏览器中打开即可。
 
 ```
 git clone https://github.com/Shkddd/redalert.git
 cd redalert
+# 方式一：直接打开
 open index.html
+# 方式二：本地服务器（推荐，游戏使用 Worker 定时器）
+python3 -m http.server 8080
 ```
 
 ## ✨ 特性
@@ -41,6 +43,7 @@ open index.html
 - **小地图**：点击快速跳转视野
 - **AI 敌人**：敌军会周期性生成并进攻
 - **寻路系统**：单位自动寻路与攻击
+- **建筑半径**：建筑之间需保持至少 2 格距离
 
 ### 🖱️ 操作方式
 | 操作 | 功能 |
@@ -50,24 +53,27 @@ open index.html
 | 侧边栏按钮 | 建造建筑 / 训练单位 |
 | 小地图点击 | 跳转视野 |
 | 鼠标移边缘 | 滚动地图 |
+| 键盘 B + 点击 | 快速建造建筑 |
 
 ## 🛠️ 技术栈
 
-- **纯 HTML5 + CSS3** —— 界面与样式
+- **HTML5 + CSS3** —— 界面与样式
 - **Canvas API** —— 游戏渲染引擎（地图、单位、弹道、粒子）
-- **原生 JavaScript** —— 无框架，无依赖，所有逻辑在单个文件中
+- **原生 JavaScript** —— 无框架，无依赖
 
 文件结构：
 
 ```
 redalert/
-├── index.html   ← 全部代码（~1450 行，50KB）
+├── index.html   ← 入口页面（~50 行）
+├── game.js      ← 游戏核心逻辑（~1700 行，56KB）
+├── style.css    ← 样式定义（~40 行）
 └── README.md    ← 本文件
 ```
 
 ## 🧩 项目结构（代码组织）
 
-所有代码位于 `index.html` 中，分为以下模块：
+游戏逻辑位于 `game.js` 中，分为以下模块：
 
 - **地图系统** — 60×40 格网格地图，含草地、道路、矿石
 - **单位系统** — 步兵/坦克/吉普车/矿车，含自动寻路与攻击
