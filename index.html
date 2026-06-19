@@ -1,0 +1,2105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>Red Alert - RTS Game</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
+canvas { display: block; width: 100%; height: 100%; image-rendering: auto; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(function() {
+'use strict';
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const TILE = 32;
+const MAP_W = 40;
+const MAP_H = 30;
+const WORLD_W = MAP_W * TILE;
+const WORLD_H = MAP_H * TILE;
+const SIDEBAR_W = 130;
+const MINIMAP_SIZE = 160;
+const MINIMAP_TILE = 4;
+const MINIMAP_H = MAP_H * MINIMAP_TILE;
+
+const FACTION = { ALLIED: 0, SOVIET: 1 };
+const TILE_GRASS = 0;
+const TILE_ROAD = 1;
+const TILE_WATER = 2;
+const TILE_ORE = 3;
+
+const UNIT_INFANTRY = 0;
+const UNIT_TANK = 1;
+const UNIT_HARVESTER = 2;
+
+const BLDG_CYARD = 0;
+const BLDG_BARRACKS = 1;
+const BLDG_WARFACTORY = 2;
+const BLDG_REFINERY = 3;
+
+const UNIT_STATE_IDLE = 0;
+const UNIT_STATE_MOVING = 1;
+const UNIT_STATE_ATTACKING = 2;
+const UNIT_STATE_GATHERING = 3;
+const UNIT_STATE_RETURNING = 4;
+
+// ============================================================
+// AUDIO SYSTEM (Web Audio API)
+// ============================================================
+let audioCtx = null;
+let sfxVolume = 0.3;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playTone(freq, duration, type, volume) {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime((volume || sfxVolume) * 0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playNoise(duration, volume) {
+  if (!audioCtx) return;
+  try {
+    const bufferSize = audioCtx.sampleRate * duration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime((volume || sfxVolume) * 0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start();
+  } catch(e) {}
+}
+
+function sfxSelect() { playTone(800, 0.08, 'square', 0.4); }
+function sfxMove() { playTone(300, 0.12, 'sine', 0.5); }
+function sfxAttack() { playTone(200, 0.1, 'sawtooth', 0.5); playNoise(0.1, 0.3); }
+function sfxBuild() { playTone(500, 0.15, 'square', 0.4); setTimeout(() => playTone(700, 0.15, 'square', 0.4), 150); }
+function sfxComplete() { playTone(600, 0.1, 'sine', 0.4); setTimeout(() => playTone(900, 0.2, 'sine', 0.4), 100); }
+function sfxExplosion() { playTone(80, 0.3, 'sawtooth', 0.6); playNoise(0.3, 0.5); }
+function sfxHarvester() { playTone(400, 0.1, 'sine', 0.3); }
+
+// ============================================================
+// GAME STATE
+// ============================================================
+let game = null;
+
+function createGame() {
+  return {
+    map: [],
+    orePatches: [],
+    units: [],
+    buildings: [],
+    projectiles: [],
+    particles: [],
+    players: [
+      { faction: FACTION.ALLIED, money: 2000, name: 'Allied', kills: 0 },
+      { faction: FACTION.SOVIET, money: 2000, name: 'Soviet', kills: 0 }
+    ],
+    selection: null,       // { type: 'unit'|'building', entity: reference }
+    selectedBuilding: null, // building reference for production UI
+    camera: { x: 0, y: 0 },
+    dragging: false,
+    dragStart: { x: 0, y: 0 },
+    cameraStart: { x: 0, y: 0 },
+    lastDragDist: 0,
+    gameTime: 0,
+    gameOver: false,
+    winner: null,
+    showVictoryAt: 0,
+    tickAccum: 0,
+    tickRate: 30, // ticks per second
+    textureSeed: Math.random() * 10000,
+    // AI state
+    ai: {
+      state: 'economy', // economy -> military -> attack
+      nextStateTime: 0,
+      attackWave: [],
+      lastAttackTime: 0,
+      buildPriority: [BLDG_REFINERY, BLDG_BARRACKS, BLDG_WARFACTORY],
+      buildIndex: 0,
+    }
+  };
+}
+
+// ============================================================
+// MAP GENERATION
+// ============================================================
+function generateMap(g) {
+  // Init all grass
+  for (let y = 0; y < MAP_H; y++) {
+    g.map[y] = [];
+    for (let x = 0; x < MAP_W; x++) {
+      g.map[y][x] = TILE_GRASS;
+    }
+  }
+
+  // Water features - lakes and small rivers
+  // Lake in upper-left area
+  placeWater(g, 3, 2, 4, 3);
+  placeWater(g, 4, 5, 3, 2);
+  // Lake in lower-right area
+  placeWater(g, 32, 22, 5, 4);
+  placeWater(g, 30, 26, 3, 3);
+  // Small pond middle
+  placeWater(g, 17, 12, 3, 2);
+  placeWater(g, 20, 16, 2, 2);
+
+  // Roads connecting bases (horizontal through middle)
+  for (let x = 0; x < MAP_W; x++) {
+    if (g.map[15][x] !== TILE_WATER) g.map[15][x] = TILE_ROAD;
+    if (g.map[14][x] !== TILE_WATER) g.map[14][x] = TILE_ROAD;
+  }
+  // Vertical roads
+  for (let y = 0; y < MAP_H; y++) {
+    if (g.map[y][5] !== TILE_WATER) g.map[y][5] = TILE_ROAD;
+    if (g.map[y][34] !== TILE_WATER) g.map[y][34] = TILE_ROAD;
+  }
+
+  // Ore patches - scattered around the map
+  const orePositions = [
+    {x: 6, y: 6}, {x: 8, y: 8}, {x: 10, y: 5},
+    {x: 12, y: 10}, {x: 15, y: 7}, {x: 18, y: 5},
+    {x: 22, y: 8}, {x: 25, y: 6}, {x: 28, y: 10},
+    {x: 30, y: 5}, {x: 7, y: 20}, {x: 10, y: 22},
+    {x: 14, y: 20}, {x: 18, y: 24}, {x: 22, y: 20},
+    {x: 26, y: 23}, {x: 29, y: 20}, {x: 32, y: 18},
+    {x: 11, y: 14}, {x: 24, y: 14}, {x: 35, y: 8},
+    {x: 4, y: 25}, {x: 36, y: 25}
+  ];
+
+  orePositions.forEach(pos => {
+    if (pos.x < MAP_W && pos.y < MAP_H && g.map[pos.y][pos.x] !== TILE_WATER) {
+      g.map[pos.y][pos.x] = TILE_ORE;
+      g.orePatches.push({
+        x: pos.x * TILE + TILE/2,
+        y: pos.y * TILE + TILE/2,
+        amount: 300 + Math.floor(Math.random() * 700),
+        maxAmount: 300 + Math.floor(Math.random() * 700)
+      });
+    }
+  });
+}
+
+function placeWater(g, x, y, w, h) {
+  for (let dy = 0; dy < h && y + dy < MAP_H; dy++) {
+    for (let dx = 0; dx < w && x + dx < MAP_W; dx++) {
+      g.map[y + dy][x + dx] = TILE_WATER;
+    }
+  }
+}
+
+// ============================================================
+// ENTITY CREATION
+// ============================================================
+
+// --- Units ---
+const UNIT_DEFS = {
+  [UNIT_INFANTRY]: { name: 'Infantry', speed: 80, hp: 60, maxHp: 60, damage: 12, range: 60, attackSpeed: 1.0, cost: 100, size: 6, buildTime: 30 },
+  [UNIT_TANK]: { name: 'Tank', speed: 50, hp: 250, maxHp: 250, damage: 35, range: 80, attackSpeed: 1.5, cost: 500, size: 10, buildTime: 90 },
+  [UNIT_HARVESTER]: { name: 'Harvester', speed: 45, hp: 120, maxHp: 120, damage: 0, range: 0, attackSpeed: 0, cost: 300, size: 9, buildTime: 75 }
+};
+
+function createUnit(g, type, faction, x, y) {
+  const def = UNIT_DEFS[type];
+  const u = {
+    type: type,
+    faction: faction,
+    x: x, y: y,
+    hp: def.hp,
+    maxHp: def.maxHp,
+    speed: def.speed,
+    damage: def.damage,
+    range: def.range,
+    attackSpeed: def.attackSpeed,
+    size: def.size,
+    state: UNIT_STATE_IDLE,
+    target: null,         // unit or building to attack
+    targetX: x, targetY: y, // move destination
+    attackTimer: 0,
+    // Harvester specific
+    oreCarrying: 0,
+    oreCapacity: 500,
+    gatherTarget: null,
+    refineryTarget: null,
+    // Pathfinding
+    path: null,
+    pathIndex: 0,
+    stuckTimer: 0,
+    lastX: x, lastY: y,
+    // Visual
+    animFrame: 0,
+    animTimer: 0,
+    // Unique ID
+    id: g.units.length + g.buildings.length + 1
+  };
+  return u;
+}
+
+// --- Buildings ---
+const BLDG_DEFS = {
+  [BLDG_CYARD]: { name: 'Construction Yard', hp: 600, maxHp: 600, size: 2, cost: 0, buildTime: 0, produces: false },
+  [BLDG_BARRACKS]: { name: 'Barracks', hp: 350, maxHp: 350, size: 2, cost: 500, buildTime: 180, produces: true },
+  [BLDG_WARFACTORY]: { name: 'War Factory', hp: 450, maxHp: 450, size: 2, cost: 1000, buildTime: 240, produces: true },
+  [BLDG_REFINERY]: { name: 'Ore Refinery', hp: 400, maxHp: 400, size: 2, cost: 800, buildTime: 180, produces: true }
+};
+
+function createBuilding(g, type, faction, x, y) {
+  const def = BLDG_DEFS[type];
+  const b = {
+    type: type,
+    faction: faction,
+    x: x, y: y,
+    hp: 1,  // starts with 1 HP, grows during construction
+    maxHp: def.maxHp,
+    size: def.size,
+    produces: def.produces,
+    constructing: def.buildTime > 0,
+    constructTimer: 0,
+    constructTime: def.buildTime,
+    queue: [],          // production queue: [{type, timer, total}]
+    // Unique ID
+    id: g.units.length + g.buildings.length + 1
+  };
+  return b;
+}
+
+function buildableUnits(buildingType) {
+  switch (buildingType) {
+    case BLDG_BARRACKS: return [UNIT_INFANTRY];
+    case BLDG_WARFACTORY: return [UNIT_TANK, UNIT_HARVESTER];
+    default: return [];
+  }
+}
+
+function buildableBuildings() {
+  return [BLDG_BARRACKS, BLDG_WARFACTORY, BLDG_REFINERY];
+}
+
+// ============================================================
+// PLACEMENT HELPERS
+// ============================================================
+function isTileWalkable(g, tx, ty) {
+  if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return false;
+  const t = g.map[ty][tx];
+  return t !== TILE_WATER;
+}
+
+function isTileBuildable(g, tx, ty) {
+  if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return false;
+  const t = g.map[ty][tx];
+  return t !== TILE_WATER && t !== TILE_ORE;
+}
+
+function rectOverlapsBuildings(g, x, y, w, h, excludeId) {
+  const left = x / TILE, top = y / TILE, right = (x + w) / TILE, bottom = (y + h) / TILE;
+  for (const b of g.buildings) {
+    if (b.id === excludeId) continue;
+    const bl = b.x / TILE, bt = b.y / TILE, br = (b.x + b.size * TILE) / TILE, bb = (b.y + b.size * TILE) / TILE;
+    if (left < br && right > bl && top < bb && bottom > bt) return true;
+  }
+  return false;
+}
+
+function findBuildingSpot(g, nearX, nearY, size) {
+  const radius = 8;
+  const sw = size * TILE;
+  for (let r = 1; r <= radius; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const wx = nearX + dx * TILE * size;
+        const wy = nearY + dy * TILE * size;
+        const tx = Math.floor(wx / TILE);
+        const ty = Math.floor(wy / TILE);
+        if (tx < 0 || tx + size > MAP_W || ty < 0 || ty + size > MAP_H) continue;
+        let ok = true;
+        for (let dy2 = 0; dy2 < size && ok; dy2++) {
+          for (let dx2 = 0; dx2 < size && ok; dx2++) {
+            if (!isTileBuildable(g, tx + dx2, ty + dy2)) ok = false;
+          }
+        }
+        if (ok && !rectOverlapsBuildings(g, tx * TILE, ty * TILE, sw, sw, -1)) {
+          return { x: tx * TILE, y: ty * TILE };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// PROJECTILES
+// ============================================================
+function createProjectile(g, fromX, fromY, target, damage, faction) {
+  g.projectiles.push({
+    x: fromX, y: fromY,
+    target: target,
+    damage: damage,
+    faction: faction,
+    speed: 200,
+    life: 1.5,
+    active: true
+  });
+}
+
+// ============================================================
+// PARTICLES
+// ============================================================
+function spawnParticles(g, x, y, count, color, speed) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = (0.5 + Math.random() * 0.5) * (speed || 60);
+    g.particles.push({
+      x: x, y: y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      life: 0.3 + Math.random() * 0.5,
+      maxLife: 0.3 + Math.random() * 0.5,
+      color: color || '#ff6600',
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+// ============================================================
+// INIT BASES
+// ============================================================
+function initBases(g) {
+  // Allied base - bottom left
+  const ax = 3, ay = 24;
+  const allyCY = createBuilding(g, BLDG_CYARD, FACTION.ALLIED, ax * TILE, ay * TILE);
+  allyCY.hp = allyCY.maxHp;
+  allyCY.constructing = false;
+  g.buildings.push(allyCY);
+
+  // Allied starting infantry
+  const ai1 = createUnit(g, UNIT_INFANTRY, FACTION.ALLIED, (ax + 3) * TILE, (ay + 1) * TILE);
+  const ai2 = createUnit(g, UNIT_INFANTRY, FACTION.ALLIED, (ax + 1) * TILE, (ay + 3) * TILE);
+  g.units.push(ai1, ai2);
+
+  // Soviet base - top right
+  const sx = 34, sy = 2;
+  const sovCY = createBuilding(g, BLDG_CYARD, FACTION.SOVIET, sx * TILE, sy * TILE);
+  sovCY.hp = sovCY.maxHp;
+  sovCY.constructing = false;
+  g.buildings.push(sovCY);
+
+  // Soviet starting infantry
+  const si1 = createUnit(g, UNIT_INFANTRY, FACTION.SOVIET, (sx - 2) * TILE, (sy + 1) * TILE);
+  const si2 = createUnit(g, UNIT_INFANTRY, FACTION.SOVIET, (sx + 1) * TILE, (sy - 1) * TILE);
+  g.units.push(si1, si2);
+}
+
+// ============================================================
+// GAME LOGIC
+// ============================================================
+
+// --- Combat ---
+function getClosestEnemy(g, unit, maxDist) {
+  const enemyFaction = unit.faction === FACTION.ALLIED ? FACTION.SOVIET : FACTION.ALLIED;
+  let best = null, bestDist = maxDist;
+  // Check units
+  for (const other of g.units) {
+    if (other.faction !== enemyFaction || other.hp <= 0) continue;
+    const dx = other.x - unit.x, dy = other.y - unit.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if (d < bestDist) { bestDist = d; best = other; }
+  }
+  // Check buildings
+  for (const b of g.buildings) {
+    if (b.faction !== enemyFaction || b.hp <= 0) continue;
+    const cx = b.x + b.size * TILE / 2, cy = b.y + b.size * TILE / 2;
+    const dx = cx - unit.x, dy = cy - unit.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if (d < bestDist) { bestDist = d; best = b; }
+  }
+  return best;
+}
+
+function getClosestRefinery(g, unit) {
+  let best = null, bestDist = Infinity;
+  for (const b of g.buildings) {
+    if (b.type !== BLDG_REFINERY || b.faction !== unit.faction || b.hp <= 0) continue;
+    const cx = b.x + b.size * TILE / 2;
+    const cy = b.y + b.size * TILE / 2;
+    const d = Math.sqrt((cx - unit.x)**2 + (cy - unit.y)**2);
+    if (d < bestDist) { bestDist = d; best = {x: cx, y: cy, building: b}; }
+  }
+  return best;
+}
+
+function getClosestOre(g, unit) {
+  let best = null, bestDist = Infinity;
+  for (const ore of g.orePatches) {
+    if (ore.amount <= 0) continue;
+    const d = Math.sqrt((ore.x - unit.x)**2 + (ore.y - unit.y)**2);
+    if (d < bestDist) { bestDist = d; best = ore; }
+  }
+  return best;
+}
+
+function getBuildingCenter(b) {
+  return { x: b.x + b.size * TILE / 2, y: b.y + b.size * TILE / 2 };
+}
+
+function doDamage(g, entity, damage, attackerFaction) {
+  if (entity.hp <= 0) return;
+  entity.hp -= damage;
+  if (entity.hp <= 0) {
+    entity.hp = 0;
+    const isBuilding = entity.size !== undefined && entity.type !== undefined && !('speed' in entity);
+    if (isBuilding) {
+      const c = getBuildingCenter(entity);
+      spawnParticles(g, c.x, c.y, 15, entity.faction === FACTION.ALLIED ? '#4488ff' : '#ff4444', 80);
+      spawnParticles(g, c.x, c.y, 10, '#ffaa00', 60);
+      sfxExplosion();
+    } else {
+      spawnParticles(g, entity.x, entity.y, 10, entity.faction === FACTION.ALLIED ? '#4488ff' : '#ff4444', 60);
+      sfxExplosion();
+    }
+    g.players[attackerFaction].kills++;
+  }
+}
+
+// --- Movement ---
+function moveUnitToward(g, unit, tx, ty, dt) {
+  const dx = tx - unit.x;
+  const dy = ty - unit.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 2) return true;
+
+  const step = unit.speed * dt;
+  if (dist <= step) {
+    unit.x = tx;
+    unit.y = ty;
+    return true;
+  }
+
+  unit.x += (dx / dist) * step;
+  unit.y += (dy / dist) * step;
+  return false;
+}
+
+function hasValidPath(g, x1, y1, x2, y2) {
+  // Simple check: can we draw a straight line without hitting water?
+  const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / (TILE * 2);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const px = x1 + (x2 - x1) * t;
+    const py = y1 + (y2 - y1) * t;
+    const tx = Math.floor(px / TILE);
+    const ty = Math.floor(py / TILE);
+    if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return false;
+    if (g.map[ty][tx] === TILE_WATER) return false;
+  }
+  return true;
+}
+
+// --- Unit Update ---
+function updateUnit(g, u, dt) {
+  if (u.hp <= 0) return;
+
+  // Animation
+  u.animTimer += dt;
+  if (u.animTimer > 0.2) {
+    u.animTimer = 0;
+    u.animFrame = (u.animFrame + 1) % 4;
+  }
+
+  // Track stuck state
+  const moved = Math.abs(u.x - u.lastX) + Math.abs(u.y - u.lastY);
+  if (moved < 0.5) {
+    u.stuckTimer += dt;
+  } else {
+    u.stuckTimer = Math.max(0, u.stuckTimer - dt * 2);
+  }
+  u.lastX = u.x;
+  u.lastY = u.y;
+
+  // Attack timer
+  if (u.attackTimer > 0) u.attackTimer -= dt;
+
+  const def = UNIT_DEFS[u.type];
+
+  // Auto-attack: if idle and enemy nearby, attack
+  if (u.state === UNIT_STATE_IDLE && u.damage > 0) {
+    const enemy = getClosestEnemy(g, u, u.range * 2);
+    if (enemy) {
+      u.state = UNIT_STATE_ATTACKING;
+      u.target = enemy;
+    }
+  }
+
+  switch (u.state) {
+    case UNIT_STATE_IDLE:
+      break;
+
+    case UNIT_STATE_MOVING: {
+      const done = moveUnitToward(g, u, u.targetX, u.targetY, dt);
+      if (done) {
+        u.state = UNIT_STATE_IDLE;
+      }
+      // Stuck - try to go around
+      if (u.stuckTimer > 0.5) {
+        // Jiggle
+        u.x += (Math.random() - 0.5) * TILE * 0.3;
+        u.y += (Math.random() - 0.5) * TILE * 0.3;
+        u.stuckTimer = 0;
+      }
+      break;
+    }
+
+    case UNIT_STATE_ATTACKING: {
+      if (!u.target || u.target.hp <= 0) {
+        // Target dead, find new or idle
+        u.target = null;
+        const enemy = getClosestEnemy(g, u, 200);
+        if (enemy) {
+          u.target = enemy;
+        } else {
+          u.state = UNIT_STATE_IDLE;
+          break;
+        }
+      }
+
+      // Get target position
+      let tx, ty;
+      if (u.target.size !== undefined) {
+        // Building target
+        const c = getBuildingCenter(u.target);
+        tx = c.x; ty = c.y;
+      } else {
+        tx = u.target.x; ty = u.target.y;
+      }
+
+      const dx = tx - u.x, dy = ty - u.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+
+      if (dist <= u.range) {
+        // In range, fire!
+        if (u.attackTimer <= 0) {
+          createProjectile(g, u.x, u.y, u.target, u.damage, u.faction);
+          u.attackTimer = u.attackSpeed;
+          sfxAttack();
+        }
+      } else {
+        // Move toward target
+        moveUnitToward(g, u, tx, ty, dt);
+        if (u.stuckTimer > 0.5) {
+          u.x += (Math.random() - 0.5) * TILE * 0.3;
+          u.y += (Math.random() - 0.5) * TILE * 0.3;
+          u.stuckTimer = 0;
+        }
+      }
+      break;
+    }
+
+    case UNIT_STATE_GATHERING: {
+      // Harvester going to ore patch
+      if (u.type !== UNIT_HARVESTER) { u.state = UNIT_STATE_IDLE; break; }
+      if (u.oreCarrying >= u.oreCapacity) {
+        u.state = UNIT_STATE_RETURNING;
+        const ref = getClosestRefinery(g, u);
+        if (ref) { u.refineryTarget = ref; u.targetX = ref.x; u.targetY = ref.y; }
+        break;
+      }
+
+      // Check if we have a gather target
+      if (!u.gatherTarget || (u.gatherTarget.amount !== undefined && u.gatherTarget.amount <= 0)) {
+        const ore = getClosestOre(g, u);
+        if (ore) {
+          u.gatherTarget = ore;
+          u.targetX = ore.x;
+          u.targetY = ore.y;
+        } else {
+          u.state = UNIT_STATE_IDLE;
+          break;
+        }
+      }
+
+      const dx = u.gatherTarget.x - u.x, dy = u.gatherTarget.y - u.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+
+      if (dist < TILE * 1.2) {
+        // At ore patch - collect
+        const collectRate = 40 * dt;
+        if (u.gatherTarget.amount > 0) {
+          const collected = Math.min(collectRate, u.gatherTarget.amount, u.oreCapacity - u.oreCarrying);
+          u.oreCarrying += collected;
+          u.gatherTarget.amount -= collected;
+          sfxHarvester();
+        }
+        if (u.oreCarrying >= u.oreCapacity || u.gatherTarget.amount <= 0) {
+          u.state = UNIT_STATE_RETURNING;
+          const ref = getClosestRefinery(g, u);
+          if (ref) { u.refineryTarget = ref; u.targetX = ref.x; u.targetY = ref.y; }
+          u.gatherTarget = null;
+        }
+      } else {
+        moveUnitToward(g, u, u.targetX, u.targetY, dt);
+      }
+      break;
+    }
+
+    case UNIT_STATE_RETURNING: {
+      if (u.type !== UNIT_HARVESTER) { u.state = UNIT_STATE_IDLE; break; }
+
+      if (!u.refineryTarget || !u.refineryTarget.building || u.refineryTarget.building.hp <= 0) {
+        const ref = getClosestRefinery(g, u);
+        if (ref) { u.refineryTarget = ref; u.targetX = ref.x; u.targetY = ref.y; }
+        else { u.state = UNIT_STATE_IDLE; break; }
+      }
+
+      const dx = u.targetX - u.x, dy = u.targetY - u.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+
+      if (dist < TILE * 1.5) {
+        // At refinery - deposit
+        const money = Math.ceil(u.oreCarrying * 1.5); // 1.5x multiplier for processed ore
+        g.players[u.faction].money += money;
+        u.oreCarrying = 0;
+        sfxComplete();
+        // Go back to gathering
+        u.state = UNIT_STATE_GATHERING;
+        const ore = getClosestOre(g, u);
+        if (ore) {
+          u.gatherTarget = ore;
+          u.targetX = ore.x;
+          u.targetY = ore.y;
+        }
+      } else {
+        moveUnitToward(g, u, u.targetX, u.targetY, dt);
+      }
+      break;
+    }
+  }
+
+  // Clamp to map
+  u.x = Math.max(TILE/2, Math.min(WORLD_W - TILE/2, u.x));
+  u.y = Math.max(TILE/2, Math.min(WORLD_H - TILE/2, u.y));
+
+  // Auto-harvester behavior: idle harvester goes to gather
+  if (u.type === UNIT_HARVESTER && u.state === UNIT_STATE_IDLE && u.oreCarrying < u.oreCapacity) {
+    const ore = getClosestOre(g, u);
+    if (ore) {
+      u.state = UNIT_STATE_GATHERING;
+      u.gatherTarget = ore;
+      u.targetX = ore.x;
+      u.targetY = ore.y;
+    }
+  }
+
+  // Auto-attack for idle military units
+  if (u.damage > 0 && u.state === UNIT_STATE_IDLE) {
+    const enemy = getClosestEnemy(g, u, 150);
+    if (enemy) {
+      u.state = UNIT_STATE_ATTACKING;
+      u.target = enemy;
+    }
+  }
+}
+
+// --- Building Update ---
+function updateBuilding(g, b, dt) {
+  if (b.hp <= 0) return;
+
+  // Construction progress
+  if (b.constructing) {
+    b.constructTimer += dt;
+    const progress = b.constructTimer / b.constructTime;
+    b.hp = Math.max(1, Math.floor(progress * b.maxHp));
+    if (b.constructTimer >= b.constructTime) {
+      b.constructing = false;
+      b.hp = b.maxHp;
+      sfxComplete();
+
+      // If refinery, spawn a free harvester
+      if (b.type === BLDG_REFINERY) {
+        const spawnX = b.x + b.size * TILE + TILE/2;
+        const spawnY = b.y + b.size * TILE / 2;
+        if (spawnX < WORLD_W - TILE/2) {
+          const h = createUnit(g, UNIT_HARVESTER, b.faction, spawnX, spawnY);
+          g.units.push(h);
+          sfxComplete();
+        }
+      }
+    }
+  }
+
+  // Production queue
+  if (b.queue.length > 0) {
+    const item = b.queue[0];
+    item.timer -= dt;
+    if (item.timer <= 0) {
+      // Spawn unit
+      b.queue.shift();
+      const def = UNIT_DEFS[item.type];
+      const spawnX = b.x + b.size * TILE + TILE/2;
+      const spawnY = b.y + b.size * TILE / 2;
+      const u = createUnit(g, item.type, b.faction, spawnX, spawnY);
+      g.units.push(u);
+      sfxComplete();
+    }
+  }
+}
+
+// --- Projectile Update ---
+function updateProjectiles(g, dt) {
+  for (let i = g.projectiles.length - 1; i >= 0; i--) {
+    const p = g.projectiles[i];
+    p.life -= dt;
+
+    if (!p.active || p.life <= 0) {
+      g.projectiles.splice(i, 1);
+      continue;
+    }
+
+    // Get target position
+    let tx, ty;
+    if (p.target) {
+      if (p.target.size !== undefined) {
+        // Building
+        const c = getBuildingCenter(p.target);
+        tx = c.x; ty = c.y;
+      } else {
+        tx = p.target.x; ty = p.target.y;
+      }
+    } else {
+      g.projectiles.splice(i, 1);
+      continue;
+    }
+
+    // Move toward target
+    const dx = tx - p.x, dy = ty - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const step = p.speed * dt;
+
+    if (dist <= step + 8) {
+      // Hit!
+      if (p.target && p.target.hp > 0) {
+        doDamage(g, p.target, p.damage, p.faction);
+        spawnParticles(g, p.x, p.y, 5, '#ffaa00', 40);
+      }
+      p.active = false;
+      g.projectiles.splice(i, 1);
+    } else {
+      p.x += (dx / dist) * step;
+      p.y += (dy / dist) * step;
+    }
+  }
+}
+
+// --- Particle Update ---
+function updateParticles(g, dt) {
+  for (let i = g.particles.length - 1; i >= 0; i--) {
+    const p = g.particles[i];
+    p.life -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= 0.95;
+    p.vy *= 0.95;
+    if (p.life <= 0) {
+      g.particles.splice(i, 1);
+    }
+  }
+}
+
+// ============================================================
+// AI SYSTEM
+// ============================================================
+function updateAI(g, dt) {
+  const ai = g.ai;
+  const soviet = g.players[FACTION.SOVIET];
+
+  // Gather soviet buildings
+  const cyards = g.buildings.filter(b => b.type === BLDG_CYARD && b.faction === FACTION.SOVIET && b.hp > 0);
+  const refineries = g.buildings.filter(b => b.type === BLDG_REFINERY && b.faction === FACTION.SOVIET && b.hp > 0 && !b.constructing);
+  const barracks = g.buildings.filter(b => b.type === BLDG_BARRACKS && b.faction === FACTION.SOVIET && b.hp > 0 && !b.constructing);
+  const warFactories = g.buildings.filter(b => b.type === BLDG_WARFACTORY && b.faction === FACTION.SOVIET && b.hp > 0 && !b.constructing);
+  const sovietUnits = g.units.filter(u => u.faction === FACTION.SOVIET && u.hp > 0);
+  const sovietHarvesters = sovietUnits.filter(u => u.type === UNIT_HARVESTER);
+  const sovietMilitary = sovietUnits.filter(u => u.damage > 0);
+
+  // === ECONOMY PHASE ===
+  if (ai.state === 'economy') {
+    // Build refinery if none and can afford
+    if (refineries.length === 0 && cyards.length > 0 && soviet.money >= BLDG_DEFS[BLDG_REFINERY].cost) {
+      queueBuilding(g, FACTION.SOVIET, BLDG_REFINERY);
+      ai.nextStateTime = g.gameTime + 5;
+    }
+    // Build extra harvester if only one
+    else if (sovietHarvesters.length < 2 && warFactories.length > 0 && soviet.money >= UNIT_DEFS[UNIT_HARVESTER].cost) {
+      queueUnitProduction(g, FACTION.SOVIET, UNIT_HARVESTER);
+    }
+    // Build barracks for troops
+    else if (barracks.length === 0 && cyards.length > 0 && soviet.money >= BLDG_DEFS[BLDG_BARRACKS].cost) {
+      queueBuilding(g, FACTION.SOVIET, BLDG_BARRACKS);
+    }
+    // Build war factory
+    else if (warFactories.length === 0 && cyards.length > 0 && barracks.length > 0 && soviet.money >= BLDG_DEFS[BLDG_WARFACTORY].cost) {
+      queueBuilding(g, FACTION.SOVIET, BLDG_WARFACTORY);
+    }
+    // Transition to military after some time
+    else if (g.gameTime > 20 && refineries.length > 0 && barracks.length > 0) {
+      ai.state = 'military';
+      ai.nextStateTime = g.gameTime + 10;
+    }
+  }
+
+  // === MILITARY PHASE ===
+  else if (ai.state === 'military') {
+    // Keep producing units
+    if (barracks.length > 0) {
+      // Queue infantry if less than 8 military units
+      if (sovietMilitary.length < 8 && soviet.money >= UNIT_DEFS[UNIT_INFANTRY].cost) {
+        const b = barracks.find(b => !b.constructing && b.queue.length < 3);
+        if (b) {
+          b.queue.push({ type: UNIT_INFANTRY, timer: UNIT_DEFS[UNIT_INFANTRY].buildTime, total: UNIT_DEFS[UNIT_INFANTRY].buildTime });
+          soviet.money -= UNIT_DEFS[UNIT_INFANTRY].cost;
+        }
+      }
+    }
+    if (warFactories.length > 0) {
+      // Queue tanks
+      if (sovietMilitary.length < 10 && soviet.money >= UNIT_DEFS[UNIT_TANK].cost) {
+        const b = warFactories.find(b => !b.constructing && b.queue.length < 2);
+        if (b) {
+          b.queue.push({ type: UNIT_TANK, timer: UNIT_DEFS[UNIT_TANK].buildTime, total: UNIT_DEFS[UNIT_TANK].buildTime });
+          soviet.money -= UNIT_DEFS[UNIT_TANK].cost;
+        }
+      }
+    }
+
+    // Keep harvesters running
+    if (sovietHarvesters.length < 2 && warFactories.length > 0 && soviet.money >= UNIT_DEFS[UNIT_HARVESTER].cost) {
+      queueUnitProduction(g, FACTION.SOVIET, UNIT_HARVESTER);
+    }
+
+    // Transition to attack when we have enough units
+    if (sovietMilitary.length >= 6 && g.gameTime > ai.nextStateTime) {
+      ai.state = 'attack';
+      ai.lastAttackTime = g.gameTime;
+      // Gather attack wave
+      ai.attackWave = sovietMilitary.slice(0, 8);
+    }
+  }
+
+  // === ATTACK PHASE ===
+  else if (ai.state === 'attack') {
+    // Command units to attack
+    const targets = ai.attackWave.filter(u => u.hp > 0);
+    if (targets.length > 0) {
+      // Find Allied buildings to attack
+      const alliedBuildings = g.buildings.filter(b => b.faction === FACTION.ALLIED && b.hp > 0);
+      if (alliedBuildings.length > 0 && ai.lastAttackTime <= g.gameTime) {
+        // Sort buildings by distance from Soviet base
+        const sovBase = cyards.length > 0 ? getBuildingCenter(cyards[0]) : {x: 34*TILE, y: 2*TILE};
+        alliedBuildings.sort((a, b) => {
+          const ca = getBuildingCenter(a), cb = getBuildingCenter(b);
+          const da = Math.sqrt((ca.x - sovBase.x)**2 + (ca.y - sovBase.y)**2);
+          const db = Math.sqrt((cb.x - sovBase.x)**2 + (cb.y - sovBase.y)**2);
+          return da - db;
+        });
+
+        const target = alliedBuildings[0];
+        const tc = getBuildingCenter(target);
+
+        targets.forEach(u => {
+          if (u.state === UNIT_STATE_IDLE || u.state === UNIT_STATE_MOVING) {
+            u.state = UNIT_STATE_ATTACKING;
+            u.target = target;
+          }
+        });
+        ai.lastAttackTime = g.gameTime + 3;
+      }
+    }
+
+    // After attacking for a while, go back to building more
+    if (g.gameTime > ai.lastAttackTime + 15 || targets.length < 3) {
+      ai.state = 'military';
+      ai.nextStateTime = g.gameTime + 5;
+      // Get fresh units
+      const fresh = g.units.filter(u => u.faction === FACTION.SOVIET && u.hp > 0 && u.damage > 0);
+      ai.attackWave = fresh.slice(0, 8);
+    }
+  }
+}
+
+function queueBuilding(g, faction, buildingType) {
+  const cyards = g.buildings.filter(b => b.type === BLDG_CYARD && b.faction === faction && b.hp > 0 && !b.constructing);
+  if (cyards.length === 0) return;
+  const cy = cyards[0];
+  const def = BLDG_DEFS[buildingType];
+  const player = g.players[faction];
+  if (player.money < def.cost) return;
+
+  // Find placement spot near a random CY or existing building of this faction
+  const nearBldg = g.buildings.filter(b => b.faction === faction && b.hp > 0);
+  const near = nearBldg.length > 0 ? nearBldg[Math.floor(Math.random() * nearBldg.length)] : cy;
+  const nearPos = getBuildingCenter(near);
+
+  const spot = findBuildingSpot(g, nearPos.x, nearPos.y, def.size);
+  if (!spot) return;
+
+  player.money -= def.cost;
+  const building = createBuilding(g, buildingType, faction, spot.x, spot.y);
+  g.buildings.push(building);
+  sfxBuild();
+}
+
+function queueUnitProduction(g, faction, unitType) {
+  const def = UNIT_DEFS[unitType];
+  const player = g.players[faction];
+  if (player.money < def.cost) return;
+
+  // Find appropriate building
+  let buildings;
+  if (unitType === UNIT_INFANTRY) {
+    buildings = g.buildings.filter(b => b.type === BLDG_BARRACKS && b.faction === faction && b.hp > 0 && !b.constructing);
+  } else {
+    buildings = g.buildings.filter(b => b.type === BLDG_WARFACTORY && b.faction === faction && b.hp > 0 && !b.constructing);
+  }
+
+  if (buildings.length === 0) return;
+  const b = buildings[0];
+
+  player.money -= def.cost;
+  b.queue.push({ type: unitType, timer: def.buildTime, total: def.buildTime });
+}
+
+// ============================================================
+// INPUT HANDLING
+// ============================================================
+let inputState = {
+  touchActive: false,
+  touchStartX: 0, touchStartY: 0,
+  lastTouchX: 0, lastTouchY: 0,
+  touchMoved: false,
+  pointerX: 0, pointerY: 0,
+  tapCount: 0,
+  mouseDown: false,
+  mouseMoved: false
+};
+
+function getCanvasPos(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left) * (canvas.width / rect.width),
+    y: (clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function screenToWorld(cx, cy, cam) {
+  // Account for sidebar offset
+  const viewW = canvas.width - SIDEBAR_W;
+  return {
+    x: (cx - 0) + cam.x,
+    y: cy + cam.y
+  };
+}
+
+function isInSidebar(cx) {
+  return cx >= canvas.width - SIDEBAR_W;
+}
+
+function isInMinimap(cx, cy) {
+  const mw = MINIMAP_SIZE;
+  const mh = MINIMAP_H;
+  return (cx >= 8 && cx <= 8 + mw && cy >= canvas.height - mh - 8 && cy <= canvas.height - 8);
+}
+
+function handleTap(g, wx, wy) {
+  // Check if we tapped on a unit or building
+  const enemyFaction = (sel) => {
+    if (!sel) return null;
+    return sel.entity.faction === FACTION.ALLIED ? FACTION.SOVIET : FACTION.ALLIED;
+  };
+
+  // Find entity at world position (buildings first, then units)
+  let clickedEntity = null;
+  let clickedIsBuilding = false;
+
+  // Check units
+  for (const u of g.units) {
+    if (u.hp <= 0) continue;
+    const dx = wx - u.x, dy = wy - u.y;
+    if (dx*dx + dy*dy < (u.size + 6) * (u.size + 6)) {
+      clickedEntity = u;
+      clickedIsBuilding = false;
+    }
+  }
+
+  // Check buildings
+  if (!clickedEntity) {
+    for (const b of g.buildings) {
+      if (b.hp <= 0) continue;
+      if (wx >= b.x && wx <= b.x + b.size * TILE && wy >= b.y && wy <= b.y + b.size * TILE) {
+        clickedEntity = b;
+        clickedIsBuilding = true;
+        break;
+      }
+    }
+  }
+
+  if (!clickedEntity) {
+    // Clicked on ground - move command
+    if (g.selection && g.selection.type === 'unit') {
+      const u = g.selection.entity;
+      if (u.hp > 0) {
+        u.state = UNIT_STATE_MOVING;
+        u.targetX = wx;
+        u.targetY = wy;
+        u.target = null;
+        sfxMove();
+      }
+    } else {
+      // Deselect
+      g.selection = null;
+      g.selectedBuilding = null;
+    }
+    return;
+  }
+
+  // Clicked on something
+  if (clickedIsBuilding) {
+    const b = clickedEntity;
+    if (b.faction === FACTION.ALLIED) {
+      // Select our building for production
+      g.selection = { type: 'building', entity: b };
+      g.selectedBuilding = b;
+      sfxSelect();
+    } else {
+      // Enemy building - attack it
+      if (g.selection && g.selection.type === 'unit') {
+        const u = g.selection.entity;
+        if (u.hp > 0) {
+          u.state = UNIT_STATE_ATTACKING;
+          u.target = b;
+          sfxAttack();
+        }
+      }
+    }
+  } else {
+    const u = clickedEntity;
+    if (u.faction === FACTION.ALLIED) {
+      // Select our unit
+      g.selection = { type: 'unit', entity: u };
+      g.selectedBuilding = null;
+      sfxSelect();
+    } else {
+      // Enemy unit - attack it
+      if (g.selection && g.selection.type === 'unit') {
+        const our = g.selection.entity;
+        if (our.hp > 0) {
+          our.state = UNIT_STATE_ATTACKING;
+          our.target = u;
+          sfxAttack();
+        }
+      }
+    }
+  }
+}
+
+function handleSidebarTap(g, cx, cy) {
+  const relX = cx - (canvas.width - SIDEBAR_W);
+  const relY = cy - 60; // Skip resource display
+
+  if (relY < 0) return;
+
+  // Calculate which button was pressed
+  const buttonH = 44;
+  const buttonGap = 4;
+  const buttonStart = 5;
+  const index = Math.floor((relY - buttonStart) / (buttonH + buttonGap));
+
+  // Determine available actions based on selection
+  const actions = getSidebarActions(g);
+  if (index >= 0 && index < actions.length) {
+    const action = actions[index];
+    if (action.enabled) {
+      action.action(g);
+      sfxBuild();
+    }
+  }
+}
+
+function getSidebarActions(g) {
+  const actions = [];
+  const player = g.players[FACTION.ALLIED];
+  const sel = g.selection;
+
+  if (sel && sel.type === 'building') {
+    const b = sel.entity;
+    if (b.hp <= 0) return actions;
+
+    if (b.type === BLDG_CYARD && !b.constructing) {
+      // Show building options
+      buildableBuildings().forEach(bt => {
+        const def = BLDG_DEFS[bt];
+        const canAfford = player.money >= def.cost;
+        // Check if we already have one (optional limit)
+        const hasOne = g.buildings.filter(b2 => b2.type === bt && b2.faction === FACTION.ALLIED && b2.hp > 0).length > 0;
+        actions.push({
+          label: def.name,
+          cost: def.cost,
+          desc: 'Building',
+          enabled: canAfford,
+          action: (g) => {
+            const spot = findBuildingSpot(g, b.x + TILE, b.y + TILE, def.size);
+            if (spot && player.money >= def.cost) {
+              player.money -= def.cost;
+              const nb = createBuilding(g, bt, FACTION.ALLIED, spot.x, spot.y);
+              g.buildings.push(nb);
+            }
+          }
+        });
+      });
+    }
+    else if ((b.type === BLDG_BARRACKS || b.type === BLDG_WARFACTORY) && !b.constructing) {
+      const unitTypes = buildableUnits(b.type);
+      unitTypes.forEach(ut => {
+        const def = UNIT_DEFS[ut];
+        const canAfford = player.money >= def.cost;
+        const inQueue = b.queue.length > 0;
+        actions.push({
+          label: def.name,
+          cost: def.cost,
+          desc: inQueue ? `Queue: ${b.queue.length}` : 'Unit',
+          enabled: canAfford,
+          action: (g) => {
+            if (player.money >= def.cost) {
+              player.money -= def.cost;
+              b.queue.push({ type: ut, timer: def.buildTime, total: def.buildTime });
+            }
+          }
+        });
+      });
+    }
+  }
+
+  return actions;
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+
+function drawTerrain(g) {
+  const cam = g.camera;
+
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      const screenX = x * TILE - cam.x;
+      const screenY = y * TILE - cam.y;
+
+      // Frustum culling
+      if (screenX + TILE < 0 || screenX > canvas.width - SIDEBAR_W ||
+          screenY + TILE < 0 || screenY > canvas.height) continue;
+
+      const tile = g.map[y][x];
+
+      switch (tile) {
+        case TILE_GRASS:
+          // Grass with slight variation
+          const shade = ((x * 7 + y * 13 + Math.floor(g.textureSeed)) % 5) * 3;
+          ctx.fillStyle = `rgb(${50+shade}, ${100+shade-5}, ${40+shade})`;
+          break;
+        case TILE_ROAD:
+          ctx.fillStyle = '#6a6a5a';
+          break;
+        case TILE_WATER:
+          ctx.fillStyle = '#2a4a7a';
+          break;
+        case TILE_ORE:
+          ctx.fillStyle = '#5a5a2a';
+          break;
+      }
+      ctx.fillRect(screenX, screenY, TILE, TILE);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(screenX, screenY, TILE, TILE);
+
+      // Road markings
+      if (tile === TILE_ROAD) {
+        ctx.strokeStyle = '#555545';
+        ctx.lineWidth = 1;
+        if (y > 0 && g.map[y-1][x] === TILE_ROAD) {
+          ctx.beginPath(); ctx.moveTo(screenX + TILE/2, screenY); ctx.lineTo(screenX + TILE/2, screenY + TILE); ctx.stroke();
+        }
+        if (x > 0 && g.map[y][x-1] === TILE_ROAD) {
+          ctx.beginPath(); ctx.moveTo(screenX, screenY + TILE/2); ctx.lineTo(screenX + TILE, screenY + TILE/2); ctx.stroke();
+        }
+      }
+    }
+  }
+}
+
+function drawOrePatches(g) {
+  const cam = g.camera;
+  for (const ore of g.orePatches) {
+    if (ore.amount <= 0) continue;
+    const sx = ore.x - cam.x;
+    const sy = ore.y - cam.y;
+    if (sx < -TILE || sx > canvas.width - SIDEBAR_W + TILE || sy < -TILE || sy > canvas.height + TILE) continue;
+
+    const fullness = ore.amount / ore.maxAmount;
+    const size = TILE * 0.35 * (0.5 + fullness * 0.5);
+
+    // Glowing ore
+    ctx.fillStyle = `rgba(200, 200, 50, ${0.6 + fullness * 0.4})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, size, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner highlight
+    ctx.fillStyle = `rgba(255, 255, 100, ${0.3 + fullness * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(sx - size*0.2, sy - size*0.2, size*0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawBuildings(g) {
+  const cam = g.camera;
+  const player = g.players[FACTION.ALLIED];
+
+  for (const b of g.buildings) {
+    if (b.hp <= 0) continue;
+    const sx = b.x - cam.x;
+    const sy = b.y - cam.y;
+    const sw = b.size * TILE;
+    const sh = b.size * TILE;
+
+    const isConstructing = b.constructing;
+    const isSelected = g.selection && g.selection.type === 'building' && g.selection.entity === b;
+
+    // Frustum culling
+    if (sx + sw < 0 || sx > canvas.width - SIDEBAR_W || sy + sh < 0 || sy > canvas.height) continue;
+
+    // Building frame
+    const alpha = isConstructing ? 0.5 + (b.constructTimer / b.constructTime) * 0.5 : 1;
+    ctx.globalAlpha = alpha;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(sx + 3, sy + 3, sw, sh);
+
+    // Building body
+    const color = b.faction === FACTION.ALLIED ? '#4466aa' : '#aa3333';
+    const lightColor = b.faction === FACTION.ALLIED ? '#5577bb' : '#bb4444';
+    const darkColor = b.faction === FACTION.ALLIED ? '#334488' : '#882222';
+
+    ctx.fillStyle = color;
+    ctx.fillRect(sx, sy, sw, sh);
+
+    // Top highlight
+    ctx.fillStyle = lightColor;
+    ctx.fillRect(sx, sy, sw, 4);
+    ctx.fillRect(sx, sy, 4, sh);
+
+    // Bottom/right shadow
+    ctx.fillStyle = darkColor;
+    ctx.fillRect(sx, sy + sh - 3, sw, 3);
+    ctx.fillRect(sx + sw - 3, sy, 3, sh);
+
+    // Roof detail
+    ctx.fillStyle = darkColor;
+    ctx.fillRect(sx + 4, sy + 4, sw - 8, sh - 8);
+    ctx.fillStyle = lightColor;
+    ctx.fillRect(sx + 6, sy + 6, sw - 12, sh - 12);
+
+    // Building type indicator
+    ctx.fillStyle = color;
+    ctx.fillRect(sx + 8, sy + 8, sw - 16, sh - 16);
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.min(sw, sh) * 0.4}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    let symbol = '';
+    switch (b.type) {
+      case BLDG_CYARD: symbol = '⚙'; break;
+      case BLDG_BARRACKS: symbol = '⚔'; break;
+      case BLDG_WARFACTORY: symbol = '⛭'; break;
+      case BLDG_REFINERY: symbol = '⛽'; break;
+    }
+    ctx.fillText(symbol, sx + sw/2, sy + sh/2);
+
+    // Faction symbol
+    ctx.fillStyle = b.faction === FACTION.ALLIED ? '#4488ff' : '#ff4444';
+    ctx.beginPath();
+    ctx.arc(sx + sw - 10, sy + 10, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+
+    // Selection indicator
+    if (isSelected) {
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
+      ctx.setLineDash([]);
+    }
+
+    // Health bar
+    drawHealthBar(sx, sy - 8, sw, 5, b.hp, b.maxHp);
+
+    // Construction progress
+    if (isConstructing) {
+      const progress = b.constructTimer / b.constructTime;
+      drawHealthBar(sx, sy + sh + 3, sw, 3, b.constructTimer, b.constructTime);
+      ctx.fillStyle = '#ffff00';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.floor(progress * 100) + '%', sx + sw/2, sy + sh + 13);
+    }
+
+    // Production progress on producing buildings
+    if (b.queue.length > 0) {
+      const item = b.queue[0];
+      const prog = 1 - (item.timer / item.total);
+      const barY = sy - 14;
+      const barW = sw;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(sx, barY, barW, 4);
+      ctx.fillStyle = '#ffcc00';
+      ctx.fillRect(sx, barY, barW * prog, 4);
+    }
+  }
+}
+
+function drawHealthBar(x, y, w, h, current, max) {
+  const ratio = Math.max(0, current / max);
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  ctx.fillStyle = ratio > 0.5 ? '#44cc44' : ratio > 0.25 ? '#cccc44' : '#cc4444';
+  ctx.fillRect(x, y, w * ratio, h);
+}
+
+function drawUnits(g) {
+  const cam = g.camera;
+
+  for (const u of g.units) {
+    if (u.hp <= 0) continue;
+    const sx = u.x - cam.x;
+    const sy = u.y - cam.y;
+
+    if (sx < -TILE || sx > canvas.width - SIDEBAR_W + TILE || sy < -TILE || sy > canvas.height + TILE) continue;
+
+    const isSelected = g.selection && g.selection.type === 'unit' && g.selection.entity === u;
+
+    // Selection circle
+    if (isSelected) {
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(sx, sy, u.size + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Unit body
+    const color = u.faction === FACTION.ALLIED ? '#4488ff' : '#ff4444';
+    const darkColor = u.faction === FACTION.ALLIED ? '#2266cc' : '#cc2222';
+
+    if (u.type === UNIT_INFANTRY) {
+      // Infantry - small circle with gun
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(sx, sy, u.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = darkColor;
+      ctx.beginPath();
+      ctx.arc(sx, sy, u.size * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      // Gun
+      ctx.fillStyle = '#888';
+      ctx.fillRect(sx + 3, sy - 2, 6, 3);
+      // Direction indicator
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(sx + 2, sy - 2, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (u.type === UNIT_TANK) {
+      // Tank - rectangle with turret
+      const tw = u.size * 1.6;
+      const th = u.size * 1.1;
+      ctx.fillStyle = darkColor;
+      ctx.fillRect(sx - tw/2, sy - th/2, tw, th);
+      ctx.fillStyle = color;
+      ctx.fillRect(sx - tw/2 + 2, sy - th/2 + 2, tw - 4, th - 4);
+      // Treads
+      ctx.fillStyle = '#555';
+      ctx.fillRect(sx - tw/2, sy - th/2, 3, th);
+      ctx.fillRect(sx + tw/2 - 3, sy - th/2, 3, th);
+      // Turret
+      ctx.fillStyle = '#777';
+      ctx.beginPath();
+      ctx.arc(sx, sy, u.size * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Barrel
+      ctx.fillStyle = '#666';
+      ctx.fillRect(sx, sy - 2, 8, 4);
+    } else if (u.type === UNIT_HARVESTER) {
+      // Harvester - boxy truck
+      const hw = u.size * 1.5;
+      const hh = u.size * 0.9;
+      ctx.fillStyle = darkColor;
+      ctx.fillRect(sx - hw/2, sy - hh/2, hw, hh);
+      ctx.fillStyle = color;
+      ctx.fillRect(sx - hw/2 + 2, sy - hh/2 + 2, hw - 4, hh - 4);
+      // Ore bin
+      ctx.fillStyle = '#886622';
+      ctx.fillRect(sx - hw/2 + 4, sy - hh/2 - 2, hw - 8, 5);
+      // Wheels
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.arc(sx - hw/2 + 5, sy + hh/2 - 1, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sx + hw/2 - 5, sy + hh/2 - 1, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Ore fill indicator
+      if (u.oreCarrying > 0) {
+        const fill = u.oreCarrying / u.oreCapacity;
+        ctx.fillStyle = '#ccaa44';
+        ctx.fillRect(sx - hw/2 + 6, sy - hh/2 + 4, (hw - 12) * fill, 3);
+      }
+    }
+
+    // Health bar
+    drawHealthBar(sx - u.size - 2, sy - u.size - 6, (u.size + 2) * 2, 4, u.hp, u.maxHp);
+  }
+}
+
+function drawProjectiles(g) {
+  const cam = g.camera;
+  for (const p of g.projectiles) {
+    if (!p.active) continue;
+    const sx = p.x - cam.x;
+    const sy = p.y - cam.y;
+    ctx.fillStyle = '#ffcc44';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Trail
+    ctx.fillStyle = '#ff8844';
+    ctx.beginPath();
+    ctx.arc(sx - p.vx * 0.02, sy - p.vy * 0.02, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawParticles(g) {
+  const cam = g.camera;
+  for (const p of g.particles) {
+    const sx = p.x - cam.x;
+    const sy = p.y - cam.y;
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(sx - p.size/2, sy - p.size/2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// UI RENDERING
+// ============================================================
+
+function drawSidebar(g) {
+  const sbX = canvas.width - SIDEBAR_W;
+  const sbW = SIDEBAR_W;
+  const sbH = canvas.height;
+
+  // Sidebar background
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(sbX, 0, sbW, sbH);
+
+  // Red stripe at top
+  ctx.fillStyle = '#cc0000';
+  ctx.fillRect(sbX, 0, sbW, 3);
+
+  // Faction header
+  const player = g.players[FACTION.ALLIED];
+  ctx.fillStyle = '#4488ff';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText('ALLIED', sbX + sbW/2, 18);
+
+  // Resources
+  ctx.fillStyle = '#ffcc00';
+  ctx.font = 'bold 13px monospace';
+  ctx.fillText('$' + player.money, sbX + sbW/2, 36);
+
+  // Separator
+  ctx.fillStyle = '#333';
+  ctx.fillRect(sbX + 5, 44, sbW - 10, 1);
+
+  // Sidebar actions
+  const actions = getSidebarActions(g);
+  const buttonW = sbW - 14;
+  const buttonH = 44;
+  const gap = 4;
+  const startY = 50;
+
+  actions.forEach((action, i) => {
+    const by = startY + i * (buttonH + gap);
+
+    // Button background
+    if (action.enabled) {
+      ctx.fillStyle = '#2a2a2a';
+    } else {
+      ctx.fillStyle = '#1a1a1a';
+    }
+    ctx.fillRect(sbX + 7, by, buttonW, buttonH);
+    ctx.strokeStyle = action.enabled ? '#555' : '#333';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sbX + 7, by, buttonW, buttonH);
+
+    // Button label
+    ctx.fillStyle = action.enabled ? '#ddd' : '#555';
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(action.label, sbX + 12, by + 18);
+
+    // Cost
+    ctx.fillStyle = action.enabled ? '#ffcc00' : '#554400';
+    ctx.font = '10px monospace';
+    ctx.fillText('$' + action.cost, sbX + 12, by + 32);
+
+    // Description (like queue count)
+    if (action.desc && action.desc !== 'Unit' && action.desc !== 'Building') {
+      ctx.fillStyle = '#888';
+      ctx.textAlign = 'right';
+      ctx.font = '9px monospace';
+      ctx.fillText(action.desc, sbX + sbW - 12, by + 32);
+    }
+  });
+
+  // Selection info at bottom
+  if (g.selection) {
+    const sel = g.selection;
+    const entity = sel.entity;
+    if (entity.hp > 0) {
+      const infoY = canvas.height - 80;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(sbX + 5, infoY, sbW - 10, 75);
+
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.font = '10px monospace';
+
+      if (sel.type === 'building') {
+        const bdef = BLDG_DEFS[entity.type];
+        ctx.fillText(bdef.name, sbX + sbW/2, infoY + 15);
+        ctx.fillText('HP: ' + entity.hp + '/' + entity.maxHp, sbX + sbW/2, infoY + 28);
+        if (entity.queue.length > 0) {
+          ctx.fillText('Queue: ' + entity.queue.length, sbX + sbW/2, infoY + 41);
+          const item = entity.queue[0];
+          const prog = 1 - (item.timer / item.total);
+          const barW = sbW - 20;
+          ctx.fillStyle = '#444';
+          ctx.fillRect(sbX + 10, infoY + 47, barW, 8);
+          ctx.fillStyle = '#ffcc00';
+          ctx.fillRect(sbX + 10, infoY + 47, barW * prog, 8);
+        }
+      } else {
+        const udef = UNIT_DEFS[entity.type];
+        ctx.fillText(udef.name, sbX + sbW/2, infoY + 15);
+        ctx.fillText('HP: ' + entity.hp + '/' + entity.maxHp, sbX + sbW/2, infoY + 28);
+
+        if (entity.type === UNIT_HARVESTER) {
+          ctx.fillText('Ore: ' + Math.floor(entity.oreCarrying) + '/' + entity.oreCapacity, sbX + sbW/2, infoY + 41);
+        } else {
+          ctx.fillText('Dmg: ' + entity.damage, sbX + sbW/2, infoY + 41);
+        }
+      }
+    }
+  }
+}
+
+function drawMinimap(g) {
+  const mx = 8;
+  const my = canvas.height - MINIMAP_H - 8;
+  const mw = MINIMAP_SIZE;
+  const mh = MINIMAP_H;
+
+  // Background
+  ctx.fillStyle = '#111';
+  ctx.fillRect(mx - 1, my - 1, mw + 2, mh + 2);
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(mx - 1, my - 1, mw + 2, mh + 2);
+
+  // Draw terrain
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      const tile = g.map[y][x];
+      const px = mx + x * MINIMAP_TILE;
+      const py = my + y * MINIMAP_TILE;
+      switch (tile) {
+        case TILE_GRASS: ctx.fillStyle = '#3a5a2a'; break;
+        case TILE_ROAD: ctx.fillStyle = '#5a5a4a'; break;
+        case TILE_WATER: ctx.fillStyle = '#1a3a6a'; break;
+        case TILE_ORE: ctx.fillStyle = '#6a6a2a'; break;
+        default: ctx.fillStyle = '#3a5a2a';
+      }
+      ctx.fillRect(px, py, MINIMAP_TILE, MINIMAP_TILE);
+    }
+  }
+
+  // Draw buildings
+  for (const b of g.buildings) {
+    if (b.hp <= 0) continue;
+    const px = mx + (b.x / TILE) * MINIMAP_TILE;
+    const py = my + (b.y / TILE) * MINIMAP_TILE;
+    const ps = b.size * MINIMAP_TILE;
+    ctx.fillStyle = b.faction === FACTION.ALLIED ? '#4488ff' : '#ff4444';
+    ctx.fillRect(px, py, Math.max(ps, 2), Math.max(ps, 2));
+  }
+
+  // Draw units
+  for (const u of g.units) {
+    if (u.hp <= 0) continue;
+    const px = mx + (u.x / TILE) * MINIMAP_TILE;
+    const py = my + (u.y / TILE) * MINIMAP_TILE;
+    ctx.fillStyle = u.faction === FACTION.ALLIED ? '#88bbff' : '#ff8888';
+    ctx.fillRect(px, py, 2, 2);
+  }
+
+  // Viewport rectangle
+  const vx = mx + (g.camera.x / TILE) * MINIMAP_TILE;
+  const vy = my + (g.camera.y / TILE) * MINIMAP_TILE;
+  const vw = ((canvas.width - SIDEBAR_W) / TILE) * MINIMAP_TILE;
+  const vh = (canvas.height / TILE) * MINIMAP_TILE;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(vx, vy, vw, vh);
+}
+
+function drawGameOver(g) {
+  if (!g.gameOver) return;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (g.winner === FACTION.ALLIED) {
+    ctx.fillStyle = '#4488ff';
+    ctx.font = 'bold 48px monospace';
+    ctx.fillText('VICTORY', canvas.width / 2, canvas.height / 2 - 30);
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px monospace';
+    ctx.fillText('Allied forces have prevailed!', canvas.width / 2, canvas.height / 2 + 30);
+  } else if (g.winner === FACTION.SOVIET) {
+    ctx.fillStyle = '#ff4444';
+    ctx.font = 'bold 48px monospace';
+    ctx.fillText('DEFEAT', canvas.width / 2, canvas.height / 2 - 30);
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px monospace';
+    ctx.fillText('The Soviet Union has conquered!', canvas.width / 2, canvas.height / 2 + 30);
+  }
+
+  ctx.fillStyle = '#aaa';
+  ctx.font = '16px monospace';
+  ctx.fillText('Tap to restart', canvas.width / 2, canvas.height / 2 + 80);
+}
+
+// ============================================================
+// CHECK VICTORY
+// ============================================================
+function checkVictory(g) {
+  const alliedBuildings = g.buildings.filter(b => b.faction === FACTION.ALLIED && b.hp > 0);
+  const sovietBuildings = g.buildings.filter(b => b.faction === FACTION.SOVIET && b.hp > 0);
+
+  if (alliedBuildings.length === 0) {
+    g.gameOver = true;
+    g.winner = FACTION.SOVIET;
+  } else if (sovietBuildings.length === 0) {
+    g.gameOver = true;
+    g.winner = FACTION.ALLIED;
+  }
+}
+
+// ============================================================
+// MAIN GAME LOOP
+// ============================================================
+let lastTime = 0;
+let frameCount = 0;
+
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  if (!game) return;
+
+  resizeCanvas();
+
+  // Fixed timestep accumulation
+  if (!game.gameOver) {
+    game.tickAccum += dt;
+    const tickDt = 1 / game.tickRate;
+    while (game.tickAccum >= tickDt) {
+      gameTick(game, tickDt);
+      game.tickAccum -= tickDt;
+    }
+  }
+
+  // Render
+  render(game);
+
+  requestAnimationFrame(gameLoop);
+}
+
+function gameTick(g, dt) {
+  if (g.gameOver) return;
+
+  g.gameTime += dt;
+
+  // Update units
+  for (const u of g.units) {
+    if (u.hp > 0) updateUnit(g, u, dt);
+  }
+
+  // Update buildings
+  for (const b of g.buildings) {
+    if (b.hp > 0) updateBuilding(g, b, dt);
+  }
+
+  // Update projectiles
+  updateProjectiles(g, dt);
+
+  // Update particles
+  updateParticles(g, dt);
+
+  // Update AI
+  updateAI(g, dt);
+
+  // Remove dead units
+  g.units = g.units.filter(u => u.hp > 0);
+  g.buildings = g.buildings.filter(b => b.hp > 0 || b.type === BLDG_CYARD);
+
+  // Clean up dead building references
+  // (keep them but they're filtered by hp>0 checks)
+
+  // Check victory
+  checkVictory(g);
+
+  // Passive income
+  if (g.gameTime % 5 < dt) {
+    g.players[FACTION.ALLIED].money += 10;
+    g.players[FACTION.SOVIET].money += 10;
+  }
+
+  // Clean up selection if entity is dead
+  if (g.selection && g.selection.entity && g.selection.entity.hp <= 0) {
+    g.selection = null;
+    g.selectedBuilding = null;
+  }
+}
+
+function render(g) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background fill for areas outside map
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw game world (clipped to viewport area)
+  drawTerrain(g);
+  drawOrePatches(g);
+  drawBuildings(g);
+  drawUnits(g);
+  drawProjectiles(g);
+  drawParticles(g);
+
+  // UI on top
+  drawSidebar(g);
+  drawMinimap(g);
+
+  // Minimap border refinement
+  const mx = 8;
+  const my = canvas.height - MINIMAP_H - 8;
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(mx - 1, my - 1, MINIMAP_SIZE + 2, MINIMAP_H + 2);
+
+  // Crosshair in center (aim indicator)
+  if (g.selection && g.selection.type === 'unit') {
+    const u = g.selection.entity;
+    if (u.state === UNIT_STATE_MOVING || u.state === UNIT_STATE_ATTACKING) {
+      const tx = u.targetX - g.camera.x;
+      const ty = u.targetY - g.camera.y;
+      ctx.strokeStyle = 'rgba(0,255,0,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(tx - 5, ty);
+      ctx.lineTo(tx + 5, ty);
+      ctx.moveTo(tx, ty - 5);
+      ctx.lineTo(tx, ty + 5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(tx, ty, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  drawGameOver(g);
+}
+
+// ============================================================
+// CANVAS RESIZE
+// ============================================================
+function resizeCanvas() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+}
+
+// ============================================================
+// INPUT SETUP
+// ============================================================
+function setupInput() {
+  // --- Touch ---
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (game && game.gameOver) { resetGame(); return; }
+    initAudio();
+
+    const touch = e.touches[0];
+    const pos = getCanvasPos(touch.clientX, touch.clientY);
+
+    inputState.touchActive = true;
+    inputState.touchStartX = pos.x;
+    inputState.touchStartY = pos.y;
+    inputState.lastTouchX = pos.x;
+    inputState.lastTouchY = pos.y;
+    inputState.touchMoved = false;
+
+    if (isInSidebar(pos.x)) {
+      // Sidebar tap
+      handleSidebarTap(game, pos.x, pos.y);
+      inputState.touchActive = false;
+      return;
+    }
+
+    if (isInMinimap(pos.x, pos.y)) {
+      // Minimap - navigate
+      const mmx = pos.x - 8;
+      const mmy = pos.y - (canvas.height - MINIMAP_H - 8);
+      const wx = (mmx / MINIMAP_SIZE) * WORLD_W;
+      const wy = (mmy / MINIMAP_H) * WORLD_H;
+      game.camera.x = Math.max(0, Math.min(WORLD_W - (canvas.width - SIDEBAR_W), wx - (canvas.width - SIDEBAR_W) / 2));
+      game.camera.y = Math.max(0, Math.min(WORLD_H - canvas.height, wy - canvas.height / 2));
+      inputState.touchActive = false;
+      return;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!inputState.touchActive) return;
+
+    const touch = e.touches[0];
+    const pos = getCanvasPos(touch.clientX, touch.clientY);
+
+    const dx = pos.x - inputState.lastTouchX;
+    const dy = pos.y - inputState.lastTouchY;
+
+    if (Math.abs(pos.x - inputState.touchStartX) > 8 || Math.abs(pos.y - inputState.touchStartY) > 8) {
+      inputState.touchMoved = true;
+    }
+
+    if (inputState.touchMoved && !isInSidebar(pos.x)) {
+      // Drag to scroll
+      game.camera.x = Math.max(0, Math.min(WORLD_W - (canvas.width - SIDEBAR_W), game.camera.x - dx));
+      game.camera.y = Math.max(0, Math.min(WORLD_H - canvas.height, game.camera.y - dy));
+    }
+
+    inputState.lastTouchX = pos.x;
+    inputState.lastTouchY = pos.y;
+
+    // Handle multi-touch for pinch? Not needed.
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (inputState.touchActive && !inputState.touchMoved) {
+      // It was a tap
+      const pos = inputState.touchStart;
+      if (!isInSidebar(pos.x) && !isInMinimap(pos.x, pos.y)) {
+        const world = screenToWorld(pos.x, pos.y, game.camera);
+        handleTap(game, world.x, world.y);
+      }
+    }
+    inputState.touchActive = false;
+  }, { passive: false });
+
+  // --- Mouse ---
+  canvas.addEventListener('mousedown', (e) => {
+    initAudio();
+    const pos = getCanvasPos(e.clientX, e.clientY);
+
+    if (game && game.gameOver) { resetGame(); return; }
+
+    if (isInSidebar(pos.x)) {
+      handleSidebarTap(game, pos.x, pos.y);
+      return;
+    }
+
+    if (isInMinimap(pos.x, pos.y)) {
+      const mmx = pos.x - 8;
+      const mmy = pos.y - (canvas.height - MINIMAP_H - 8);
+      const wx = (mmx / MINIMAP_SIZE) * WORLD_W;
+      const wy = (mmy / MINIMAP_H) * WORLD_H;
+      game.camera.x = Math.max(0, Math.min(WORLD_W - (canvas.width - SIDEBAR_W), wx - (canvas.width - SIDEBAR_W) / 2));
+      game.camera.y = Math.max(0, Math.min(WORLD_H - canvas.height, wy - canvas.height / 2));
+      return;
+    }
+
+    inputState.mouseDown = true;
+    inputState.mouseMoved = false;
+    inputState.touchStartX = pos.x;
+    inputState.touchStartY = pos.y;
+    inputState.cameraStart = { x: game.camera.x, y: game.camera.y };
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const pos = getCanvasPos(e.clientX, e.clientY);
+    inputState.pointerX = pos.x;
+    inputState.pointerY = pos.y;
+
+    if (inputState.mouseDown) {
+      const dx = pos.x - inputState.touchStartX;
+      const dy = pos.y - inputState.touchStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        inputState.mouseMoved = true;
+        game.camera.x = Math.max(0, Math.min(WORLD_W - (canvas.width - SIDEBAR_W), inputState.cameraStart.x - dx));
+        game.camera.y = Math.max(0, Math.min(WORLD_H - canvas.height, inputState.cameraStart.y - dy));
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    if (inputState.mouseDown && !inputState.mouseMoved) {
+      const pos = getCanvasPos(e.clientX, e.clientY);
+      if (!isInSidebar(pos.x) && !isInMinimap(pos.x, pos.y)) {
+        const world = screenToWorld(pos.x, pos.y, game.camera);
+        handleTap(game, world.x, world.y);
+      }
+    }
+    inputState.mouseDown = false;
+  });
+
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (!game || game.gameOver) return;
+    initAudio();
+
+    const key = e.key.toLowerCase();
+    if (key === 'h' || key === '1') {
+      // Build harvester / infantry (context dependent)
+      const sel = game.selection;
+      if (sel && sel.type === 'building') {
+        const b = sel.entity;
+        if (b.type === BLDG_BARRACKS) {
+          const ut = UNIT_INFANTRY;
+          const def = UNIT_DEFS[ut];
+          if (game.players[FACTION.ALLIED].money >= def.cost) {
+            game.players[FACTION.ALLIED].money -= def.cost;
+            b.queue.push({ type: ut, timer: def.buildTime, total: def.buildTime });
+            sfxBuild();
+          }
+        } else if (b.type === BLDG_WARFACTORY) {
+          const ut = key === 'h' ? UNIT_HARVESTER : UNIT_TANK;
+          const def = UNIT_DEFS[ut];
+          if (game.players[FACTION.ALLIED].money >= def.cost) {
+            game.players[FACTION.ALLIED].money -= def.cost;
+            b.queue.push({ type: ut, timer: def.buildTime, total: def.buildTime });
+            sfxBuild();
+          }
+        }
+      }
+    }
+    // Camera with arrow keys
+    const camSpeed = 40;
+    if (key === 'arrowleft') game.camera.x = Math.max(0, game.camera.x - camSpeed);
+    if (key === 'arrowright') game.camera.x = Math.min(WORLD_W - (canvas.width - SIDEBAR_W), game.camera.x + camSpeed);
+    if (key === 'arrowup') game.camera.y = Math.max(0, game.camera.y - camSpeed);
+    if (key === 'arrowdown') game.camera.y = Math.min(WORLD_H - canvas.height, game.camera.y + camSpeed);
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+}
+
+// ============================================================
+// RESET GAME
+// ============================================================
+function resetGame() {
+  game = createGame();
+  generateMap(game);
+  initBases(game);
+  game.camera.x = 0;
+  game.camera.y = 0;
+  game.tickAccum = 0;
+}
+
+// ============================================================
+// START
+// ============================================================
+function init() {
+  resizeCanvas();
+  setupInput();
+  resetGame();
+  requestAnimationFrame(gameLoop);
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>
