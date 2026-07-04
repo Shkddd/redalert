@@ -139,6 +139,8 @@ const STATE = {
   orderIndex: 0,       // 已完成订单数
   orderTotal: 0,       // 总完成订单
   reputation: 0,       // 声望 0..100
+  // Round 2：NPC 好感度（每完成一笔订单 +1，未来可能影响交易）
+  npcFav: { bunny:0, bear:0, fox:0, cat:0, bee:0 },
 };
 
 /* ---------- NPC 数据 ---------- */
@@ -186,6 +188,17 @@ function completeOrder(order, plant){
   STATE.reputation = Math.min(100, STATE.reputation + 10);
   STATE.orderIndex += 1;
   STATE.orderTotal += 1;
+  // Round 2：NPC 好感度 +1
+  const npcId = order.npc && order.npc.id;
+  if(npcId){
+    STATE.npcFav[npcId] = (STATE.npcFav[npcId] || 0) + 1;
+  }
+  // Round 2：NPC 礼物种子（按订单花的稀有度计算数量）
+  const rarity = SEED_RARITY[order.wantId] ?? 0;
+  let seedCount;
+  if(rarity === 0) seedCount = 1;                           // common: 1 颗
+  else if(rarity === 1) seedCount = Math.random() < 0.5 ? 1 : 2; // uncommon: 1-2 颗
+  else seedCount = 2;                                        // rare: 2 颗
   // 标记花被采走（按一次收获）
   plant.harvests = (plant.harvests || 0) + 1;
   plant.harvestScale = Math.max(0.4, 1 - plant.harvests * 0.18);
@@ -198,12 +211,30 @@ function completeOrder(order, plant){
     plant.flowerSpent = true;
     setTimeout(() => { plant.bed.occupied = false; }, 800);
   }
-  // 飘字
+  // 飘字 + 礼物种子从花朵中心爆出
   const stemH = 60;
   const fx = plant.bed.cx;
   const fy = plant.bed.cy - stemH * plant.age;
   STATE.floats = STATE.floats || [];
   STATE.floats.push({ x:fx, y:fy-20, text:`+${order.pay}💰`, t:0, color:'#e8a020' });
+  // Round 2：种子奖励飘字
+  STATE.floats.push({
+    x: fx, y: fy - 40,
+    text: `+🌱${seedCount}${order.wantName}种子`,
+    t: 0, color: '#5a8a20',
+  });
+  // Round 2：种子从花朵中心爆出（落地后可拾起 → 入库）
+  STATE.groundSeeds = STATE.groundSeeds || [];
+  for(let i=0;i<seedCount;i++){
+    STATE.groundSeeds.push({
+      defId: order.wantId,
+      x: fx + rand(-6, 6),
+      y: fy - 4 - i * 4,
+      vx: rand(-40, 40),
+      vy: rand(-100, -60),
+      t: 0,
+    });
+  }
   // 报恩花粒子
   for(let i=0;i<10;i++){
     STATE.particles.push({
@@ -215,7 +246,7 @@ function completeOrder(order, plant){
       kind: 'petal',
     });
   }
-  showHint(`${order.npc.name} 拿走了 ${order.wantName}！+${order.pay}💰 ⭐+10`);
+  showHint(`${order.npc.name} 拿走了 ${order.wantName}！+${order.pay}💰 +🌱${seedCount}种子 ⭐+10 ❤️+1`);
   if(typeof playDing === 'function') playDing();
 }
 
@@ -1329,6 +1360,13 @@ function drawOrders(){
     X.textAlign = 'center';
     X.textBaseline = 'middle';
     X.fillText(o.npc.emoji, ox + 16, rowY + 10);
+    // Round 2：好感心 ❤️（>=3 显示在 NPC 头像旁）
+    const fav = STATE.npcFav[o.npc.id] || 0;
+    if(fav >= 3){
+      X.font = '11px sans-serif';
+      X.textAlign = 'left';
+      X.fillText('❤️', ox + 26, rowY + 4);
+    }
     // 想要的花
     X.fillStyle = '#3a2010';
     X.font = 'bold 12px sans-serif';
