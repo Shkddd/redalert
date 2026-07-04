@@ -128,6 +128,21 @@ const SEED_EMOJI = {
   lavender:'💜', sakura:'🌸', cactus:'🌵', lotus:'🪷', sunred:'🔥',
 };
 
+/* ============================================================
+ *  Round 5：工具等级定义
+ *  L1 浇水壶（默认）— 1 坛 +30%
+ *  L2 洒水壶 — 相邻 2 坛 +50%（30 金币）
+ *  L3 自动喷淋 — 全场 +30%（80 金币 + 50 声望；每次使用 3 金币）
+ * ============================================================ */
+const TOOL_LEVELS = [
+  { level:1, name:'浇水壶',   emoji:'💧', desc:'1 坛',     moistureGain:0.30, color:'#6ab0d8' },
+  { level:2, name:'洒水壶',   emoji:'💦', desc:'相邻 2 坛', moistureGain:0.50, color:'#5ac080' },
+  { level:3, name:'自动喷淋', emoji:'⭐', desc:'全场所有', moistureGain:0.30, color:'#f0d040' },
+];
+const TOOL_UPGRADE_PRICE = { 2: 30, 3: 80 };
+const TOOL_UPGRADE_REP    = { 3: 50 };
+const TOOL_USE_COST       = { 3: 3 };  // L3 每次喷淋 3 金币
+
 function rollDropDefId(plantDef){
   // 蒲公英：固定掉落自己（蒲公英种子很珍贵）
   if(plantDef.dandelion) return 'dand';
@@ -340,6 +355,12 @@ const STATE = {
   npcFav: { bunny:0, bear:0, fox:0, cat:0, bee:0 },
   // Round 3：解锁成就 toast 队列（顶部堆叠 + 淡入淡出）
   toasts: [],
+  // Round 5：工具升级系统
+  tool: 1,                                // 当前装备等级 1/2/3
+  toolUpgrades: { 1:true, 2:false, 3:false }, // 已解锁等级
+  toolPanelOpen: false,                   // 升级面板是否打开
+  freeWaterNext: false,                   // L3：下次喷淋免费 toggle
+  rainbowT: 0,                            // L3 喷淋的彩虹光环计时器（0..1）
 };
 
 /* ---------- NPC 数据 ---------- */
@@ -462,6 +483,10 @@ const SCENE = {
   shopBtn: { x:0, y:0, w:0, h:0 },
   shopClose: { x:0, y:0, w:0, h:0 },
   bedCount: 3,
+  // Round 5：工具按钮（圆形 40，左侧）+ 升级面板 + 星 toggle
+  toolBox: { x:0, y:0, w:0, h:0 },
+  toolPanel: { x:0, y:0, w:0, h:0 },
+  starToggle: { x:0, y:0, w:0, h:0 },
 };
 
 function layoutScene(){
@@ -481,8 +506,11 @@ function layoutScene(){
   }
   SCENE.sun = { x: W * 0.88, y: H * 0.16, r: clamp(W, 300, 800) * 0.04 };
   // 种子袋（顶部左）—— Round 3 扩展为 2 行 × 5 列 + 进度条
+  // Round 5：向右移 48px 给左侧 toolBox 让位
   const bagW = Math.min(280, W * 0.42);
-  SCENE.bagBox = { x: 16, y: 16, w: bagW, h: 82 };
+  SCENE.bagBox = { x: 64, y: 16, w: bagW, h: 82 };
+  // Round 5：工具按钮（圆形 40，垂直居中于种子袋）
+  SCENE.toolBox = { x: 16, y: 36, w: 40, h: 40 };
   // 浇水壶（底部左）
   SCENE.potBox = { x: 16, y: H - 76, w: 80, h: 60 };
   // 时间指示（底部右）
@@ -494,6 +522,8 @@ function layoutScene(){
   // 订单面板：种子袋下方（顶部左下区域）—— Round 3：种子袋变高 → 下移
   const ow = Math.min(280, W * 0.42);
   SCENE.orderBox = { x: 16, y: 106, w: ow, h: 110 };
+  // Round 5：工具升级面板（与订单面板同位置，互斥显示）
+  SCENE.toolPanel = { x: 16, y: 106, w: ow, h: 110 };
 }
 
 /* ============================================================
@@ -597,6 +627,44 @@ function handleClick(p){
     }
     return;
   }
+  // 2b. 工具按钮（圆形，左上角）→ 切升级面板
+  if(pointInBox(p.x, p.y, SCENE.toolBox)){
+    STATE.toolPanelOpen = !STATE.toolPanelOpen;
+    return;
+  }
+  // 2c. L3 星形 toggle（壶盒右上角，仅 L3 时显示）
+  if(STATE.tool === 3 && pointInBox(p.x, p.y, SCENE.starToggle)){
+    STATE.freeWaterNext = !STATE.freeWaterNext;
+    showHint(STATE.freeWaterNext ? '⭐ 下次喷淋免费 ON' : '⭐ 免费 toggle OFF');
+    return;
+  }
+  // 2d. 工具升级面板内的"升级"按钮
+  if(STATE.toolPanelOpen && pointInBox(p.x, p.y, SCENE.toolPanel)){
+    for(let i=0; i<3; i++){
+      const lv = i + 1;
+      const def = TOOL_LEVELS[i];
+      if(def._upgradeBox && pointInBox(p.x, p.y, def._upgradeBox)){
+        if(STATE.toolUpgrades[lv]) continue;
+        const cost = TOOL_UPGRADE_PRICE[lv] || 0;
+        const repReq = TOOL_UPGRADE_REP[lv] || 0;
+        if(STATE.coins < cost){
+          showHint('💰 金币不足');
+          return;
+        }
+        if(STATE.reputation < repReq){
+          showHint(`⭐ 声望不足（需 ${repReq}）`);
+          return;
+        }
+        STATE.coins -= cost;
+        STATE.toolUpgrades[lv] = true;
+        STATE.tool = lv;
+        showHint(`🔧 升级 ${def.name}！装备中`);
+        if(typeof playDing === 'function') playDing();
+        return;
+      }
+    }
+    return;  // 点在面板内但没点中按钮
+  }
   // 3. 种子袋：选种子 / 点"+"跳商店 / Round 3：点未解锁的种子显示故事
   if(pointInBox(p.x, p.y, SCENE.bagBox)){
     // 先看是不是点"+"按钮
@@ -693,17 +761,71 @@ function handleClick(p){
       }
     }
   }
-  // 6. 拿着壶时点空白处 → 给最近植物浇透一次
+  // 6. 拿着壶时点空白处 → 浇水（按工具等级 L1/L2/L3 行为不同）
   if(STATE.holdingPot){
-    const nearest = nearestPlant(STATE.mouse.x, STATE.mouse.y);
-    if(nearest && nearest.def){
-      nearest.moisture = 1;
-      nearest.waterTimer = 0;
-      nearest.bed.moisture = Math.min(1, nearest.bed.moisture + 0.5);
-      // 出 5 滴水粒子
-      for(let i=0;i<5;i++) spawnDrop(STATE.pot.x + 14, STATE.pot.y - 6);
+    const tool = STATE.tool || 1;
+    if(tool === 3){
+      // === L3 自动喷淋：全场所有植物一起浇 ===
+      const livePlants = STATE.plants.filter(p => !p.dead);
+      if(!livePlants.length){
+        showHint('没有花可浇～');
+        return;
+      }
+      let cost = 0;
+      if(!STATE.freeWaterNext){
+        cost = TOOL_USE_COST[3] || 0;
+        if(STATE.coins < cost){
+          showHint('💰 金币不足，无法喷淋');
+          return;
+        }
+        STATE.coins -= cost;
+      } else {
+        STATE.freeWaterNext = false;
+      }
+      // 浇所有植物
+      for(const p of livePlants) waterFully(p, TOOL_LEVELS[2].moistureGain);
+      // 视觉：星雨（从天而降）+ 彩虹光环
+      for(let i=0;i<18;i++){
+        spawnStarDrop(rand(0, W), rand(-40, 10));
+      }
+      STATE.rainbowT = 1.0;
       playSplash();
-      waterFully(nearest);
+      showHint(cost > 0 ? `⭐ 全场喷淋 -${cost}💰` : '⭐ 全场喷淋（免费）');
+    } else if(tool === 2){
+      // === L2 洒水壶：该坛 + 相邻 1 坛 ===
+      const nearest = nearestPlant(STATE.mouse.x, STATE.mouse.y);
+      if(nearest && nearest.def){
+        const beds = SCENE.beds;
+        const idx = beds.indexOf(nearest.bed);
+        const targets = [nearest];
+        if(idx > 0){
+          const p2 = STATE.plants.find(pp => pp.bed === beds[idx-1] && !pp.dead);
+          if(p2) targets.push(p2);
+        }
+        if(idx < beds.length - 1){
+          const p3 = STATE.plants.find(pp => pp.bed === beds[idx+1] && !pp.dead);
+          if(p3) targets.push(p3);
+        }
+        for(const p of targets){
+          waterFully(p, TOOL_LEVELS[1].moistureGain);
+          // 视觉：成片雨滴（比 L1 多）
+          for(let i=0;i<10;i++){
+            spawnDrop(p.bed.cx + rand(-30, 30), p.bed.cy - 50 + rand(-20, 20));
+          }
+        }
+        playSplash();
+      }
+    } else {
+      // === L1 浇水壶：单坛（沿用原行为）===
+      const nearest = nearestPlant(STATE.mouse.x, STATE.mouse.y);
+      if(nearest && nearest.def){
+        nearest.moisture = 1;
+        nearest.waterTimer = 0;
+        nearest.bed.moisture = Math.min(1, nearest.bed.moisture + 0.5);
+        for(let i=0;i<5;i++) spawnDrop(STATE.pot.x + 14, STATE.pot.y - 6);
+        playSplash();
+        waterFully(nearest);
+      }
     }
   }
   // 7. 订单面板：点中"卖"按钮 → 提交订单
@@ -790,11 +912,13 @@ function nearestPlant(x,y){
   return best;
 }
 
-function waterFully(plant){
-  plant.age = Math.min(1, plant.age + 0.30);
+function waterFully(plant, gain){
+  // Round 5：gain 可选，默认查当前工具等级表
+  const g = gain != null ? gain : (TOOL_LEVELS[(STATE.tool||1) - 1].moistureGain);
+  plant.age = Math.min(1, plant.age + g);
   plant.moisture = 1;
   plant.waterTimer = 0;
-  showHint('浇了一次水～ +30%');
+  showHint('浇了一次水～ +' + Math.round(g*100) + '%');
 }
 
 function harvestPlant(plant){
@@ -1040,6 +1164,15 @@ function updateGroundSeeds(dt){
 function spawnDrop(x,y){
   STATE.particles.push({ kind:'drop', x, y, vx: rand(-20,20), vy: rand(60,120), life:0.5, max:0.5, r: 4, color:'#5aaeea' });
 }
+/* Round 5：星星雨粒子（L3 全场喷淋） */
+function spawnStarDrop(x, y){
+  STATE.particles.push({
+    kind:'star', x, y,
+    vx: rand(-20, 20), vy: rand(80, 140),
+    life: 1.4, max: 1.4, r: 4, color:'#ffd040',
+    ph: Math.random()*TAU,
+  });
+}
 function spawnPollenBurst(x,y,color){
   for(let i=0;i<14;i++){
     STATE.particles.push({
@@ -1070,6 +1203,13 @@ function updateParticles(dt){
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.angle = (p.angle || 0) + p.vx * 0.02;
+    } else if(p.kind === 'star'){
+      // Round 5：星星粒子 — 受重力下落 + 缓慢旋转
+      p.vy += 80 * dt;
+      p.vx *= 0.98;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.ph += dt * 3;
     }
   }
   STATE.particles = STATE.particles.filter(p => p.life > 0);
@@ -1595,7 +1735,7 @@ function drawButterflies(){
 }
 
 function drawOrders(){
-  if(!STATE.started || STATE.shopOpen) return;
+  if(!STATE.started || STATE.shopOpen || STATE.toolPanelOpen) return;  // Round 5：toolPanel 打开时让位
   const b = SCENE.orderBox;
   if(!b) return;
   const ox = b.x, oy = b.y, ow = b.w, oh = b.h;
@@ -1831,6 +1971,120 @@ function drawSeedBag(){
   X.textBaseline = 'middle';
 }
 
+/* ============================================================
+ *  Round 5：工具按钮（圆形 40px，左侧）
+ *  显示当前等级图标 + 数字徽章 + 面板打开高亮
+ * ============================================================ */
+function drawToolButton(){
+  const b = SCENE.toolBox;
+  const cx = b.x + b.w/2, cy = b.y + b.h/2;
+  const tool = STATE.tool || 1;
+  const lv = TOOL_LEVELS[tool - 1];
+  // 圆形背景（面板打开时变金色高亮）
+  X.fillStyle = STATE.toolPanelOpen ? 'rgba(255,220,120,0.95)' : 'rgba(255,250,235,0.85)';
+  X.beginPath(); X.arc(cx, cy, 20, 0, TAU); X.fill();
+  X.strokeStyle = lv.color; X.lineWidth = 3;
+  X.stroke();
+  // 等级 emoji
+  X.font = '22px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillText(lv.emoji, cx, cy + 1);
+  // 数字徽章（右上角）
+  X.fillStyle = lv.color;
+  X.beginPath(); X.arc(b.x + b.w - 2, b.y + 6, 8, 0, TAU); X.fill();
+  X.fillStyle = '#fff';
+  X.font = 'bold 10px sans-serif';
+  X.fillText(String(tool), b.x + b.w - 2, b.y + 6);
+  X.textAlign = 'left';
+}
+
+/* ============================================================
+ *  Round 5：工具升级面板（种子袋下方，与订单面板互斥）
+ *  3 张等级卡：当前等级高亮 + 价格 + 升级按钮
+ * ============================================================ */
+function drawToolPanel(){
+  if(!STATE.toolPanelOpen) return;
+  const b = SCENE.toolPanel;
+  // 背景
+  X.fillStyle = 'rgba(255,250,235,0.95)';
+  roundRect(b.x, b.y, b.w, b.h, 12); X.fill();
+  X.strokeStyle = '#a07040'; X.lineWidth = 2;
+  roundRect(b.x, b.y, b.w, b.h, 12); X.stroke();
+  // 标题
+  X.fillStyle = '#7a4a20';
+  X.font = 'bold 12px sans-serif';
+  X.textAlign = 'left'; X.textBaseline = 'top';
+  X.fillText('🔧 工具升级', b.x + 8, b.y + 4);
+  X.fillStyle = '#a07020';
+  X.font = '10px sans-serif';
+  X.textAlign = 'right';
+  X.fillText(`当前 L${STATE.tool || 1}`, b.x + b.w - 8, b.y + 6);
+  X.textBaseline = 'middle';
+
+  // 3 张卡（横向）
+  const cardH = 76;
+  const cardW = (b.w - 32) / 3;
+  const startX = b.x + 8;
+  const startY = b.y + 26;
+  for(let i=0; i<3; i++){
+    const lv = i + 1;
+    const def = TOOL_LEVELS[i];
+    const owned = STATE.toolUpgrades[lv];
+    const isCurrent = (STATE.tool || 1) === lv;
+    const cardX = startX + i * (cardW + 4);
+    const cardY = startY;
+
+    // 卡片底（当前等级高亮）
+    X.fillStyle = isCurrent ? 'rgba(255,220,120,0.55)' : 'rgba(255,255,255,0.7)';
+    roundRect(cardX, cardY, cardW, cardH, 8); X.fill();
+    X.strokeStyle = isCurrent ? def.color : '#c0a070'; X.lineWidth = isCurrent ? 2 : 1;
+    roundRect(cardX, cardY, cardW, cardH, 8); X.stroke();
+
+    // emoji
+    X.font = '22px sans-serif';
+    X.textAlign = 'center'; X.textBaseline = 'middle';
+    X.fillText(def.emoji, cardX + cardW/2, cardY + 16);
+    // 名字
+    X.fillStyle = isCurrent ? def.color : '#5a3a1a';
+    X.font = 'bold 11px sans-serif';
+    X.textAlign = 'center'; X.textBaseline = 'top';
+    X.fillText(def.name, cardX + cardW/2, cardY + 30);
+    // 描述
+    X.fillStyle = '#5a3a1a';
+    X.font = '9px sans-serif';
+    X.fillText(def.desc, cardX + cardW/2, cardY + 44);
+
+    // 状态：已拥有 / 价格 + 升级按钮
+    if(owned){
+      X.fillStyle = isCurrent ? '#5a8a20' : '#7a6020';
+      X.font = 'bold 10px sans-serif';
+      X.textAlign = 'center'; X.textBaseline = 'middle';
+      X.fillText(isCurrent ? '✅ 装备中' : '✓ 已拥有', cardX + cardW/2, cardY + 60);
+      def._upgradeBox = null;
+    } else {
+      const cost = TOOL_UPGRADE_PRICE[lv] || 0;
+      const repReq = TOOL_UPGRADE_REP[lv] || 0;
+      const canBuy = STATE.coins >= cost && STATE.reputation >= repReq;
+      X.fillStyle = canBuy ? '#c89020' : '#888';
+      X.font = 'bold 10px sans-serif';
+      X.textAlign = 'center'; X.textBaseline = 'middle';
+      X.fillText(`${cost}💰${repReq ? ' +' + repReq + '⭐' : ''}`, cardX + cardW/2, cardY + 58);
+      // 升级按钮
+      const btnW = 50, btnH = 14;
+      const btnX = cardX + (cardW - btnW)/2;
+      const btnY = cardY + cardH - btnH - 4;
+      X.fillStyle = canBuy ? '#7bc050' : '#bbb';
+      roundRect(btnX, btnY, btnW, btnH, 4); X.fill();
+      X.fillStyle = canBuy ? '#fff' : '#888';
+      X.font = 'bold 10px sans-serif';
+      X.textAlign = 'center'; X.textBaseline = 'middle';
+      X.fillText('升级', btnX + btnW/2, btnY + btnH/2 + 1);
+      def._upgradeBox = { x:btnX, y:btnY, w:btnW, h:btnH };
+    }
+  }
+  X.textAlign = 'left';
+}
+
 function drawWateringPot(){
   const b = SCENE.potBox;
   if(!STATE.holdingPot){
@@ -1843,6 +2097,10 @@ function drawWateringPot(){
     roundRect(b.x, b.y, b.w, b.h, 12);
     X.stroke();
     drawPotIcon(b.x + b.w/2, b.y + b.h/2, 0);
+    // Round 5：L3 时在壶盒右上角显示免费 toggle 星
+    if((STATE.tool || 1) === 3){
+      drawStarToggle(b.x + b.w - 14, b.y + 14);
+    }
   } else {
     drawPotIcon(STATE.pot.x, STATE.pot.y, STATE.pot.angle);
     // 提示
@@ -1850,9 +2108,39 @@ function drawWateringPot(){
     X.font = 'bold 11px sans-serif';
     X.textAlign = 'center';
     X.textBaseline = 'top';
-    X.fillText('💧点一下', STATE.pot.x, STATE.pot.y + 28);
+    const tag = (STATE.tool || 1) === 3 ? (STATE.freeWaterNext ? '⭐ 免费全场' : '⭐ 全场喷淋') : '💧点一下';
+    X.fillText(tag, STATE.pot.x, STATE.pot.y + 28);
     X.textAlign = 'left';
   }
+}
+
+/* Round 5：5 角星通用绘制（粒子/星 toggle 共用） */
+function drawStarShape(cx, cy, r1, r2, rot){
+  X.beginPath();
+  for(let i=0;i<10;i++){
+    const a = (i/10)*TAU + rot;
+    const r = i%2===0 ? r1 : r2;
+    const px = cx + Math.cos(a)*r;
+    const py = cy + Math.sin(a)*r;
+    i===0 ? X.moveTo(px, py) : X.lineTo(px, py);
+  }
+  X.closePath();
+}
+
+/* Round 5：L3 星形 toggle 按钮（壶盒右上角） */
+function drawStarToggle(x, y){
+  const on = !!STATE.freeWaterNext;
+  // 圆背景
+  X.fillStyle = on ? 'rgba(255,210,80,0.95)' : 'rgba(200,200,200,0.7)';
+  X.beginPath(); X.arc(x, y, 11, 0, TAU); X.fill();
+  X.strokeStyle = on ? '#c87020' : '#888'; X.lineWidth = 1.5;
+  X.stroke();
+  // 5 角星
+  X.fillStyle = on ? '#fff' : '#aaa';
+  drawStarShape(x, y, 7, 3.2, -Math.PI/2);
+  X.fill();
+  // 触摸区域（导出给 click handler）
+  SCENE.starToggle = { x: x-13, y: y-13, w: 26, h: 26 };
 }
 
 function drawPotIcon(x, y, angle){
@@ -1977,6 +2265,17 @@ function drawParticles(){
       X.beginPath();
       X.ellipse(p.x, p.y, p.r*a, p.r*1.5*a, 0, 0, TAU);
       X.fill();
+    } else if(p.kind === 'star'){
+      // Round 5：星星粒子 — 旋转 5 角星
+      X.save();
+      X.translate(p.x, p.y);
+      X.rotate(p.ph || 0);
+      X.globalAlpha = a;
+      X.fillStyle = p.color;
+      drawStarShape(0, 0, p.r*1.4, p.r*0.7, 0);
+      X.fill();
+      X.globalAlpha = 1;
+      X.restore();
     } else {
       X.fillStyle = p.color;
       X.globalAlpha = a;
@@ -2211,6 +2510,7 @@ function loop(now){
     updateGroundSeeds(dt);
     updateParticles(dt);
     updateFloats(dt);
+    updateRainbow(dt);        // Round 5：彩虹光环推进
     updateToasts(dt);  // Round 3：解锁成就 toast 推进
   }
   render();
@@ -2229,7 +2529,10 @@ function render(){
   drawGroundSeeds();
   drawParticles();
   drawFloats();
+  drawRainbowRing();        // Round 5：彩虹光环（在地面后、UI 前）
   drawSeedBag();
+  drawToolButton();         // Round 5：工具圆形按钮（seedBag 旁）
+  drawToolPanel();          // Round 5：工具升级面板（替换订单面板位置）
   drawOrders();
   drawWateringPot();
   drawTimeIndicator();
@@ -2251,6 +2554,28 @@ function drawWarmTint(){
   STATE.warmTintT = Math.max(0, STATE.warmTintT - 0.016);
 }
 
+/* Round 5：L3 自动喷淋的彩虹光环（自场地中心向外扩散） */
+function updateRainbow(dt){
+  if(STATE.rainbowT > 0) STATE.rainbowT = Math.max(0, STATE.rainbowT - dt * 0.8);
+}
+function drawRainbowRing(){
+  if(!STATE.rainbowT || STATE.rainbowT <= 0) return;
+  const t = STATE.rainbowT;
+  X.save();
+  X.globalAlpha = t * 0.75;
+  for(let i=0; i<4; i++){
+    const r = (1 - t) * 320 + 40;
+    const hue = (STATE.time*60 + i*90) % 360;
+    X.strokeStyle = `hsl(${hue},85%,65%)`;
+    X.lineWidth = 6;
+    X.beginPath();
+    X.arc(W/2, SCENE.groundY + 6, r, 0, TAU);
+    X.stroke();
+  }
+  X.globalAlpha = 1;
+  X.restore();
+}
+
 /* ============================================================
  *  启动
  * ============================================================ */
@@ -2265,6 +2590,12 @@ document.getElementById('startBtn').addEventListener('click', () => {
   STATE.unlocked = { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false };
   STATE.sunEnergy = 0;     // Round 4：向日葵收获累计阳光值
   STATE.warmTintT = 0;     // Round 4：红葵屏幕暖色滤镜计时器
+  // Round 5：工具升级初始化
+  STATE.tool = 1;
+  STATE.toolUpgrades = { 1:true, 2:false, 3:false };
+  STATE.toolPanelOpen = false;
+  STATE.freeWaterNext = false;
+  STATE.rainbowT = 0;
   STATE.arrowTimer = 5;
   // v1 订单系统：开张第一单
   generateOrders();
