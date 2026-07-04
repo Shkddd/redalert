@@ -67,6 +67,29 @@ function showHint(text, ms=2400){
   showHint._t = setTimeout(()=> HINT.classList.remove('show'), ms);
 }
 
+/* ---------- Round 3：解锁成就 toast ---------- */
+function showUnlockToast(seedId){
+  const def = SEEDS.find(s => s.id === seedId);
+  if(!def) return;
+  STATE.toasts = STATE.toasts || [];
+  STATE.toasts.push({
+    emoji: '🌟',
+    title: '解锁新种子！',
+    name: def.name,
+    seedEmoji: SEED_EMOJI[seedId] || '🌱',
+    color: def.seedColor || '#e8a040',
+    t: 0,
+    life: 3.0,
+    max: 3.0,
+  });
+}
+function checkUnlock(seedId){
+  if(!STATE.unlocked[seedId]){
+    STATE.unlocked[seedId] = true;
+    showUnlockToast(seedId);
+  }
+}
+
 /* ---------- 种子类型 ---------- */
 const SEEDS = [
   { id:'sun',  name:'向日葵',  seedColor:'#7a4a20', seedShape:'oval', growMs: 60000, sellPrice:5,  flower:'sunflower', flowerColor:'#ffc830', flowerCore:'#5a2a00' },
@@ -87,6 +110,19 @@ const SEED_RARITY = {
   daisy: 0, dand: 0,                       // common
   rose: 1, sun: 1, tulip: 1, lavender: 1, cactus: 1,  // uncommon
   sakura: 2, lotus: 2, sunred: 2,         // rare
+};
+
+/* ---------- 种子锁定故事（每个未解锁种子 1 句） ---------- */
+const LOCK_STORIES = {
+  lavender: '紫色的香水～完成蜜蜂订单可买。',
+  sakura:   '传说爷爷小时候在山顶种过…稀有订单解锁。',
+  cactus:   '耐旱的小家伙～连续 5 单不失败解锁。',
+  lotus:    '只在清晨开放…夜晚种下花可解锁。',
+  sunred:   '夏天最热烈的花～连续 3 天完成订单。',
+};
+const SEED_EMOJI = {
+  sun:'🌻', rose:'🌹', daisy:'🌼', tulip:'🌷', dand:'🌾',
+  lavender:'💜', sakura:'🌸', cactus:'🌵', lotus:'🪷', sunred:'🔥',
 };
 
 function rollDropDefId(plantDef){
@@ -141,6 +177,8 @@ const STATE = {
   reputation: 0,       // 声望 0..100
   // Round 2：NPC 好感度（每完成一笔订单 +1，未来可能影响交易）
   npcFav: { bunny:0, bear:0, fox:0, cat:0, bee:0 },
+  // Round 3：解锁成就 toast 队列（顶部堆叠 + 淡入淡出）
+  toasts: [],
 };
 
 /* ---------- NPC 数据 ---------- */
@@ -279,10 +317,9 @@ function layoutScene(){
     });
   }
   SCENE.sun = { x: W * 0.88, y: H * 0.16, r: clamp(W, 300, 800) * 0.04 };
-  // 种子袋（顶部左）
-  // 种子袋：左侧自适应，最多 280px（3 格种子 + 1 个"+"）—— 适配手机窄屏
+  // 种子袋（顶部左）—— Round 3 扩展为 2 行 × 5 列 + 进度条
   const bagW = Math.min(280, W * 0.42);
-  SCENE.bagBox = { x: 16, y: 16, w: bagW, h: 56 };
+  SCENE.bagBox = { x: 16, y: 16, w: bagW, h: 82 };
   // 浇水壶（底部左）
   SCENE.potBox = { x: 16, y: H - 76, w: 80, h: 60 };
   // 时间指示（底部右）
@@ -291,9 +328,9 @@ function layoutScene(){
   const topR_w = Math.min(160, W * 0.45);
   SCENE.coinHud = { x: W - topR_w - 8, y: 16, w: topR_w - 76, h: 36 };
   SCENE.shopBtn = { x: W - 80, y: 16, w: 72, h: 36 };
-  // 订单面板：种子袋下方（顶部左下区域）
+  // 订单面板：种子袋下方（顶部左下区域）—— Round 3：种子袋变高 → 下移
   const ow = Math.min(280, W * 0.42);
-  SCENE.orderBox = { x: 16, y: 84, w: ow, h: 110 };
+  SCENE.orderBox = { x: 16, y: 106, w: ow, h: 110 };
 }
 
 /* ============================================================
@@ -369,7 +406,7 @@ function handleClick(p){
         if(STATE.coins >= 8){
           STATE.coins -= 8;
           STATE.seeds[def.id] = (STATE.seeds[def.id] || 0) + 1;
-          STATE.unlocked[def.id] = true;
+          checkUnlock(def.id);  // Round 3：解锁 toast（首次 false→true 时弹）
           showHint(`买了 ${def.name}！`);
         } else {
           showHint('💰 金币不足');
@@ -396,7 +433,7 @@ function handleClick(p){
     }
     return;
   }
-  // 3. 种子袋：选种子 / 点"+"跳商店
+  // 3. 种子袋：选种子 / 点"+"跳商店 / Round 3：点未解锁的种子显示故事
   if(pointInBox(p.x, p.y, SCENE.bagBox)){
     // 先看是不是点"+"按钮
     if(SCENE.bagPlus && pointInBox(p.x, p.y, SCENE.bagPlus)){
@@ -405,13 +442,24 @@ function handleClick(p){
     }
     // 否则按 _bagBox 找点中了哪个种子
     for(const def of SEEDS){
-      if(def._bagBox && pointInBox(p.x, p.y, def._bagBox) && (STATE.seeds[def.id] || 0) > 0){
-        STATE.seeds[def.id] -= 1;  // 从库存拿出 1 颗
-        STATE.selectedSeed = def.id;
-        STATE.dragSeed = {
-          def, x: p.x - 20, y: p.y - 20, offsetX:20, offsetY:20,
-        };
-        C.classList.add('grabbing');
+      if(def._bagBox && pointInBox(p.x, p.y, def._bagBox)){
+        const unlocked = STATE.unlocked[def.id];
+        const cnt = STATE.seeds[def.id] || 0;
+        if(!unlocked){
+          // 未解锁：显示 1 句故事 + 解锁提示
+          const story = LOCK_STORIES[def.id] || '神秘种子…';
+          showHint(`❓ ${def.name}：${story}`, 3500);
+        } else if(cnt <= 0){
+          showHint(`${def.name} 库存为 0，去商店买或采花～`);
+        } else {
+          STATE.seeds[def.id] -= 1;  // 从库存拿出 1 颗
+          STATE.selectedSeed = def.id;
+          STATE.dragSeed = {
+            def, x: p.x - 20, y: p.y - 20, offsetX:20, offsetY:20,
+          };
+          C.classList.add('grabbing');
+          checkUnlock(def.id);  // 已解锁种子防御性二次确认
+        }
         return;
       }
     }
@@ -440,6 +488,7 @@ function handleClick(p){
     const s = STATE.flyingSeeds[i];
     if(Math.hypot(s.x-p.x, s.y-p.y) < 24){
       STATE.seeds[s.defId] = (STATE.seeds[s.defId] || 0) + 1;
+      checkUnlock(s.defId);  // Round 3：首次入库 → 解锁 toast
       STATE.flyingSeeds.splice(i,1);
       const def = SEEDS.find(d => d.id === s.defId);
       showHint(`+1 ${def ? def.name : ''}种子`);
@@ -451,6 +500,7 @@ function handleClick(p){
     const s = STATE.groundSeeds[i];
     if(Math.hypot(s.x-p.x, s.y-p.y) < 16){
       STATE.seeds[s.defId] = (STATE.seeds[s.defId] || 0) + 1;
+      checkUnlock(s.defId);  // Round 3：首次入库 → 解锁 toast
       const def = SEEDS.find(d => d.id === s.defId);
       STATE.floats = STATE.floats || [];
       STATE.floats.push({
@@ -882,6 +932,64 @@ function drawFloats(){
     X.fillText(f.text, f.x, f.y);
     X.restore();
   }
+}
+
+/* ============================================================
+ *  Round 3：解锁成就 toast（顶部堆叠 + 淡入淡出）
+ * ============================================================ */
+function updateToasts(dt){
+  if(!STATE.toasts) return;
+  for(const t of STATE.toasts) t.t += dt;
+  // 多保留 0.5s 给淡出动画
+  STATE.toasts = STATE.toasts.filter(t => t.t < t.life + 0.5);
+}
+function drawToasts(){
+  if(!STATE.toasts || !STATE.toasts.length) return;
+  const w = 280, h = 48;
+  const baseX = (W - w) / 2;
+  const baseY = 36;
+  const gap = 8;
+  for(let i=0; i<STATE.toasts.length; i++){
+    const t = STATE.toasts[i];
+    const fadeIn = clamp(t.t / 0.3, 0, 1);
+    const fadeOut = clamp((t.life - t.t) / 0.5, 0, 1);
+    const alpha = Math.min(fadeIn, fadeOut);
+    if(alpha <= 0) continue;
+    // 顶部下滑入场 + 堆叠位移
+    const slideIn = (1 - fadeIn) * -22;
+    const x = baseX + Math.sin(t.t * 4 + i) * 1.2; // 轻微左右摇摆
+    const y = baseY + i * (h + gap) + slideIn;
+    X.save();
+    X.globalAlpha = alpha;
+    // 阴影
+    X.fillStyle = 'rgba(0,0,0,0.18)';
+    roundRect(x + 2, y + 4, w, h, 14);
+    X.fill();
+    // 卡片底色
+    X.fillStyle = '#fff8e0';
+    roundRect(x, y, w, h, 14);
+    X.fill();
+    // 彩色边框
+    X.strokeStyle = t.color || '#e8a040';
+    X.lineWidth = 3;
+    X.stroke();
+    // 星星图标
+    X.font = '24px sans-serif';
+    X.textAlign = 'left';
+    X.textBaseline = 'middle';
+    X.fillText(t.emoji, x + 14, y + h/2 + 1);
+    // 标题
+    X.fillStyle = '#5a3a1a';
+    X.font = 'bold 12px sans-serif';
+    X.fillText(t.title, x + 50, y + 14);
+    // 种子名（带 emoji）
+    X.fillStyle = '#7a4a20';
+    X.font = 'bold 15px sans-serif';
+    X.fillText(`${t.seedEmoji} ${t.name}`, x + 50, y + 33);
+    X.restore();
+  }
+  X.textAlign = 'left';
+  X.textBaseline = 'middle';
 }
 
 /* ============================================================
@@ -1424,77 +1532,132 @@ function drawSeedBag(){
   X.textBaseline = 'top';
   X.textAlign = 'left';
   X.fillText('🌰 种子袋', b.x + 8, b.y + 4);
-  // 库存总数（右上角）
-  const totalSeeds = Object.values(STATE.seeds).reduce((a, b) => a + (b || 0), 0);
+  // 库存总数（右上）
+  const totalSeeds = Object.values(STATE.seeds).reduce((a, c) => a + (c || 0), 0);
   X.fillStyle = '#a07020';
   X.font = 'bold 10px sans-serif';
   X.textAlign = 'right';
-  X.fillText(`📦 ${totalSeeds}`, b.x + b.w - 8, b.y + 5);
+  X.fillText(`📦 ${totalSeeds}`, b.x + b.w - 28, b.y + 5);
+  // "+" 按钮（最右上，圆形小按钮 → 打开商店）
+  const plusBtnX = b.x + b.w - 12, plusBtnY = b.y + 12;
+  X.fillStyle = 'rgba(150,200,255,0.75)';
+  X.beginPath();
+  X.arc(plusBtnX, plusBtnY, 10, 0, TAU);
+  X.fill();
+  X.strokeStyle = '#3a6a90'; X.lineWidth = 1.5;
+  X.stroke();
+  X.fillStyle = '#1a3a5a';
+  X.font = 'bold 14px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillText('+', plusBtnX, plusBtnY + 1);
+  SCENE.bagPlus = { x: plusBtnX-12, y: plusBtnY-12, w:24, h:24 };
   X.textAlign = 'left';
-  // 只显示已解锁 + 库存 > 0 的种子 + 1 个"+"按钮（宽度根据 bagBox 自适应）
-  const unlockedSeeds = SEEDS.filter(s => STATE.unlocked[s.id] && (STATE.seeds[s.id] || 0) > 0);
-  const maxCells = Math.max(1, Math.floor((b.w - 50) / 70));  // 每格 ~70px，留 50px 给"+"和 padding
-  const showSeeds = unlockedSeeds.slice(0, maxCells);
-  const cellW = 70;
+
+  // === Round 3：解锁进度（彩虹条）===
+  const unlockedCount = SEEDS.filter(s => STATE.unlocked[s.id]).length;
+  const total = SEEDS.length;
+  const ratio = total ? unlockedCount / total : 0;
+  const progX = b.x + 8, progY = b.y + 20, progW = b.w - 16, progH = 10;
+  X.fillStyle = 'rgba(0,0,0,0.08)';
+  roundRect(progX, progY, progW, progH, 5);
+  X.fill();
+  if(ratio > 0){
+    const grd = X.createLinearGradient(progX, 0, progX + progW, 0);
+    const cols = ['#ff8080','#ffaa50','#ffe040','#80e050','#50d0c0','#6080e0','#a060d0','#e060a0','#ffd040','#80c060'];
+    cols.forEach((c, i) => grd.addColorStop(i / (cols.length - 1), c));
+    X.fillStyle = grd;
+    roundRect(progX, progY, progW * ratio, progH, 5);
+    X.fill();
+  }
+  X.fillStyle = ratio >= 1 ? '#c03020' : '#3a2010';
+  X.font = 'bold 9px sans-serif';
+  X.textAlign = 'center';
+  X.textBaseline = 'middle';
+  X.fillText(ratio >= 1 ? '🎉 已集齐所有种子！' : `🌱 已解锁 ${unlockedCount}/${total}`, progX + progW/2, progY + progH/2);
+  X.textAlign = 'left';
+
+  // === Round 3：种子网格 2 行 × 5 列（全部 10 种都显示）===
+  const cols = 5;
+  const cellW = (b.w - 20) / cols;
+  const cellH = 22;
   const startX = b.x + 10;
-  const cy = b.y + 32;
-  for(let i=0;i<showSeeds.length;i++){
-    const def = showSeeds[i];
-    const cx = startX + cellW * i + cellW/2;
-    const isSelected = STATE.selectedSeed === def.id;
+  const startY = b.y + 38;
+  for(let i=0; i<SEEDS.length; i++){
+    const def = SEEDS[i];
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = startX + col * cellW + cellW/2;
+    const cy = startY + row * cellH + cellH/2;
     const cnt = STATE.seeds[def.id] || 0;
+    const unlocked = STATE.unlocked[def.id];
+    const isSelected = STATE.selectedSeed === def.id && unlocked && cnt > 0;
+
     // 选中高亮
     if(isSelected){
       X.fillStyle = 'rgba(255,220,120,0.55)';
       X.beginPath();
-      X.arc(cx, cy, 22, 0, TAU);
+      X.arc(cx, cy, 13, 0, TAU);
       X.fill();
     }
-    // 种子图标
-    X.fillStyle = def.seedColor;
-    X.beginPath();
-    X.ellipse(cx, cy, 10, 7, 0, 0, TAU);
-    X.fill();
-    X.strokeStyle = 'rgba(0,0,0,0.4)';
-    X.lineWidth = 1.5;
-    X.stroke();
-    // 数量小徽章（右上角）
-    X.fillStyle = '#fff';
-    X.strokeStyle = '#7a4a20';
-    X.lineWidth = 1.5;
-    X.beginPath();
-    X.arc(cx + 12, cy - 10, 7, 0, TAU);
-    X.fill();
-    X.stroke();
-    X.fillStyle = '#7a4a20';
-    X.font = 'bold 9px sans-serif';
-    X.textAlign = 'center';
-    X.textBaseline = 'middle';
-    X.fillText(String(cnt), cx + 12, cy - 10);
+
+    if(!unlocked){
+      // === 未解锁：灰色 + ❓ ===
+      X.globalAlpha = 0.55;
+      X.fillStyle = '#888';
+      X.beginPath();
+      X.ellipse(cx - 4, cy, 8, 5, 0, 0, TAU);
+      X.fill();
+      X.strokeStyle = 'rgba(0,0,0,0.4)';
+      X.lineWidth = 1;
+      X.stroke();
+      X.globalAlpha = 1;
+      // ❓ 徽章
+      X.fillStyle = '#fff';
+      X.strokeStyle = '#666';
+      X.lineWidth = 1.5;
+      X.beginPath();
+      X.arc(cx + 8, cy - 7, 6, 0, TAU);
+      X.fill();
+      X.stroke();
+      X.fillStyle = '#555';
+      X.font = 'bold 9px sans-serif';
+      X.textAlign = 'center';
+      X.textBaseline = 'middle';
+      X.fillText('?', cx + 8, cy - 7);
+    } else {
+      // === 已解锁 ===
+      const isEmpty = cnt <= 0;
+      X.globalAlpha = isEmpty ? 0.5 : 1;
+      X.fillStyle = def.seedColor;
+      X.beginPath();
+      X.ellipse(cx - 4, cy, 9, 6, 0, 0, TAU);
+      X.fill();
+      X.strokeStyle = 'rgba(0,0,0,0.4)';
+      X.lineWidth = 1.2;
+      X.stroke();
+      // 数量徽章
+      X.fillStyle = '#fff';
+      X.strokeStyle = '#7a4a20';
+      X.lineWidth = 1.2;
+      X.beginPath();
+      X.arc(cx + 9, cy - 8, 6, 0, TAU);
+      X.fill();
+      X.stroke();
+      X.fillStyle = isEmpty ? '#888' : '#7a4a20';
+      X.font = 'bold 8px sans-serif';
+      X.textAlign = 'center';
+      X.textBaseline = 'middle';
+      X.fillText(String(cnt), cx + 9, cy - 8);
+      X.globalAlpha = 1;
+    }
     // 名字
-    X.fillStyle = '#3a2010';
-    X.font = '9px sans-serif';
+    X.fillStyle = unlocked ? '#3a2010' : '#777';
+    X.font = '8px sans-serif';
     X.textAlign = 'center';
     X.textBaseline = 'top';
-    X.fillText(def.name, cx, cy + 12);
-    // 触摸区域存到 def
-    def._bagBox = { x:cx-cellW/2, y:cy-22, w:cellW, h:44 };
-  }
-  // "+" 按钮：跳到商店
-  const plusX = startX + cellW * showSeeds.length + 30;
-  // 如果 plusX 超出 bagBox 则隐藏
-  if(plusX + 20 < b.x + b.w){
-    X.fillStyle = 'rgba(150,200,255,0.7)';
-    X.beginPath();
-    X.arc(plusX, cy, 18, 0, TAU);
-    X.fill();
-    X.strokeStyle = '#3a6a90'; X.lineWidth = 2;
-    X.stroke();
-    X.fillStyle = '#1a3a5a';
-    X.font = 'bold 22px sans-serif';
-    X.textAlign = 'center'; X.textBaseline = 'middle';
-    X.fillText('+', plusX, cy + 1);
-    SCENE.bagPlus = { x:plusX-20, y:cy-20, w:40, h:40 };
+    X.fillText(def.name, cx, cy + 8);
+    // 触摸区域（点击命中用）
+    def._bagBox = { x: cx - cellW/2 + 2, y: cy - cellH/2, w: cellW - 4, h: cellH };
   }
   X.textAlign = 'left';
   X.textBaseline = 'middle';
@@ -1811,6 +1974,7 @@ function loop(now){
     updateGroundSeeds(dt);
     updateParticles(dt);
     updateFloats(dt);
+    updateToasts(dt);  // Round 3：解锁成就 toast 推进
   }
   render();
   requestAnimationFrame(loop);
@@ -1837,6 +2001,7 @@ function render(){
   drawDragSeed();
   drawArrow();
   drawShop();
+  drawToasts();  // Round 3：解锁成就 toast（最上层）
 }
 
 /* ============================================================
