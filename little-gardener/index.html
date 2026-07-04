@@ -90,18 +90,21 @@ function checkUnlock(seedId){
   }
 }
 
-/* ---------- 种子类型 ---------- */
+/* ---------- 种子类型 ----------
+ * sellPrice: 卖花给订单的金币
+ * buyPrice:  商店里直接买种子的金币（Round 4 新增）
+ */
 const SEEDS = [
-  { id:'sun',  name:'向日葵',  seedColor:'#7a4a20', seedShape:'oval', growMs: 60000, sellPrice:5,  flower:'sunflower', flowerColor:'#ffc830', flowerCore:'#5a2a00' },
-  { id:'rose', name:'玫瑰',     seedColor:'#a83030', seedShape:'oval', growMs: 90000, sellPrice:7,  flower:'rose',      flowerColor:'#e85070', flowerCore:'#a02040' },
-  { id:'daisy',name:'雏菊',     seedColor:'#d8c890', seedShape:'oval', growMs: 45000, sellPrice:4,  flower:'daisy',     flowerColor:'#ffffff', flowerCore:'#f0c040' },
-  { id:'tulip',name:'郁金香',   seedColor:'#5a2a80', seedShape:'oval', growMs: 50000, sellPrice:5,  flower:'tulip',     flowerColor:'#9050d0', flowerCore:'#6020a0' },
-  { id:'dand', name:'蒲公英',   seedColor:'#e8d060', seedShape:'oval', growMs: 40000, sellPrice:3,  flower:'dandelion', flowerColor:'#ffe040', flowerCore:'#fff8a0', dandelion:true },
-  { id:'lavender', name:'薰衣草', seedColor:'#6a4a90', seedShape:'oval', growMs:30000, sellPrice:6,  flowerColor:'#8a5ac0', flowerCore:'#5028a0' },
-  { id:'sakura',   name:'樱花',   seedColor:'#d080a0', seedShape:'oval', growMs:45000, sellPrice:12, flowerColor:'#ffb0d0', flowerCore:'#e060a0' },
-  { id:'cactus',   name:'仙人掌', seedColor:'#3a6020', seedShape:'oval', growMs:25000, sellPrice:8,  flowerColor:'#5ba050', flowerCore:'#3a6020' },
-  { id:'lotus',    name:'莲花',   seedColor:'#e0a0b0', seedShape:'oval', growMs:50000, sellPrice:18, flowerColor:'#ff80a0', flowerCore:'#fff0e0' },
-  { id:'sunred',   name:'红葵',   seedColor:'#702010', seedShape:'oval', growMs:60000, sellPrice:25, flowerColor:'#e85030', flowerCore:'#5a2010' },
+  { id:'sun',  name:'向日葵',  seedColor:'#7a4a20', seedShape:'oval', growMs: 60000, sellPrice:5,  buyPrice:8,  flower:'sunflower', flowerColor:'#ffc830', flowerCore:'#5a2a00' },
+  { id:'rose', name:'玫瑰',     seedColor:'#a83030', seedShape:'oval', growMs: 90000, sellPrice:7,  buyPrice:8,  flower:'rose',      flowerColor:'#e85070', flowerCore:'#a02040' },
+  { id:'daisy',name:'雏菊',     seedColor:'#d8c890', seedShape:'oval', growMs: 45000, sellPrice:4,  buyPrice:5,  flower:'daisy',     flowerColor:'#ffffff', flowerCore:'#f0c040' },
+  { id:'tulip',name:'郁金香',   seedColor:'#5a2a80', seedShape:'oval', growMs: 50000, sellPrice:5,  buyPrice:6,  flower:'tulip',     flowerColor:'#9050d0', flowerCore:'#6020a0' },
+  { id:'dand', name:'蒲公英',   seedColor:'#e8d060', seedShape:'oval', growMs: 40000, sellPrice:3,  buyPrice:5,  flower:'dandelion', flowerColor:'#ffe040', flowerCore:'#fff8a0', dandelion:true },
+  { id:'lavender', name:'薰衣草', seedColor:'#6a4a90', seedShape:'oval', growMs:30000, sellPrice:6,  buyPrice:12, flowerColor:'#8a5ac0', flowerCore:'#5028a0' },
+  { id:'sakura',   name:'樱花',   seedColor:'#d080a0', seedShape:'oval', growMs:45000, sellPrice:12, buyPrice:30, flowerColor:'#ffb0d0', flowerCore:'#e060a0' },
+  { id:'cactus',   name:'仙人掌', seedColor:'#3a6020', seedShape:'oval', growMs:25000, sellPrice:8,  buyPrice:15, flowerColor:'#5ba050', flowerCore:'#3a6020' },
+  { id:'lotus',    name:'莲花',   seedColor:'#e0a0b0', seedShape:'oval', growMs:50000, sellPrice:18, buyPrice:20, flowerColor:'#ff80a0', flowerCore:'#fff0e0' },
+  { id:'sunred',   name:'红葵',   seedColor:'#702010', seedShape:'oval', growMs:60000, sellPrice:25, buyPrice:25, flowerColor:'#e85030', flowerCore:'#5a2010' },
 ];
 
 /* ---------- 种子稀有度（采花掉落概率用） ---------- */
@@ -142,6 +145,164 @@ function rollDropDefId(plantDef){
     const candidates = SEEDS.filter(s => (SEED_RARITY[s.id] ?? 0) === 0);
     if(candidates.length) return choice(candidates).id;
     return plantDef.id;
+  }
+}
+
+/* ============================================================
+ *  Round 4：特殊花朵特性掉落
+ *  - 蒲公英 (dand): 保证 2 颗（普通粒 + 飞散）
+ *  - 樱花 (sakura): 额外 2-3 颗（含 1 个未解锁种子）
+ *  - 睡莲 (lotus): 夜晚收获 +50% 金币；白天 30% 几率掉 1 颗蒲公英
+ *  - 向日葵 (sun): +1 阳光（占位，本轮不实装季节系统）
+ *  - 薰衣草 (lavender): 蜂 NPC 好感 +2
+ *  - 红葵 (sunred): 屏幕 warm tint + 🔥 粒子飘字
+ *  - 仙人掌 (cactus): 额外 +10 金币
+ *  参数 fx/fy: 花朵中心（用于粒子/种子飞出位置）
+ * ============================================================ */
+function harvestSpecialBonus(plant, fx, fy){
+  const id = plant.def.id;
+  STATE.floats = STATE.floats || [];
+  STATE.groundSeeds = STATE.groundSeeds || [];
+
+  // 蒲公英：保证 2 颗
+  if(id === 'dand'){
+    STATE.groundSeeds.push({
+      defId:'dand', x: fx + rand(-10, 10), y: fy - 6,
+      vx: rand(-30, 30), vy: rand(-100, -60), t: 0,
+    });
+    STATE.floats.push({ x: fx, y: fy - 30, text: '🌾×2 保证！', t: 0, color: '#d0a020' });
+    return;
+  }
+
+  // 樱花：2-3 颗，其中 1 颗是未解锁的种子
+  if(id === 'sakura'){
+    const bonusCount = 2 + (Math.random() < 0.5 ? 1 : 0);
+    for(let i=0; i<bonusCount; i++){
+      let defId;
+      if(i === 0){
+        // 第 1 颗：随机未解锁的种子（玩家首遇新种）
+        const locked = SEEDS.filter(s => !STATE.unlocked[s.id]);
+        defId = locked.length ? choice(locked).id : choice(SEEDS).id;
+      } else {
+        defId = rollDropDefId(plant.def);
+      }
+      STATE.groundSeeds.push({
+        defId, x: fx + rand(-14, 14), y: fy - 4 - i * 4,
+        vx: rand(-40, 40), vy: rand(-110, -60), t: 0,
+      });
+    }
+    STATE.floats.push({ x: fx, y: fy - 30, text: `🌸 樱花之礼 +${bonusCount} 颗！`, t: 0, color: '#e060a0' });
+    // 10 颗粉色花瓣
+    for(let i=0;i<10;i++){
+      STATE.particles.push({
+        x: fx, y: fy,
+        vx: rand(-100, 100), vy: rand(-140, -50),
+        g: 180, size: rand(4, 7),
+        color: '#ffb0d0', life: 1.5, t: 0, kind: 'petal',
+      });
+    }
+    return;
+  }
+
+  // 睡莲：夜晚 +50% 金币 / 白天 30% 几率掉蒲公英
+  if(id === 'lotus'){
+    if(typeof isNight === 'function' && isNight()){
+      const bonus = Math.ceil((plant.def.sellPrice || 18) * 0.5);
+      STATE.coins += bonus;
+      STATE.floats.push({ x: fx, y: fy - 30, text: `🌙 莲花夜赏 +${bonus}💰`, t: 0, color: '#7090e0' });
+    } else if(Math.random() < 0.3){
+      STATE.groundSeeds.push({
+        defId: 'dand', x: fx + rand(-8, 8), y: fy - 6,
+        vx: rand(-30, 30), vy: rand(-90, -50), t: 0,
+      });
+      STATE.floats.push({ x: fx, y: fy - 30, text: '🪷 赠蒲公英种 1 颗', t: 0, color: '#ffe040' });
+    }
+    return;
+  }
+
+  // 向日葵：+1 阳光（占位 — 未来季节系统用）
+  if(id === 'sun'){
+    STATE.sunEnergy = (STATE.sunEnergy || 0) + 1;
+    STATE.floats.push({ x: fx, y: fy - 30, text: '☀️+1 阳光值', t: 0, color: '#ffb000' });
+    // 4 颗小光点
+    for(let i=0;i<4;i++){
+      STATE.particles.push({
+        x: fx, y: fy,
+        vx: rand(-50, 50), vy: rand(-110, -50),
+        g: 160, size: rand(2, 4),
+        color: '#ffe060', life: 0.8, t: 0, kind: 'sparkle',
+      });
+    }
+    return;
+  }
+
+  // 薰衣草：蜂 NPC 好感 +2
+  if(id === 'lavender'){
+    STATE.npcFav.bee = (STATE.npcFav.bee || 0) + 2;
+    STATE.floats.push({ x: fx, y: fy - 30, text: '🐝 蜂蜂 +2 好感', t: 0, color: '#8a5ac0' });
+    for(let i=0;i<6;i++){
+      STATE.particles.push({
+        x: fx, y: fy,
+        vx: rand(-60, 60), vy: rand(-100, -40),
+        g: 180, size: rand(2, 4),
+        color: '#a070d0', life: 1.0, t: 0, kind: 'sparkle',
+      });
+    }
+    return;
+  }
+
+  // 红葵：warm tint + 🔥 飘字 + 火色粒子
+  if(id === 'sunred'){
+    STATE.floats.push({ x: fx, y: fy - 30, text: '🔥 红葵盛放！', t: 0, color: '#e85030' });
+    // 8 颗火焰粒子
+    for(let i=0;i<8;i++){
+      STATE.particles.push({
+        x: fx, y: fy,
+        vx: rand(-70, 70), vy: rand(-130, -50),
+        g: 160, size: rand(3, 5),
+        color: Math.random() < 0.5 ? '#ff7030' : '#e85030',
+        life: 1.2, t: 0, kind: 'sparkle',
+      });
+    }
+    // 屏幕 warm tint 标记（main 渲染读）
+    STATE.warmTintT = (STATE.warmTintT || 0) + 0.6;
+    return;
+  }
+
+  // 仙人掌：额外 +10 金币（沙漠价）
+  if(id === 'cactus'){
+    STATE.coins += 10;
+    STATE.floats.push({ x: fx, y: fy - 30, text: '🌵 沙漠金币 +10💰', t: 0, color: '#5ba050' });
+    return;
+  }
+}
+
+/* ============================================================
+ *  Round 4：3 次收获枯萎 → 额外爆出 1 颗最稀有花的种子
+ *  在 plant.harvests >= 3 触发死亡时调用一次
+ * ============================================================ */
+function harvestFinalBonus(plant, fx, fy){
+  STATE.groundSeeds = STATE.groundSeeds || [];
+  // 找当前最稀有（SEED_RARITY 最大）的种子
+  let best = SEEDS[0];
+  for(const s of SEEDS){
+    if((SEED_RARITY[s.id] ?? 0) > (SEED_RARITY[best.id] ?? 0)) best = s;
+  }
+  STATE.groundSeeds.push({
+    defId: best.id, x: fx + rand(-10, 10), y: fy - 4,
+    vx: rand(-30, 30), vy: rand(-100, -60), t: 0,
+  });
+  STATE.floats = STATE.floats || [];
+  STATE.floats.push({ x: fx, y: fy - 50, text: `🎁 终末礼物 ${SEED_EMOJI[best.id]||'🌱'}${best.name}种`, t: 0, color: '#d040c0' });
+  // 一圈星粒子
+  for(let i=0;i<12;i++){
+    const a = (i / 12) * TAU;
+    STATE.particles.push({
+      x: fx, y: fy,
+      vx: Math.cos(a) * 80, vy: Math.sin(a) * 80 - 40,
+      g: 160, size: rand(3, 5),
+      color: '#ffd040', life: 1.2, t: 0, kind: 'sparkle',
+    });
   }
 }
 
@@ -247,6 +408,8 @@ function completeOrder(order, plant){
   } else if(plant.harvests >= 3){
     plant.dead = true;
     plant.flowerSpent = true;
+    // Round 4：终末礼物 — 额外 1 颗最稀有花种子（订单 + 收获同时到达 3 次时）
+    harvestFinalBonus(plant, fx, fy);
     setTimeout(() => { plant.bed.occupied = false; }, 800);
   }
   // 飘字 + 礼物种子从花朵中心爆出
@@ -403,11 +566,12 @@ function handleClick(p){
   if(STATE.shopOpen){
     for(const def of SEEDS){
       if(def._buyBox && pointInBox(p.x, p.y, def._buyBox)){
-        if(STATE.coins >= 8){
-          STATE.coins -= 8;
+        const price = def.buyPrice || 8;
+        if(STATE.coins >= price){
+          STATE.coins -= price;
           STATE.seeds[def.id] = (STATE.seeds[def.id] || 0) + 1;
           checkUnlock(def.id);  // Round 3：解锁 toast（首次 false→true 时弹）
-          showHint(`买了 ${def.name}！`);
+          showHint(`买了 ${def.name}！-${price}💰`);
         } else {
           showHint('💰 金币不足');
         }
@@ -678,6 +842,8 @@ function harvestPlant(plant){
         t: 0,
       });
     }
+    // Round 4：特殊花朵特性掉落（蒲公英/樱花/睡莲/向日葵/薰衣草/红葵/仙人掌）
+    harvestSpecialBonus(plant, fx, fy);
   }
   // 蒲公英：直接完成
   if(plant.def.dandelion){
@@ -691,6 +857,8 @@ function harvestPlant(plant){
   if(plant.harvests >= 3){
     plant.dead = true;
     plant.flowerSpent = true;
+    // Round 4：终末礼物 — 额外 1 颗最稀有花种子
+    harvestFinalBonus(plant, fx, fy);
     setTimeout(() => { plant.bed.occupied = false; }, 800);
     showHint(`收获完啦！+${reward*3}💰 总计`);
   } else {
@@ -1894,7 +2062,16 @@ function drawShop(){
   if(!STATE.shopOpen) return;
   X.fillStyle = 'rgba(0,0,0,0.4)';
   X.fillRect(0, 0, W, H);
-  const cx = W/2 - 200, cy = H/2 - 240, cw = 400, ch = 480;
+  // Round 4：商店面板自适应高度
+  const unlockedAll = SEEDS.filter(s => STATE.unlocked[s.id]);
+  const lockedAll = SEEDS.filter(s => !STATE.unlocked[s.id]);
+  const totalRows = unlockedAll.length + lockedAll.length;
+  const cardH = 58, cardGap = 6;
+  const headerH = 110;
+  const listH = totalRows * (cardH + cardGap);
+  const cw = 400;
+  const ch = Math.min(H - 40, headerH + listH + 20);
+  const cx = W/2 - cw/2, cy = H/2 - ch/2;
   X.fillStyle = '#fff8e8';
   roundRect(cx, cy, cw, ch, 16);
   X.fill();
@@ -1903,7 +2080,10 @@ function drawShop(){
   X.fillStyle = '#5a3a1a';
   X.font = 'bold 22px sans-serif';
   X.textAlign = 'center'; X.textBaseline = 'top';
-  X.fillText('🏪 商店', W/2, cy + 16);
+  X.fillText('🏪 商店', W/2, cy + 14);
+  X.fillStyle = '#7a6020';
+  X.font = '12px sans-serif';
+  X.fillText(`💰 ${STATE.coins}`, W/2, cy + 42);
   X.fillStyle = '#e85050';
   X.beginPath(); X.arc(cx + cw - 20, cy + 20, 14, 0, TAU); X.fill();
   X.fillStyle = '#fff';
@@ -1911,38 +2091,95 @@ function drawShop(){
   X.textAlign = 'center'; X.textBaseline = 'middle';
   X.fillText('×', cx + cw - 20, cy + 20);
   SCENE.shopClose = { x:cx+cw-32, y:cy+8, w:24, h:24 };
-  const newSeeds = SEEDS.filter(s => !STATE.unlocked[s.id]);
-  let y = cy + 60;
-  for(const def of newSeeds){
-    const cardX = cx + 20, cardY = y, cardW = cw - 40, cardH = 70;
+
+  // 段头：可购买
+  let y = cy + 62;
+  X.fillStyle = '#5a8a20';
+  X.font = 'bold 12px sans-serif';
+  X.textAlign = 'left'; X.textBaseline = 'middle';
+  X.fillText('🛒 可购买种子', cx + 20, y);
+  X.fillStyle = '#a07020';
+  X.font = '10px sans-serif';
+  X.textAlign = 'right';
+  X.fillText(`${unlockedAll.length} 种已解锁`, cx + cw - 20, y);
+  y += 18;
+
+  // 已解锁的种子卡
+  for(const def of unlockedAll){
+    const cardX = cx + 20, cardY = y, cardW = cw - 40, cardH2 = cardH;
+    const cnt = STATE.seeds[def.id] || 0;
     X.fillStyle = '#fff';
-    roundRect(cardX, cardY, cardW, cardH, 10);
+    roundRect(cardX, cardY, cardW, cardH2, 10);
     X.fill();
     X.strokeStyle = '#c0a070'; X.lineWidth = 1.5;
     X.stroke();
+    // 种子椭圆
     X.fillStyle = def.seedColor;
     X.beginPath();
-    X.ellipse(cardX + 30, cardY + 35, 12, 8, 0, 0, TAU);
+    X.ellipse(cardX + 26, cardY + cardH2/2, 12, 8, 0, 0, TAU);
     X.fill();
-    X.fillStyle = '#3a2010';
-    X.font = 'bold 14px sans-serif';
+    X.strokeStyle = 'rgba(0,0,0,0.25)'; X.lineWidth = 1;
+    X.stroke();
+    // emoji
+    X.font = '16px sans-serif';
     X.textAlign = 'left'; X.textBaseline = 'middle';
-    X.fillText(def.name, cardX + 55, cardY + 25);
-    X.fillStyle = '#a07020';
-    X.font = '12px sans-serif';
-    X.fillText(`卖价 ${def.sellPrice} 💰`, cardX + 55, cardY + 45);
-    const btnX = cardX + cardW - 80, btnY = cardY + 18, btnW = 64, btnH = 34;
-    const canBuy = STATE.coins >= 8;
+    X.fillText(SEED_EMOJI[def.id] || '🌱', cardX + 46, cardY + 22);
+    // 名字
+    X.fillStyle = '#3a2010';
+    X.font = 'bold 13px sans-serif';
+    X.fillText(def.name, cardX + 70, cardY + 22);
+    // 库存 + 卖价
+    X.fillStyle = cnt > 0 ? '#5a8a20' : '#a07020';
+    X.font = '11px sans-serif';
+    X.fillText(`库存 ${cnt}  ·  卖价 ${def.sellPrice}💰`, cardX + 70, cardY + 40);
+    // 买按钮
+    const btnX = cardX + cardW - 76, btnY = cardY + 12, btnW = 64, btnH = cardH2 - 24;
+    const price = def.buyPrice || 8;
+    const canBuy = STATE.coins >= price;
     X.fillStyle = canBuy ? '#7bc050' : '#aaa';
     roundRect(btnX, btnY, btnW, btnH, 8);
     X.fill();
     X.fillStyle = '#fff';
-    X.font = 'bold 13px sans-serif';
+    X.font = 'bold 12px sans-serif';
     X.textAlign = 'center'; X.textBaseline = 'middle';
-    X.fillText(`8 💰 买`, btnX + btnW/2, btnY + btnH/2);
+    X.fillText(`${price} 💰`, btnX + btnW/2, btnY + btnH/2 - 6);
+    X.font = '10px sans-serif';
+    X.fillText('买 1 颗', btnX + btnW/2, btnY + btnH/2 + 8);
     def._buyBox = { x:btnX, y:btnY, w:btnW, h:btnH };
-    y += cardH + 8;
+    y += cardH2 + cardGap;
   }
+
+  // 段头：未解锁（锁住）
+  if(lockedAll.length){
+    X.fillStyle = '#a07040';
+    X.font = 'bold 12px sans-serif';
+    X.textAlign = 'left'; X.textBaseline = 'middle';
+    X.fillText('🔒 未解锁（达成条件解锁）', cx + 20, y + 4);
+    y += 18;
+    for(const def of lockedAll){
+      const cardX = cx + 20, cardY = y, cardW = cw - 40, cardH2 = 40;
+      X.fillStyle = 'rgba(220,210,190,0.6)';
+      roundRect(cardX, cardY, cardW, cardH2, 10);
+      X.fill();
+      X.strokeStyle = '#c0a070'; X.lineWidth = 1;
+      X.setLineDash([4, 3]);
+      X.stroke();
+      X.setLineDash([]);
+      X.fillStyle = '#888';
+      X.beginPath();
+      X.ellipse(cardX + 22, cardY + cardH2/2, 10, 6, 0, 0, TAU);
+      X.fill();
+      X.fillStyle = '#3a2010';
+      X.font = 'bold 12px sans-serif';
+      X.textAlign = 'left'; X.textBaseline = 'middle';
+      X.fillText(`❓ ${def.name}`, cardX + 42, cardY + 13);
+      X.fillStyle = '#a07020';
+      X.font = '10px sans-serif';
+      X.fillText(LOCK_STORIES[def.id] || '神秘种子…', cardX + 42, cardY + 30);
+      y += cardH2 + cardGap;
+    }
+  }
+
   X.textAlign = 'left';
   X.textBaseline = 'middle';
 }
@@ -2001,7 +2238,17 @@ function render(){
   drawDragSeed();
   drawArrow();
   drawShop();
+  drawWarmTint();  // Round 4：红葵收获的屏幕 warm 滤镜
   drawToasts();  // Round 3：解锁成就 toast（最上层）
+}
+
+/* Round 4：红葵收获时的暖色滤镜（0.6 秒淡出） */
+function drawWarmTint(){
+  if(!STATE.warmTintT || STATE.warmTintT <= 0) return;
+  const alpha = Math.min(0.18, STATE.warmTintT * 0.18);
+  X.fillStyle = `rgba(255, 130, 60, ${alpha})`;
+  X.fillRect(0, 0, W, H);
+  STATE.warmTintT = Math.max(0, STATE.warmTintT - 0.016);
 }
 
 /* ============================================================
@@ -2016,6 +2263,8 @@ document.getElementById('startBtn').addEventListener('click', () => {
   STATE.groundSeeds = []; // 地上掉落种子
   STATE.coins = 3; // 初始 3 金币（卖 1 朵雏菊 4 金币 → 买 1 颗薰衣草 8 金币，需要卖 2 朵）
   STATE.unlocked = { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false };
+  STATE.sunEnergy = 0;     // Round 4：向日葵收获累计阳光值
+  STATE.warmTintT = 0;     // Round 4：红葵屏幕暖色滤镜计时器
   STATE.arrowTimer = 5;
   // v1 订单系统：开张第一单
   generateOrders();
