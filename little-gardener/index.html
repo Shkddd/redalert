@@ -107,6 +107,10 @@ const SEEDS = [
   { id:'sunred',   name:'红葵',   seedColor:'#702010', seedShape:'oval', growMs:60000, sellPrice:25, buyPrice:25, flowerColor:'#e85030', flowerCore:'#5a2010' },
   // Round 6：冬季限定 — 雪莲
   { id:'winterflower', name:'雪莲', seedColor:'#a0c0e0', seedShape:'oval', growMs:50000, sellPrice:30, buyPrice:30, flowerColor:'#e0f0ff', flowerCore:'#90b8d8' },
+  // Round 7：NPC 故事线解锁的传家宝 / 黑玫瑰 / 传说之种
+  { id:'heirloom',  name:'传家宝',   seedColor:'#c08040', seedShape:'oval', growMs:60000, sellPrice:50, buyPrice:0,  flowerColor:'#ffd870', flowerCore:'#c08020', heirloom:true  },
+  { id:'blackrose', name:'黑玫瑰',   seedColor:'#1a0a14', seedShape:'oval', growMs:75000, sellPrice:60, buyPrice:0,  flowerColor:'#3a0a20', flowerCore:'#100008', blackrose:true },
+  { id:'legendary', name:'传说之花', seedColor:'#f0c040', seedShape:'star',  growMs:90000, sellPrice:120,buyPrice:0,  flowerColor:'#ffe060', flowerCore:'#ff80c0', legendary:true},
 ];
 
 /* ---------- 种子稀有度（采花掉落概率用） ---------- */
@@ -115,6 +119,7 @@ const SEED_RARITY = {
   daisy: 0, dand: 0,                       // common
   rose: 1, sun: 1, tulip: 1, lavender: 1, cactus: 1,  // uncommon
   sakura: 2, lotus: 2, sunred: 2, winterflower: 2,  // rare
+  heirloom: 2, blackrose: 2, legendary: 2,           // Round 7：NPC 故事线专属
 };
 
 /* ---------- 种子锁定故事（每个未解锁种子 1 句） ---------- */
@@ -129,6 +134,7 @@ const LOCK_STORIES = {
 const SEED_EMOJI = {
   sun:'🌻', rose:'🌹', daisy:'🌼', tulip:'🌷', dand:'🌾',
   lavender:'💜', sakura:'🌸', cactus:'🌵', lotus:'🪷', sunred:'🔥', winterflower:'❄️',
+  heirloom:'🌟', blackrose:'🖤', legendary:'✨',
 };
 
 /* ============================================================
@@ -427,6 +433,12 @@ const STATE = {
   seasonIdx: 0,                           // 0=春 1=夏 2=秋 3=冬（由 orderDay 推算）
   dayInSeason: 1,                         // 1..5（当前季第几天）
   seasonBanner: null,                     // 季节切换时的横幅：{emoji, title, sub, t, life}
+  // Round 7：NPC 故事线
+  npcStory: { bunny:0, bear:0, fox:0, cat:0, bee:0 },  // 当前已解锁段（0..4）
+  storySeen: { bunny:0, bear:0, fox:0, cat:0, bee:0 },  // 玩家已读段（小于 npcStory 即有"新对话"）
+  storyRewardGiven: { heirloom:false, coins30:false, rare3:false, blackrose:false, honey:false }, // 一次性奖励防重复
+  npcModal: null,                        // 当前打开的 NPC modal id（null = 无）
+  honeyBoost: 0,                         // Round 7：蜂 ❤️8 解锁 — 永久 +5% 生长速度
 };
 
 /* ---------- NPC 数据 ---------- */
@@ -442,6 +454,153 @@ const NPCS = [
   { id:'squirrel', name:'小松鼠',   color:'#d09050', want:['sakura', 'dand'],                 bonus:1.5, emoji:'🐿️', season:2 },
   { id:'penguin',  name:'小企鹅',   color:'#a0c0e0', want:['winterflower','lavender','cactus'], bonus:1.3, emoji:'🐧', season:3 },
 ];
+
+/* ============================================================
+ *  Round 7：NPC 故事线
+ *  每个常驻 NPC 5 段对话，奖励分两档：❤️8 专属礼物 + ❤️10 传说种子
+ *  常驻 NPC（5 个）共 25 段文案
+ * ============================================================ */
+const NPC_STORIES = {
+  bunny: {
+    name: '兔小姐', color: '#f0a0c0', emoji: '🐰',
+    lines: [
+      { hearts: 0,  text: '你好呀，我是兔小姐~ 我最喜欢玫瑰和郁金香了！' },
+      { hearts: 2,  text: '谢谢你送的花！市场这只松鼠要涨价了真讨厌…' },
+      { hearts: 5,  text: '我爷爷是个旅行家，给我讲了从前的花园…你愿意听吗？' },
+      { hearts: 8,  text: '我家有一枚古老的种子，爷爷留下的……如果你能照顾她，我会很高兴', reward: 'heirloom' },
+      { hearts: 10, text: '你是最棒的园丁！这是我珍藏的樱花树苗种子，希望你喜欢！', reward: 'legendary' },
+    ],
+  },
+  bear: {
+    name: '熊爷爷', color: '#a07040', emoji: '🐻',
+    lines: [
+      { hearts: 0,  text: '哦呵呵，是新来的园丁呀～我最爱葵花了，向阳的娃儿最棒！' },
+      { hearts: 2,  text: '你种的花真不错，老头子我看着就开心。多卖点儿给我呀～' },
+      { hearts: 5,  text: '想当年我也种过一片向日葵海，孙子们满山追着蝴蝶跑…' },
+      { hearts: 8,  text: '过年了过年了！这是爷爷的压岁钱，拿去买点好种子吧！', reward: 'coins30' },
+      { hearts: 10, text: '好孩子，爷爷这辈子就认你啦！传说之花送你一份！', reward: 'legendary' },
+    ],
+  },
+  fox: {
+    name: '小狐狸', color: '#e87030', emoji: '🦊',
+    lines: [
+      { hearts: 0,  text: '嘿～我是小狐狸！樱花和玫瑰都好香哦，我鼻子灵得很～' },
+      { hearts: 2,  text: '你种的花让整片森林都甜了！谢谢你，聪明的小园丁！' },
+      { hearts: 5,  text: '我藏了好多宝贝种子哦…改天带你去看我的小宝库～' },
+      { hearts: 8,  text: '这是我精选的稀有种子，都给你啦！谁让你是我朋友呢～', reward: 'rare3' },
+      { hearts: 10, text: '哇！传说之花也来啦！我们一起种下它，让全森林都看见！', reward: 'legendary' },
+    ],
+  },
+  cat: {
+    name: '黑猫', color: '#404050', emoji: '🐱',
+    lines: [
+      { hearts: 0,  text: '…喵。我喜欢薰衣草和睡莲，那种静悄悄的味道。' },
+      { hearts: 2,  text: '你的花…还不错。让我再闻一闻。喵～' },
+      { hearts: 5,  text: '我有一棵秘密的玫瑰树，只在月光下开花…你见过吗？' },
+      { hearts: 8,  text: '这朵黑玫瑰送你。别告诉别人哦，这是我们的小秘密喵。', reward: 'blackrose' },
+      { hearts: 10, text: '传说之花？喵…这可是最珍贵的花。我看好你，小园丁。', reward: 'legendary' },
+    ],
+  },
+  bee: {
+    name: '蜜蜂', color: '#f0d020', emoji: '🐝',
+    lines: [
+      { hearts: 0,  text: '嗡嗡～我是小蜜蜂！向日葵和雏菊花粉最香啦！' },
+      { hearts: 2,  text: '嗡嗡！你的花田让我采到了好多蜜！谢谢你～' },
+      { hearts: 5,  text: '我攒了一罐蜂蜜，甜甜的，让你尝尝我的宝贝！' },
+      { hearts: 8,  text: '嗡嗡～这罐金蜂蜜送你！涂在种子上，花儿长得更快哦！', reward: 'honey' },
+      { hearts: 10, text: '传说之花！嗡嗡～我给它传遍花粉，让全世界的花都香起来！', reward: 'legendary' },
+    ],
+  },
+};
+
+/* 故事线段数：❤️ 阈值表 — 0/2/5/8/10 共 5 档 */
+const STORY_THRESHOLDS = [0, 2, 5, 8, 10];
+
+/* ============================================================
+ *  Round 7：检查 NPC 故事线跨级（按 STATE.npcFav 计算应解锁到第几段）
+ *  调用时机：每次 completeOrder 后（npcFav 增加时）
+ *  - 解锁新段 → storySeen 保持原值 → modal 上会显示"新对话!"提示
+ *  - 触发奖励 → 调用 grantStoryReward（一次性，防重复）
+ * ============================================================ */
+function checkStoryMilestone(npcId){
+  const fav = STATE.npcFav[npcId] || 0;
+  const story = NPC_STORIES[npcId];
+  if(!story) return;
+  // 计算当前应解锁段（基于 fav 跨过几个阈值）
+  let highest = -1;
+  for(let i = STORY_THRESHOLDS.length - 1; i >= 0; i--){
+    if(fav >= STORY_THRESHOLDS[i]){ highest = i; break; }
+  }
+  const oldIdx = STATE.npcStory[npcId] || 0;
+  if(highest > oldIdx){
+    STATE.npcStory[npcId] = highest;
+    const newLine = story.lines[highest];
+    // 触发该段奖励（若有）
+    if(newLine && newLine.reward){
+      grantStoryReward(npcId, newLine.reward);
+    }
+    // 自动打开 modal 展示新段（首次解锁时）
+    if(!STATE.npcModal){
+      STATE.npcModal = npcId;
+    }
+    // 飘字
+    showHint(`${story.emoji} ${story.name} 有新故事！(${STORY_THRESHOLDS[highest]}❤️)`, 3500);
+  }
+}
+
+/* Round 7：奖励发放（一次性，写 storyRewardGiven 标记） */
+function grantStoryReward(npcId, rewardKey){
+  const given = STATE.storyRewardGiven;
+  if(given[rewardKey]) return;  // 已发过
+  given[rewardKey] = true;
+  if(rewardKey === 'heirloom'){
+    // 兔 ❤️8 → 1 颗传家宝种子
+    STATE.seeds.heirloom = (STATE.seeds.heirloom || 0) + 1;
+    STATE.unlocked.heirloom = true;
+    checkUnlock('heirloom');
+    showHint('🌟 兔小姐赠 1 颗传家宝种子！', 3500);
+  } else if(rewardKey === 'coins30'){
+    // 熊 ❤️8 → 30 金币
+    STATE.coins += 30;
+    showHint('🐻 熊爷爷压岁钱 +30💰', 3500);
+  } else if(rewardKey === 'rare3'){
+    // 狐 ❤️8 → 随机 3 颗稀有 seed
+    const rarePool = SEEDS.filter(s => (SEED_RARITY[s.id] ?? 0) >= 2 && !s.heirloom && !s.blackrose && !s.legendary);
+    for(let i = 0; i < 3; i++){
+      const def = choice(rarePool);
+      STATE.seeds[def.id] = (STATE.seeds[def.id] || 0) + 1;
+      STATE.unlocked[def.id] = true;
+    }
+    showHint('🦊 小狐狸赠 3 颗稀有种子！', 3500);
+  } else if(rewardKey === 'blackrose'){
+    // 猫 ❤️8 → 神秘黑色种子（解锁 blackrose）
+    STATE.seeds.blackrose = (STATE.seeds.blackrose || 0) + 1;
+    STATE.unlocked.blackrose = true;
+    checkUnlock('blackrose');
+    showHint('🖤 黑猫赠 1 颗神秘黑玫瑰种子！', 3500);
+  } else if(rewardKey === 'honey'){
+    // 蜂 ❤️8 → 蜂蜜罐糖道具（永久 +5% 生长）
+    STATE.honeyBoost = 0.05;
+    showHint('🐝 蜜蜂赠金蜂蜜！生长速度 +5%', 3500);
+  } else if(rewardKey === 'legendary'){
+    // ❤️10 全员 → 解锁传说级种子
+    STATE.seeds.legendary = (STATE.seeds.legendary || 0) + 1;
+    STATE.unlocked.legendary = true;
+    checkUnlock('legendary');
+    showHint('✨ 传说之花种子入袋！', 3500);
+    // 大飘字 + 彩带
+    for(let i = 0; i < 16; i++){
+      const a = (i / 16) * TAU;
+      STATE.particles.push({
+        x: W/2, y: H/2,
+        vx: Math.cos(a) * 180, vy: Math.sin(a) * 180 - 60,
+        g: 160, size: rand(4, 7),
+        color: ['#ffd040','#ff80c0','#80d0ff','#a0ff80'][i % 4],
+        life: 1.6, t: 0, kind: 'sparkle',
+      });
+    }
+  }
+}
 
 /* ---------- 订单生成 ---------- */
 function generateOrders(){
@@ -487,6 +646,8 @@ function completeOrder(order, plant){
   const npcId = order.npc && order.npc.id;
   if(npcId){
     STATE.npcFav[npcId] = (STATE.npcFav[npcId] || 0) + 1;
+    // Round 7：完成订单后检查 NPC 故事线跨级
+    checkStoryMilestone(npcId);
   }
   // Round 2：NPC 礼物种子（按订单花的稀有度计算数量）
   const rarity = SEED_RARITY[order.wantId] ?? 0;
@@ -659,6 +820,16 @@ C.addEventListener('touchend', () => { STATE.mouse.down = false; });
 function pointInBox(px,py,b){ return px>=b.x && px<=b.x+b.w && py>=b.y && py<=b.y+b.h; }
 
 function handleClick(p){
+  // Round 7：NPC modal 打开时 — 仅响应关闭按钮；其他点击都关闭 modal
+  if(STATE.npcModal){
+    if(SCENE.modalClose && pointInBox(p.x, p.y, SCENE.modalClose)){
+      STATE.npcModal = null;
+    } else {
+      // 点 backdrop 区域也关闭
+      STATE.npcModal = null;
+    }
+    return;
+  }
   // 0. 商店按钮
   if(pointInBox(p.x, p.y, SCENE.shopBtn)){
     STATE.shopOpen = !STATE.shopOpen;
@@ -920,6 +1091,13 @@ function handleClick(p){
         return;
       }
     }
+    // Round 7：NPC 头像点击 → 打开故事线 modal（仅常驻 5 NPC）
+    for(const o of STATE.orders){
+      if(NPC_STORIES[o.npc.id] && o._avatarBox && pointInBox(p.x, p.y, o._avatarBox)){
+        STATE.npcModal = o.npc.id;
+        return;
+      }
+    }
     // 否则按面板区域：尝试第一个未完成订单
     for(const o of STATE.orders){
       if(o.done) continue;
@@ -1096,7 +1274,9 @@ function updatePlants(dt){
     const baseRate = 1.0 / (p.def.growMs / 1000); // 每秒进度
     // Round 6：季节加成 —— 非当季花生长速度 ×0.5
     const seasonMul = seasonCanBloom(p.def) ? 1.0 : 0.5;
-    p.age += baseRate * nightMul * moist * seasonMul * dt;
+    // Round 7：蜂蜜加成 —— 永久 +5%（来自蜜蜂 ❤️8）
+    const honeyMul = 1 + (STATE.honeyBoost || 0);
+    p.age += baseRate * nightMul * moist * seasonMul * honeyMul * dt;
     // 水量随时间下降
     p.moisture = Math.max(0, p.moisture - dt * 0.05);
     p.bed.moisture = Math.max(0, p.bed.moisture - dt * 0.04);
@@ -1855,6 +2035,78 @@ function drawFlower(x, y, def, k, pollCount){
       X.fillStyle = def.flowerCore;
       X.beginPath(); X.arc(0,0, r*0.4, 0, TAU); X.fill();
     }
+  } else if(def.id === 'heirloom'){
+    // Round 7：传家宝 — 金色多瓣大花（8 瓣 + 闪光）
+    const r = 16 * k;
+    // 外层金瓣
+    for(let i=0;i<8;i++){
+      const a = i/8 * TAU;
+      const grd = X.createRadialGradient(0, 0, 0, 0, 0, r*1.2);
+      grd.addColorStop(0, def.flowerColor);
+      grd.addColorStop(1, '#c08020');
+      X.fillStyle = grd;
+      X.beginPath();
+      X.ellipse(Math.cos(a)*r*0.7, Math.sin(a)*r*0.7, r*0.55, r*0.85, a, 0, TAU);
+      X.fill();
+    }
+    // 内层
+    X.fillStyle = def.flowerCore;
+    X.beginPath(); X.arc(0, 0, 6*k, 0, TAU); X.fill();
+    // 中心星
+    X.fillStyle = '#fff8c0';
+    X.beginPath();
+    for(let i=0;i<5;i++){
+      const a = i/5 * TAU - Math.PI/2;
+      const rr = 3*k;
+      X.lineTo(Math.cos(a)*rr, Math.sin(a)*rr);
+      const a2 = a + Math.PI/5;
+      X.lineTo(Math.cos(a2)*rr*0.4, Math.sin(a2)*rr*0.4);
+    }
+    X.closePath(); X.fill();
+  } else if(def.id === 'blackrose'){
+    // Round 7：黑玫瑰 — 暗紫黑色多层螺旋
+    const r = 14 * k;
+    for(let layer=4; layer>=0; layer--){
+      const lr = r * (1 - layer*0.18);
+      X.fillStyle = `hsl(310,${30-layer*5}%,${20-layer*3}%)`;
+      X.beginPath();
+      for(let i=0;i<8;i++){
+        const a = i/8 * TAU + layer*0.35;
+        X.ellipse(Math.cos(a)*lr*0.5, Math.sin(a)*lr*0.5, lr*0.6, lr*0.4, a, 0, TAU);
+      }
+      X.fill();
+    }
+    X.fillStyle = '#0a0008';
+    X.beginPath(); X.arc(0,0, 4*k, 0, TAU); X.fill();
+    // 月光边
+    X.strokeStyle = 'rgba(200,180,255,0.4)';
+    X.lineWidth = 1;
+    X.beginPath(); X.arc(0, 0, r*1.05, 0, TAU); X.stroke();
+  } else if(def.id === 'legendary'){
+    // Round 7：传说之花 — 旋转 5 角大星 + 彩虹渐变
+    const r = 18 * k;
+    const grd = X.createRadialGradient(0, 0, 0, 0, 0, r*1.2);
+    grd.addColorStop(0, '#fff8a0');
+    grd.addColorStop(0.4, def.flowerColor);
+    grd.addColorStop(1, def.flowerCore);
+    X.fillStyle = grd;
+    X.beginPath();
+    for(let i=0;i<10;i++){
+      const a = (i/10)*TAU - Math.PI/2;
+      const rr = i%2===0 ? r : r*0.45;
+      const px = Math.cos(a)*rr;
+      const py = Math.sin(a)*rr;
+      i===0 ? X.moveTo(px, py) : X.lineTo(px, py);
+    }
+    X.closePath(); X.fill();
+    // 外光晕
+    X.fillStyle = 'rgba(255,240,160,0.35)';
+    X.beginPath(); X.arc(0, 0, r*1.4, 0, TAU); X.fill();
+    // 中心宝石
+    X.fillStyle = def.flowerCore;
+    X.beginPath(); X.arc(0, 0, 4*k, 0, TAU); X.fill();
+    X.fillStyle = '#fff';
+    X.beginPath(); X.arc(-1*k, -1*k, 1.5*k, 0, TAU); X.fill();
   }
   // 枯萎
   if(pollCount >= 3){
@@ -1965,6 +2217,27 @@ function drawOrders(){
       X.textAlign = 'left';
       X.fillText('❤️', ox + 26, rowY + 4);
     }
+    // Round 7：💬 小气泡 — 当 npcStory > storySeen 时显示
+    const storyIdx = STATE.npcStory[o.npc.id] || 0;
+    const seenIdx = STATE.storySeen[o.npc.id] || 0;
+    if(NPC_STORIES[o.npc.id] && storyIdx > seenIdx){
+      // 气泡：白底 + 💬 + 微微摆动
+      const bx = ox + 28, by = rowY + 1;
+      X.fillStyle = '#fff8d0';
+      X.strokeStyle = '#a07020';
+      X.lineWidth = 1.2;
+      X.beginPath();
+      X.arc(bx + 5, by + 5, 6, 0, TAU);
+      X.fill();
+      X.stroke();
+      X.font = '9px sans-serif';
+      X.fillStyle = '#5a3a1a';
+      X.textAlign = 'center';
+      X.textBaseline = 'middle';
+      X.fillText('💬', bx + 5, by + 5);
+    }
+    // Round 7：NPC 头像点击区（放大方便触摸）
+    o._avatarBox = { x: ox + 4, y: rowY, w: 30, h: 22 };
     // 想要的花
     X.fillStyle = '#3a2010';
     X.font = 'bold 12px sans-serif';
@@ -2575,6 +2848,174 @@ function drawCoinHUD(){
 }
 
 /* ============================================================
+ *  Round 7：NPC 故事线 modal
+ *  大头像 + 名字 + 当前最新对话 + ❤️ 进度 + 5 段对话列表（已解锁彩色，未解锁灰）
+ *  点击空白或"关闭"按钮关闭；打开时记 storySeen = storyIdx（消除💬）
+ * ============================================================ */
+function drawNPCModal(){
+  const npcId = STATE.npcModal;
+  if(!npcId || !NPC_STORIES[npcId]) return;
+  const story = NPC_STORIES[npcId];
+  const fav = STATE.npcFav[npcId] || 0;
+  const storyIdx = STATE.npcStory[npcId] || 0;
+  // 打开瞬间更新 seen（消除💬），但保留 npcStory 以便下次可触发动画
+  STATE.storySeen[npcId] = Math.max(STATE.storySeen[npcId] || 0, storyIdx);
+
+  // 背景遮罩
+  X.fillStyle = 'rgba(0,0,0,0.45)';
+  X.fillRect(0, 0, W, H);
+  // 面板自适应（基于 5 段对话）
+  const cw = Math.min(420, W - 32);
+  const headerH = 110;
+  const rowH = 56;
+  const padTop = 16;
+  const padBottom = 60;
+  const ch = headerH + 5 * rowH + padTop + padBottom;
+  const cx = W/2 - cw/2, cy = H/2 - ch/2;
+
+  // 阴影 + 卡片底
+  X.fillStyle = 'rgba(0,0,0,0.22)';
+  roundRect(cx + 4, cy + 6, cw, ch, 18); X.fill();
+  X.fillStyle = '#fff8e8';
+  roundRect(cx, cy, cw, ch, 18); X.fill();
+  // NPC 主色边框
+  X.strokeStyle = story.color;
+  X.lineWidth = 4;
+  roundRect(cx, cy, cw, ch, 18); X.stroke();
+
+  // === 顶部：大头像 + 名字 + 进度 ===
+  const headR = 32;
+  const headX = cx + 32, headY = cy + 38;
+  X.fillStyle = story.color;
+  X.beginPath(); X.arc(headX, headY, headR, 0, TAU); X.fill();
+  X.strokeStyle = '#fff'; X.lineWidth = 3;
+  X.stroke();
+  X.font = '38px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillStyle = '#fff';
+  X.fillText(story.emoji, headX, headY + 1);
+
+  // 名字
+  X.fillStyle = '#3a2010';
+  X.font = 'bold 20px sans-serif';
+  X.textAlign = 'left'; X.textBaseline = 'top';
+  X.fillText(story.name, cx + 80, cy + 18);
+  // 好感度数字
+  X.fillStyle = '#a85050';
+  X.font = 'bold 14px sans-serif';
+  X.fillText(`❤️ ${fav}`, cx + 80 + X.measureText(story.name).width + 12, cy + 22);
+
+  // 进度点（5 个 ❤️/灰色心）
+  const dotY = cy + 50;
+  const dotGap = 18;
+  const dotStartX = cx + 80;
+  const thresholds = STORY_THRESHOLDS;
+  for(let i = 0; i < 5; i++){
+    const dx = dotStartX + i * dotGap;
+    const unlocked = fav >= thresholds[i];
+    const isLast = i === 4;
+    X.fillStyle = unlocked ? '#e85050' : '#d8c8c0';
+    X.beginPath(); X.arc(dx, dotY, 5, 0, TAU); X.fill();
+    // 阈值数字
+    X.fillStyle = unlocked ? '#7a2020' : '#a09090';
+    X.font = 'bold 8px sans-serif';
+    X.textAlign = 'center'; X.textBaseline = 'middle';
+    X.fillText(String(thresholds[i]), dx, dotY + 12);
+    if(isLast){
+      // 传说标记 ⭐
+      X.font = '14px sans-serif';
+      X.fillText('⭐', dx + 10, dotY - 2);
+    }
+  }
+
+  // === 5 段对话列表 ===
+  const listStartY = cy + headerH + padTop;
+  for(let i = 0; i < story.lines.length; i++){
+    const ln = story.lines[i];
+    const ry = listStartY + i * rowH;
+    const unlocked = i <= storyIdx;
+    const isCurrent = i === storyIdx;
+    // 行底
+    X.fillStyle = unlocked ? (isCurrent ? 'rgba(255,220,140,0.55)' : 'rgba(255,255,255,0.55)') : 'rgba(220,210,200,0.4)';
+    roundRect(cx + 14, ry, cw - 28, rowH - 8, 10); X.fill();
+    // 边框（已解锁彩，未解锁灰）
+    X.strokeStyle = unlocked ? story.color : '#bbb';
+    X.lineWidth = isCurrent ? 2.5 : 1.2;
+    roundRect(cx + 14, ry, cw - 28, rowH - 8, 10); X.stroke();
+
+    // 序号 + 阈值
+    X.fillStyle = unlocked ? story.color : '#888';
+    X.font = 'bold 11px sans-serif';
+    X.textAlign = 'left'; X.textBaseline = 'top';
+    X.fillText(`#${i+1}  ${thresholds[i]}❤️`, cx + 24, ry + 6);
+
+    // 对话文本（自动换行）
+    X.fillStyle = unlocked ? '#3a2010' : '#999';
+    X.font = unlocked ? 'bold 12px sans-serif' : '12px sans-serif';
+    const text = ln.text || '';
+    const textMaxW = cw - 64;
+    const words = text.split('');
+    let line = '';
+    let lineY = ry + 22;
+    for(let c = 0; c < words.length; c++){
+      const test = line + words[c];
+      if(X.measureText(test).width > textMaxW){
+        X.fillText(line, cx + 24, lineY);
+        line = words[c];
+        lineY += 14;
+      } else {
+        line = test;
+      }
+    }
+    if(line) X.fillText(line, cx + 24, lineY);
+
+    // 奖励标签（若该段有奖励）
+    if(ln.reward){
+      X.fillStyle = unlocked ? '#c87020' : '#aaa';
+      X.font = 'bold 10px sans-serif';
+      X.textAlign = 'right';
+      const rewardLabel = {
+        heirloom: '🌟 传家宝种子',
+        coins30: '💰 压岁钱 30',
+        rare3: '🎁 3 颗稀有种子',
+        blackrose: '🖤 黑玫瑰种子',
+        honey: '🍯 永久 +5% 生长',
+        legendary: '✨ 传说之花种子',
+      }[ln.reward] || ln.reward;
+      X.fillText(rewardLabel, cx + cw - 24, ry + 6);
+    }
+
+    // 锁定图标（未解锁时）
+    if(!unlocked){
+      X.font = '14px sans-serif';
+      X.textAlign = 'right';
+      X.fillText('🔒', cx + cw - 24, ry + 24);
+    } else if(isCurrent){
+      // 当前段："NEW" 标签
+      X.fillStyle = '#e85050';
+      X.font = 'bold 10px sans-serif';
+      X.textAlign = 'right';
+      X.fillText('●最新', cx + cw - 24, ry + 24);
+    }
+  }
+
+  // === 关闭按钮 ===
+  const btnW = 100, btnH = 36;
+  const btnX = cx + cw/2 - btnW/2;
+  const btnY = cy + ch - padBottom + 12;
+  X.fillStyle = '#7bc050';
+  roundRect(btnX, btnY, btnW, btnH, 12); X.fill();
+  X.strokeStyle = '#4a8030'; X.lineWidth = 2;
+  roundRect(btnX, btnY, btnW, btnH, 12); X.stroke();
+  X.fillStyle = '#fff';
+  X.font = 'bold 14px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillText('关闭', btnX + btnW/2, btnY + btnH/2);
+  SCENE.modalClose = { x: btnX, y: btnY, w: btnW, h: btnH };
+  X.textAlign = 'left'; X.textBaseline = 'middle';
+}
+
+/* ============================================================
  *  Round 6：季节倒计时卡（右上） + 切换 banner（屏幕中上）
  * ============================================================ */
 function drawSeasonCard(){
@@ -2873,6 +3314,7 @@ function render(){
   drawWarmTint();  // Round 4：红葵收获的屏幕 warm 滤镜
   drawToasts();  // Round 3：解锁成就 toast
   drawSeasonBanner();       // Round 6：季节切换 banner（最上层）
+  drawNPCModal();           // Round 7：NPC 故事线 modal（最最上层）
 }
 
 /* Round 4：红葵收获时的暖色滤镜（0.6 秒淡出） */
@@ -2932,6 +3374,16 @@ document.getElementById('startBtn').addEventListener('click', () => {
   STATE.seasonBanner = null;
   // 默认解锁雪莲（先放进来，让玩家立刻能买到冬季限定种子）
   STATE.unlocked.winterflower = STATE.unlocked.winterflower || true;
+  // Round 7：NPC 故事线初始化
+  STATE.npcStory = { bunny:0, bear:0, fox:0, cat:0, bee:0 };
+  STATE.storySeen = { bunny:0, bear:0, fox:0, cat:0, bee:0 };
+  STATE.storyRewardGiven = { heirloom:false, coins30:false, rare3:false, blackrose:false, honey:false, legendary:false };
+  STATE.npcModal = null;
+  STATE.honeyBoost = 0;
+  // Round 7：传家宝/黑玫瑰/传说种子 — 默认未解锁（NPC 故事线解锁）
+  STATE.unlocked.heirloom = false;
+  STATE.unlocked.blackrose = false;
+  STATE.unlocked.legendary = false;
   STATE.arrowTimer = 5;
   // v1 订单系统：开张第一单
   generateOrders();
