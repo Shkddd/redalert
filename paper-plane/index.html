@@ -987,10 +987,13 @@
     ctx.save();
     ctx.translate(p.x, p.y);
 
-    // Smoothly approach target rotation (radians). Target range ≈ ±35° ≈ ±0.61 rad
-    const target = clamp(p.vy / 520, -1, 1) * (35 * Math.PI / 180);
-    // Flap "kick" adds a quick +ve rotation
-    const flapKick = p.flapTimer > 0 ? -0.25 : 0;
+    // Rotation: positive vy (falling) should NOSE-DOWN, negative vy (climbing) should NOSE-UP.
+    // Canvas rotate is clockwise. Original code had a sign confusion that flipped the plane.
+    // Fix: when vy > 0 (falling), nose should drop below horizontal → rotate clockwise (positive).
+    // But the previous code did this and the plane still looked wrong, so let's just match
+    // what the visual says: climb = nose up = -rot (counterclockwise).
+    const target = clamp(-p.vy / 520, -1, 1) * (35 * Math.PI / 180);
+    const flapKick = p.flapTimer > 0 ? 0.25 : 0;  // tapping = quick nose-up kick
     p.targetRot = target + flapKick;
     p.rot += (p.targetRot - p.rot) * 0.18;
     ctx.rotate(p.rot);
@@ -1026,61 +1029,28 @@
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    // 1) MAIN TRIANGLE: single filled shape, sharp nose on the +x (RIGHT) side.
-    //    Vertices: (-w/2, +h/2) back-bottom, (-w/2, -h/2) back-top, (+w/2, 0) NOSE TIP.
-    //    Mental check at rot=0: tail is the FLAT LEFT edge, nose is the single point on the RIGHT. ✓
+    // 1) MAIN TRIANGLE: simple, unambiguous right-pointing paper plane.
+    //    Three vertices: (-w/2, +h/2) bottom-back, (-w/2, -h/2) top-back, (+w/2, 0) nose.
+    //    With rot=0, the plane looks like ▶ pointing right. The CENTER crease is implicit.
     ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.moveTo(-w / 2, -h / 2);   // back-top (left)
-    ctx.lineTo( w / 2,  0     );  // SHARP NOSE TIP (rightmost point)
-    ctx.lineTo(-w / 2,  h / 2);   // back-bottom (left)
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // 2) UNDER-FOLD SHADOW: darker triangle in the lower half showing the folded paper.
-    //    Spans from back-bottom corner up to the crease midpoint then to the nose.
-    ctx.fillStyle = '#D5DDE4';
-    ctx.beginPath();
-    ctx.moveTo(-w / 2,  h / 2);   // back-bottom (left)
-    ctx.lineTo( 0,     0     );   // crease midpoint
-    ctx.lineTo( w / 2,  0     );   // nose tip
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // 3) BODY CREASE LINE: from back center to nose tip — the fold down the middle.
     ctx.strokeStyle = '#2c3e50';
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2);
+    ctx.lineTo( w / 2,  0     );
+    ctx.lineTo(-w / 2,  h / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 2) CREASE LINE down the middle (the paper fold).
+    ctx.strokeStyle = '#2c3e50';
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
     ctx.moveTo(-w / 2, 0);
     ctx.lineTo( w / 2, 0);
     ctx.stroke();
-
-    // 4) TAIL NOTCH: a small inverted-V cut into the back (-x) edge, showing the rear fold.
-    ctx.fillStyle = '#B8C2CC';
-    ctx.beginPath();
-    ctx.moveTo(-w / 2,        -h / 3);   // back-top inner
-    ctx.lineTo(-w / 2 + 12,   0);        // notch tip (rightward into the plane)
-    ctx.lineTo(-w / 2,        h / 3);    // back-bottom inner
-    ctx.lineTo(-w / 2 + 4,    0);        // notch back (close to the trailing edge)
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // 5) WING DETAIL LINE: a subtle stroke from back-top to nose, hinting the top wing edge.
-    ctx.strokeStyle = 'rgba(44, 62, 80, 0.55)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(-w / 2 + 2, -h / 2 + 2);
-    ctx.lineTo( w / 2 - 3,  0     );
-    ctx.stroke();
-
-    // 6) Tiny dark dot AT THE NOSE for extra "pointy" readability.
-    ctx.fillStyle = '#2c3e50';
-    ctx.beginPath();
-    ctx.arc(w / 2 - 2, 0, 1.8, 0, Math.PI * 2);
-    ctx.fill();
 
     ctx.restore();
   }
@@ -1604,17 +1574,13 @@
       groundDecorOffset += dt * speed * 0.90;
 
       // ---- TRAIL ----
-      // The plane is fixed in world-x; obstacles/obstacles scroll right-to-left.
-      // Trail dots should appear BEHIND the plane (on -x side) and stay where
-      // the plane WAS in y. Draw in world coords, NOT rotated with plane.
-      //   tail world-coords = (p.x - p.w/2, p.y)   // because nose is at +w/2
-      // Emit ONE fading dot every ~45ms at the plane's CURRENT tail position.
-      // This produces a clean horizontal streak that curves up/down with the plane.
-      p._trailTick = (p._trailTick || 0) + dt;
-      if (p._trailTick >= 0.045) {
-        p._trailTick = 0;
-        trails.push({ x: p.x - p.w / 2, y: p.y, life: 0, max: 0.55 });
-      }
+      // TRAIL: every ~120ms, drop ONE small dot at plane tail position.
+            // Sparser than before so it reads as discrete puffs, not a solid line.
+            p._trailTick = (p._trailTick || 0) + dt;
+            if (p._trailTick >= 0.12) {
+              p._trailTick = 0;
+              trails.push({ x: p.x - p.w / 2, y: p.y, life: 0, max: 0.6 });
+            }
       // decay & cleanup old trails
       for (let i = trails.length - 1; i >= 0; i--) {
         trails[i].life += dt;
