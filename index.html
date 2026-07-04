@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>种子到花朵 · Seed to Flower</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#f5ecd7;font-family:"Comic Sans MS","PingFang SC","Microsoft YaHei",sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  #game{display:block;width:100vw;height:100vh;cursor:default;}
+  #game.grab{cursor:grab;}
+  #game.grabbing{cursor:grabbing;}
+  #hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,250,230,.95);border:3px solid #d8a55a;border-radius:18px;padding:14px 22px;font-size:18px;color:#5a3a1a;box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;opacity:0;transition:opacity .4s;}
+  #hint.show{opacity:1;}
+  #fade{position:fixed;inset:0;background:#f5ecd7;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity 1s;z-index:10;}
+  #fade h1{font-size:48px;margin:0 0 12px;color:#7a4a20;letter-spacing:4px;}
+  #fade .sub{font-size:18px;color:#a07340;margin-bottom:36px;}
+  #fade button{font-family:inherit;font-size:22px;padding:14px 48px;background:linear-gradient(180deg,#ffd87a,#f0a040);border:3px solid #c87020;border-radius:24px;color:#5a2a00;cursor:pointer;box-shadow:0 4px 0 #8a4a10,0 6px 12px rgba(0,0,0,.15);transition:transform .1s;}
+  #fade button:active{transform:translateY(2px);box-shadow:0 2px 0 #8a4a10;}
+  #fade.hidden{opacity:0;pointer-events:none;}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hint"></div>
+<div id="fade">
+  <h1>🌱 种子到花朵</h1>
+  <div class="sub">种一颗种子，浇水，看它长大开花</div>
+  <button id="startBtn">开始</button>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+ *  种子到花朵 — 单 HTML 童趣观察游戏
+ *  Canvas 2D · 60FPS · 零外部依赖
+ * ============================================================ */
+
+const C = document.getElementById('game');
+const X = C.getContext('2d');
+const HINT = document.getElementById('hint');
+const FADE = document.getElementById('fade');
+
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  C.width = W * DPR; C.height = H * DPR;
+  C.style.width = W + 'px'; C.style.height = H + 'px';
+  X.setTransform(DPR,0,0,DPR,0,0);
+  layoutScene();
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 工具 ---------- */
+const TAU = Math.PI * 2;
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,t) => a + (b-a) * t;
+const rand = (a,b) => a + Math.random() * (b - a);
+const randi = (a,b) => Math.floor(rand(a,b));
+const choice = arr => arr[randi(0, arr.length)];
+
+function showHint(text, ms=2400){
+  HINT.textContent = text;
+  HINT.classList.add('show');
+  clearTimeout(showHint._t);
+  showHint._t = setTimeout(()=> HINT.classList.remove('show'), ms);
+}
+
+/* ---------- 种子类型 ---------- */
+const SEEDS = [
+  { id:'sun',  name:'向日葵',  seedColor:'#7a4a20', seedShape:'oval', growMs: 60000, sellPrice:5,  flower:'sunflower', flowerColor:'#ffc830', flowerCore:'#5a2a00' },
+  { id:'rose', name:'玫瑰',     seedColor:'#a83030', seedShape:'oval', growMs: 90000, sellPrice:7,  flower:'rose',      flowerColor:'#e85070', flowerCore:'#a02040' },
+  { id:'daisy',name:'雏菊',     seedColor:'#d8c890', seedShape:'oval', growMs: 45000, sellPrice:4,  flower:'daisy',     flowerColor:'#ffffff', flowerCore:'#f0c040' },
+  { id:'tulip',name:'郁金香',   seedColor:'#5a2a80', seedShape:'oval', growMs: 50000, sellPrice:5,  flower:'tulip',     flowerColor:'#9050d0', flowerCore:'#6020a0' },
+  { id:'dand', name:'蒲公英',   seedColor:'#e8d060', seedShape:'oval', growMs: 40000, sellPrice:3,  flower:'dandelion', flowerColor:'#ffe040', flowerCore:'#fff8a0', dandelion:true },
+  { id:'lavender', name:'薰衣草', seedColor:'#6a4a90', seedShape:'oval', growMs:30000, sellPrice:6,  flowerColor:'#8a5ac0', flowerCore:'#5028a0' },
+  { id:'sakura',   name:'樱花',   seedColor:'#d080a0', seedShape:'oval', growMs:45000, sellPrice:12, flowerColor:'#ffb0d0', flowerCore:'#e060a0' },
+  { id:'cactus',   name:'仙人掌', seedColor:'#3a6020', seedShape:'oval', growMs:25000, sellPrice:8,  flowerColor:'#5ba050', flowerCore:'#3a6020' },
+  { id:'lotus',    name:'莲花',   seedColor:'#e0a0b0', seedShape:'oval', growMs:50000, sellPrice:18, flowerColor:'#ff80a0', flowerCore:'#fff0e0' },
+  { id:'sunred',   name:'红葵',   seedColor:'#702010', seedShape:'oval', growMs:60000, sellPrice:25, flowerColor:'#e85030', flowerCore:'#5a2010' },
+];
+
+/* ---------- 全局状态 ---------- */
+const STATE = {
+  started: false,
+  time: 0,         // 现实流逝秒
+  dayTime: 0,      // 0..1 一天中的位置
+  dayLen: 180,     // 现实秒 = 游戏一天
+  nightSlow: 0.5,  // 夜晚生长速度
+  dragSeed: null,  // 当前拖动的种子 {seedDef, x, y, offsetX, offsetY}
+  holdingPot: false,
+  pot: { x: 0, y: 0, vx: 0, angle: 0, swing: 0, lastDir: 0, swings: 0, drops: 0 },
+  mouse: { x: -100, y: -100, down: false },
+  arrowTimer: 0,   // 开场引导倒计时
+  plants: [],      // 场景里正在生长的植物
+  particles: [],   // 通用粒子（水滴/花粉/星点）
+  butterflies: [], // 蝴蝶
+  seedBag: [],     // 种子袋里"已有"的种子（id）
+  selectedSeed: null, // 当前选中的种子 id（用于种子袋高亮）
+  flyingSeeds: [], // 飞散的种子（蒲公英种子飞散后的可捡种子）
+  coins: 6,         // 初始 6 金币
+  shopOpen: false,
+  unlocked: { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false },
+  hint: '',
+  hintT: 0,
+  // v1 订单系统
+  orders: [],          // 当前 3 个订单
+  orderDay: 0,         // 当前是第几天（重置订单）
+  orderIndex: 0,       // 已完成订单数
+  orderTotal: 0,       // 总完成订单
+  reputation: 0,       // 声望 0..100
+};
+
+/* ---------- NPC 数据 ---------- */
+const NPCS = [
+  { id:'bunny', name:'兔小姐', color:'#f0a0c0', want:['rose','tulip','lavender'], bonus:1.2, emoji:'🐰' },
+  { id:'bear', name:'熊爷爷', color:'#a07040', want:['sun','sunred','dand'], bonus:1.0, emoji:'🐻' },
+  { id:'fox', name:'小狐狸', color:'#e87030', want:['sakura','rose','tulip'], bonus:1.3, emoji:'🦊' },
+  { id:'cat', name:'黑猫', color:'#404050', want:['lavender','lotus','cactus'], bonus:1.1, emoji:'🐱' },
+  { id:'bee', name:'蜜蜂', color:'#f0d020', want:['sun','daisy','dand'], bonus:0.9, emoji:'🐝' },
+];
+
+/* ---------- 订单生成 ---------- */
+function generateOrders(){
+  STATE.orders = [];
+  const used = new Set();
+  const npcs = NPCS.slice();
+  for(let i=0;i<3;i++){
+    let npc;
+    if(used.size < npcs.length){
+      do { npc = npcs[randi(0, npcs.length)]; } while(used.has(npc.id));
+    } else {
+      npc = npcs[randi(0, npcs.length)];
+    }
+    used.add(npc.id);
+    const wantId = npc.want[randi(0, npc.want.length)];
+    const flower = SEEDS.find(s => s.id === wantId);
+    if(!flower) continue;
+    STATE.orders.push({
+      id: Math.random(),
+      npc,
+      wantId,
+      wantName: flower.name,
+      wantColor: flower.flowerColor,
+      pay: Math.max(1, Math.floor(flower.sellPrice * npc.bonus * 1.5)),
+      timeLeft: 180,
+      done: false,
+      failed: false,
+    });
+  }
+}
+
+function completeOrder(order, plant){
+  order.done = true;
+  STATE.coins += order.pay;
+  STATE.reputation = Math.min(100, STATE.reputation + 10);
+  STATE.orderIndex += 1;
+  STATE.orderTotal += 1;
+  // 标记花被采走（按一次收获）
+  plant.harvests = (plant.harvests || 0) + 1;
+  plant.harvestScale = Math.max(0.4, 1 - plant.harvests * 0.18);
+  if(plant.def.dandelion){
+    plant.flowerSpent = true;
+    plant.dead = true;
+    setTimeout(() => { plant.bed.occupied = false; }, 500);
+  } else if(plant.harvests >= 3){
+    plant.dead = true;
+    plant.flowerSpent = true;
+    setTimeout(() => { plant.bed.occupied = false; }, 800);
+  }
+  // 飘字
+  const stemH = 60;
+  const fx = plant.bed.cx;
+  const fy = plant.bed.cy - stemH * plant.age;
+  STATE.floats = STATE.floats || [];
+  STATE.floats.push({ x:fx, y:fy-20, text:`+${order.pay}💰`, t:0, color:'#e8a020' });
+  // 报恩花粒子
+  for(let i=0;i<10;i++){
+    STATE.particles.push({
+      x: fx, y: fy,
+      vx: rand(-80, 80), vy: rand(-120, -40),
+      g: 200, size: rand(3, 6),
+      color: order.wantColor,
+      life: 1.2, t: 0,
+      kind: 'petal',
+    });
+  }
+  showHint(`${order.npc.name} 拿走了 ${order.wantName}！+${order.pay}💰 ⭐+10`);
+  if(typeof playDing === 'function') playDing();
+}
+
+/* ---------- 场景布局 ---------- */
+const SCENE = {
+  groundY: 0,      // 地面顶
+  beds: [],        // 花坛位置 {x, y, w, h, occupied, plantId}
+  sun: { x: 0, y: 0, r: 0 },
+  bagBox: { x:0, y:0, w:0, h:0 },
+  potBox: { x:0, y:0, w:0, h:0 },
+  timeBox: { x:0, y:0, w:0, h:0 },
+  shopBtn: { x:0, y:0, w:0, h:0 },
+  shopClose: { x:0, y:0, w:0, h:0 },
+  bedCount: 3,
+};
+
+function layoutScene(){
+  SCENE.groundY = H * 0.72;
+  // 3 个花坛，等距分布在中段
+  SCENE.beds.length = 0;
+  const margin = W * 0.12;
+  const span = W - margin * 2;
+  const bw = clamp(span / 4, 80, 130);
+  for(let i=0;i<SCENE.bedCount;i++){
+    const cx = margin + span * (i+0.5) / SCENE.bedCount;
+    SCENE.beds.push({
+      x: cx - bw/2, y: SCENE.groundY - 18, w: bw, h: 50,
+      cx, cy: SCENE.groundY - 4,
+      occupied:false, plantId:-1, moisture:0,
+    });
+  }
+  SCENE.sun = { x: W * 0.88, y: H * 0.16, r: clamp(W, 300, 800) * 0.04 };
+  // 种子袋（顶部左）
+  // 种子袋：左侧自适应，最多 280px（3 格种子 + 1 个"+"）—— 适配手机窄屏
+  const bagW = Math.min(280, W * 0.42);
+  SCENE.bagBox = { x: 16, y: 16, w: bagW, h: 56 };
+  // 浇水壶（底部左）
+  SCENE.potBox = { x: 16, y: H - 76, w: 80, h: 60 };
+  // 时间指示（底部右）
+  SCENE.timeBox = { x: W - 96, y: H - 76, w: 80, h: 60 };
+  // 右上角组合：金币 + 商店（紧贴在一起）
+  const topR_w = Math.min(160, W * 0.45);
+  SCENE.coinHud = { x: W - topR_w - 8, y: 16, w: topR_w - 76, h: 36 };
+  SCENE.shopBtn = { x: W - 80, y: 16, w: 72, h: 36 };
+  // 订单面板：种子袋下方（顶部左下区域）
+  const ow = Math.min(280, W * 0.42);
+  SCENE.orderBox = { x: 16, y: 84, w: ow, h: 110 };
+}
+
+/* ============================================================
+ *  输入
+ * ============================================================ */
+function getPos(e){
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX, y: t.clientY };
+}
+
+C.addEventListener('mousemove', e => {
+  const p = getPos(e);
+  // 记录上一帧位置算 vx（用于壶柄角度）
+  const ox = STATE.mouse.x, oy = STATE.mouse.y;
+  STATE.mouse.x = p.x; STATE.mouse.y = p.y;
+  STATE.mouse.vx = p.x - ox;
+  STATE.mouse.vy = p.y - oy;
+  if(STATE.dragSeed){
+    STATE.dragSeed.x = p.x - STATE.dragSeed.offsetX;
+    STATE.dragSeed.y = p.y - STATE.dragSeed.offsetY;
+  }
+  if(STATE.holdingPot){
+    STATE.pot.x = p.x; STATE.pot.y = p.y;
+  }
+});
+C.addEventListener('mousedown', e => {
+  if(!STATE.started) return;
+  STATE.mouse.down = true;
+  handleClick(getPos(e));
+});
+C.addEventListener('mouseup', () => { STATE.mouse.down = false; });
+C.addEventListener('touchstart', e => {
+  if(!STATE.started) return;
+  e.preventDefault();
+  const p = getPos(e);
+  STATE.mouse.x = p.x; STATE.mouse.y = p.y; STATE.mouse.down = true;
+  handleClick(p);
+}, {passive:false});
+C.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const p = getPos(e);
+  const ox = STATE.mouse.x, oy = STATE.mouse.y;
+  STATE.mouse.x = p.x; STATE.mouse.y = p.y;
+  STATE.mouse.vx = p.x - ox;
+  STATE.mouse.vy = p.y - oy;
+  if(STATE.dragSeed){
+    STATE.dragSeed.x = p.x - STATE.dragSeed.offsetX;
+    STATE.dragSeed.y = p.y - STATE.dragSeed.offsetY;
+  }
+  if(STATE.holdingPot){
+    STATE.pot.x = p.x; STATE.pot.y = p.y;
+  }
+}, {passive:false});
+C.addEventListener('touchend', () => { STATE.mouse.down = false; });
+
+function pointInBox(px,py,b){ return px>=b.x && px<=b.x+b.w && py>=b.y && py<=b.y+b.h; }
+
+function handleClick(p){
+  // 0. 商店按钮
+  if(pointInBox(p.x, p.y, SCENE.shopBtn)){
+    STATE.shopOpen = !STATE.shopOpen;
+    return;
+  }
+  // 0b. 商店关闭按钮
+  if(STATE.shopOpen && pointInBox(p.x, p.y, SCENE.shopClose)){
+    STATE.shopOpen = false;
+    return;
+  }
+  // 0c. 商店内买种子
+  if(STATE.shopOpen){
+    for(const def of SEEDS){
+      if(def._buyBox && pointInBox(p.x, p.y, def._buyBox)){
+        if(STATE.coins >= 8){
+          STATE.coins -= 8;
+          STATE.seedBag.push(def.id);
+          STATE.unlocked[def.id] = true;
+          showHint(`买了 ${def.name}！`);
+        } else {
+          showHint('💰 金币不足');
+        }
+        return;
+      }
+    }
+    return;  // 商店打开时点击不传给下面
+  }
+  // 1. 时间指示可点击跳过
+  if(pointInBox(p.x, p.y, SCENE.timeBox)){
+    STATE.dayTime = (STATE.dayTime + 0.25) % 1;
+    showHint('时间跳了一格');
+    return;
+  }
+  // 2. 浇水壶：点击拿起/放下
+  if(pointInBox(p.x, p.y, SCENE.potBox)){
+    STATE.holdingPot = !STATE.holdingPot;
+    if(STATE.holdingPot){
+      STATE.pot.x = p.x; STATE.pot.y = p.y;
+      STATE.pot.swings = 0; STATE.pot.drops = 0;
+      STATE.pot.lastDir = 0;
+      showHint('点击一下 = 浇透一次～');
+    }
+    return;
+  }
+  // 3. 种子袋：选种子 / 点"+"跳商店
+  if(pointInBox(p.x, p.y, SCENE.bagBox)){
+    // 先看是不是点"+"按钮
+    if(SCENE.bagPlus && pointInBox(p.x, p.y, SCENE.bagPlus)){
+      STATE.shopOpen = true;
+      return;
+    }
+    // 否则按 _bagBox 找点中了哪个种子
+    for(const def of SEEDS){
+      if(def._bagBox && pointInBox(p.x, p.y, def._bagBox) && STATE.seedBag.includes(def.id)){
+        STATE.selectedSeed = def.id;
+        STATE.dragSeed = {
+          def, x: p.x - 20, y: p.y - 20, offsetX:20, offsetY:20,
+        };
+        C.classList.add('grabbing');
+        return;
+      }
+    }
+  }
+  // 4. 如果正在拖动种子，尝试种下
+  if(STATE.dragSeed){
+    const bed = findBedAt(p.x, p.y);
+    if(bed && !bed.occupied){
+      plantSeed(bed, STATE.dragSeed.def);
+      STATE.dragSeed = null;
+      C.classList.remove('grabbing');
+      showHint('点击一下 = 浇透一次～');
+      return;
+    } else {
+      STATE.dragSeed = null;
+      C.classList.remove('grabbing');
+    }
+  }
+  // 5. 飞散种子可捡回
+  for(let i=STATE.flyingSeeds.length-1; i>=0; i--){
+    const s = STATE.flyingSeeds[i];
+    if(Math.hypot(s.x-p.x, s.y-p.y) < 24){
+      STATE.seedBag.push(s.defId);
+      STATE.flyingSeeds.splice(i,1);
+      showHint('+1 颗种子');
+      return;
+    }
+  }
+  // 5.5 收获成熟花：点中花朵 → +金币 + 飘花瓣 + 采 3 次后枯萎
+  if(!STATE.holdingPot && !STATE.dragSeed){
+    for(const plant of STATE.plants){
+      if(plant.dead || plant.flowerSpent) continue;
+      if(plant.age < 0.9) continue;  // 未成熟
+      // 花朵中心在 plant.bed.cx, plant.bed.cy - stemH*k
+      const stemH = 60;
+      const fx = plant.bed.cx;
+      const fy = plant.bed.cy - stemH * plant.age;
+      // 点击命中范围 30px
+      if(Math.hypot(fx - p.x, fy - p.y) < 32){
+        harvestPlant(plant);
+        return;
+      }
+    }
+  }
+  // 6. 拿着壶时点空白处 → 给最近植物浇透一次
+  if(STATE.holdingPot){
+    const nearest = nearestPlant(STATE.mouse.x, STATE.mouse.y);
+    if(nearest && nearest.def){
+      nearest.moisture = 1;
+      nearest.waterTimer = 0;
+      nearest.bed.moisture = Math.min(1, nearest.bed.moisture + 0.5);
+      // 出 5 滴水粒子
+      for(let i=0;i<5;i++) spawnDrop(STATE.pot.x + 14, STATE.pot.y - 6);
+      playSplash();
+      waterFully(nearest);
+    }
+  }
+  // 7. 订单面板：点中"卖"按钮 → 提交订单
+  if(SCENE.orderBox && pointInBox(p.x, p.y, SCENE.orderBox)){
+    // 先精确匹配"卖"按钮（每行一个）
+    for(const o of STATE.orders){
+      if(o.done) continue;
+      if(o._sellBox && pointInBox(p.x, p.y, o._sellBox)){
+        const plant = STATE.plants.find(pl => !pl.dead && pl.def.id === o.wantId && pl.age >= 0.9);
+        if(plant){
+          completeOrder(o, plant);
+        } else {
+          showHint(`还没有 ${o.wantName} 成熟～`);
+        }
+        return;
+      }
+    }
+    // 否则按面板区域：尝试第一个未完成订单
+    for(const o of STATE.orders){
+      if(o.done) continue;
+      const plant = STATE.plants.find(pl => !pl.dead && pl.def.id === o.wantId && pl.age >= 0.9);
+      if(plant){
+        completeOrder(o, plant);
+      } else {
+        showHint(`还没有 ${o.wantName} 成熟～`);
+      }
+      return;
+    }
+  }
+}
+
+function findBedAt(x,y){
+  return SCENE.beds.find(b => x>=b.x-10 && x<=b.x+b.w+10 && y>=b.y-30 && y<=b.y+b.h+20);
+}
+
+function plantSeed(bed, def){
+  const plant = {
+    id: Math.random(),
+    bed, def,
+    age: 0,           // 生长进度 0..1
+    moisture: 0,      // 0..1 当前水量
+    waterTimer: 0,    // 自上次浇水以来的秒数
+    phase: Math.random() * TAU,
+    pollCount: 0,     // 授粉次数
+    pollinated: false,
+    dead: false,
+    hasBloomed: false,
+    flowerSpent: false, // 蒲公英绒球飞散后
+    lastFlowerPos: null,
+  };
+  bed.occupied = true;
+  bed.plantId = plant.id;
+  bed.moisture = 0;
+  STATE.plants.push(plant);
+}
+
+/* ============================================================
+ *  浇水壶：点击一下 = 浇透
+ * ============================================================ */
+function updatePot(dt){
+  if(!STATE.holdingPot) {
+    STATE.pot.swing *= 0.9;
+    STATE.pot.angle = lerp(STATE.pot.angle, 0, 0.2);
+    return;
+  }
+  // 鼠标位置跟着壶
+  STATE.pot.x = STATE.mouse.x;
+  STATE.pot.y = STATE.mouse.y;
+  // 壶柄轻摇（按鼠标速度给小角度）
+  const dx = STATE.mouse.vx;
+  STATE.pot.vx = dx;
+  const target = clamp(dx * 0.04, -0.4, 0.4);
+  STATE.pot.angle = lerp(STATE.pot.angle, target, 0.25);
+  STATE.pot.swing = Math.abs(STATE.pot.angle);
+}
+
+function nearestPlant(x,y){
+  let best = null, bd = 1e9;
+  for(const p of STATE.plants){
+    if(p.dead) continue;
+    const d = Math.hypot(p.bed.cx - x, p.bed.cy - y);
+    if(d < bd){ bd = d; best = p; }
+  }
+  return best;
+}
+
+function waterFully(plant){
+  plant.age = Math.min(1, plant.age + 0.30);
+  plant.moisture = 1;
+  plant.waterTimer = 0;
+  showHint('浇了一次水～ +30%');
+}
+
+function harvestPlant(plant){
+  // 多次收获：每次 +金币，3 次后枯萎
+  plant.harvests = (plant.harvests || 0) + 1;
+  const reward = plant.def.sellPrice || 5;
+  STATE.coins += reward;
+  // 飘字
+  const stemH = 60;
+  const fx = plant.bed.cx;
+  const fy = plant.bed.cy - stemH * plant.age;
+  STATE.floats = STATE.floats || [];
+  STATE.floats.push({ x:fx, y:fy-20, text:`+${reward}💰`, t:0, color:'#e8a020' });
+  // 花瓣飘落粒子
+  const petalColor = plant.def.flowerColor || '#ff80a0';
+  for(let i=0;i<8;i++){
+    STATE.particles.push({
+      x: fx, y: fy,
+      vx: rand(-80, 80), vy: rand(-120, -40),
+      g: 200, size: rand(3, 6),
+      color: petalColor,
+      life: 1.2, t: 0,
+      kind: 'petal',
+    });
+  }
+  // 播放叮咚声
+  if(typeof playDing === 'function') playDing();
+  // 视觉反馈：花变小（每次 -15% 大小）
+  plant.harvestScale = Math.max(0.4, 1 - plant.harvests * 0.18);
+  // 蒲公英：直接完成
+  if(plant.def.dandelion){
+    plant.flowerSpent = true;
+    plant.dead = true;
+    setTimeout(() => { plant.bed.occupied = false; }, 500);
+    showHint(`蒲公英飞散！+${reward}💰`);
+    return;
+  }
+  // 3 次后枯萎
+  if(plant.harvests >= 3){
+    plant.dead = true;
+    plant.flowerSpent = true;
+    setTimeout(() => { plant.bed.occupied = false; }, 800);
+    showHint(`收获完啦！+${reward*3}💰 总计`);
+  } else {
+    showHint(`采了 1 次！还剩 ${3-plant.harvests} 次 +${reward}💰`);
+  }
+}
+
+/* ============================================================
+ *  生长 / 死亡
+ * ============================================================ */
+function updatePlants(dt){
+  for(const p of STATE.plants){
+    if(p.dead){
+      // 缩小消失
+      p._dieT = (p._dieT || 0) + dt;
+      if(p._dieT > 1.5){
+        p.bed.occupied = false;
+        p.bed.plantId = -1;
+        p._removed = true;
+      }
+      continue;
+    }
+    // 失水倒计时
+    p.waterTimer += dt;
+    if(p.waterTimer > 180){
+      p.dead = true;
+      p._dieT = 0;
+      showHint('太渴了…枯萎了');
+      continue;
+    }
+    // 生长速度 = max(0, 水量) × 基础速度
+    const nightMul = isNight() ? STATE.nightSlow : 1.0;
+    const moist = clamp(p.moisture, 0, 1);
+    const baseRate = 1.0 / (p.def.growMs / 1000); // 每秒进度
+    p.age += baseRate * nightMul * moist * dt;
+    // 水量随时间下降
+    p.moisture = Math.max(0, p.moisture - dt * 0.05);
+    p.bed.moisture = Math.max(0, p.bed.moisture - dt * 0.04);
+    // 开花检测
+    if(p.age >= 0.75 && !p.hasBloomed){
+      p.hasBloomed = true;
+      playBloom();
+      spawnPollenBurst(p.bed.cx, p.bed.cy - 40, p.def.flowerColor);
+    }
+  }
+  STATE.plants = STATE.plants.filter(p => !p._removed);
+}
+
+/* ============================================================
+ *  蝴蝶
+ * ============================================================ */
+function updateButterflies(dt){
+  for(const p of STATE.plants){
+    if(p.hasBloomed && !p.flowerSpent && !p.dead && p.pollCount < 3){
+      // 需要蝴蝶
+      const have = STATE.butterflies.some(b => b.plantId === p.id);
+      if(!have && Math.random() < dt * 1.2){
+      spawnButterfly(p);
+    } else if(STATE.butterflies.filter(b => b.plantId === p.id).length === 1 && Math.random() < dt * 0.6){
+      spawnButterfly(p);
+    }
+      }
+  }
+  for(const b of STATE.butterflies){
+    b.t = (b.t || 0) + dt;
+    // 贝塞尔曲线飞行
+    const cx = b.plant.bed.cx + Math.sin(b.t * 1.2 + b.ph) * 80;
+    const cy = b.plant.bed.cy - 50 + Math.cos(b.t * 0.9 + b.ph) * 40;
+    b.x = lerp(b.x, cx, 0.05);
+    b.y = lerp(b.y, cy, 0.05);
+    // 偶尔停花
+    if(!b.restT) b.restT = rand(1.5, 3);
+    b.restT -= dt;
+    if(b.restT <= 0 && !b.pollen && Math.random() < dt * 1.5){
+      b.rest = true;
+      b.restStart = b.t;
+      b.pollen = true;
+    }
+    if(b.rest && b.t - b.restStart > 1.2){
+      // 授粉完成
+      const pl = b.plant;
+      pl.pollCount += 1;
+      spawnPollenBurst(pl.bed.cx, pl.bed.cy - 40, pl.def.flowerColor);
+      b.rest = false;
+      b.pollen = false;
+      b.restT = rand(1.5, 3);
+      if(pl.pollCount >= 3){
+        // 花变棕 → 蒲公英飞散 / 其他留种
+        pl.flowerSpent = true;
+        playSeedPop();
+        if(pl.def.dandelion){
+          releaseDandelion(pl);
+        } else {
+          releaseSeedFromFlower(pl);
+        }
+      }
+    }
+  }
+  STATE.butterflies = STATE.butterflies.filter(b => !(b.plant.flowerSpent || b.plant.dead));
+}
+
+function spawnButterfly(plant){
+  STATE.butterflies.push({
+    plantId: plant.id,
+    plant,
+    x: plant.bed.cx + rand(-30,30),
+    y: plant.bed.cy - 60 + rand(-20,20),
+    ph: Math.random() * TAU,
+    t: 0,
+    restT: rand(2, 6),
+    rest: false, pollen: false,
+  });
+}
+
+function releaseDandelion(plant){
+  // 蒲公英：飞散 8 个种子
+  for(let i=0;i<10;i++){
+    STATE.flyingSeeds.push({
+      defId: plant.def.id,
+      x: plant.bed.cx,
+      y: plant.bed.cy - 40,
+      vx: rand(-1, 1) * 60,
+      vy: rand(-2, -0.5) * 30,
+      t: 0,
+    });
+  }
+  plant.dead = true; plant._dieT = 0;
+}
+
+function releaseSeedFromFlower(plant){
+  // 非蒲公英：留 1 个种子
+  STATE.flyingSeeds.push({
+    defId: plant.def.id,
+    x: plant.bed.cx + rand(-10,10),
+    y: plant.bed.cy - 30,
+    vx: rand(-30, 30), vy: -40,
+    t: 0,
+  });
+  plant.flowerSpent = false; // 仍保留在场景
+  plant.dead = true; plant._dieT = 0;
+}
+
+function updateFlyingSeeds(dt){
+  for(const s of STATE.flyingSeeds){
+    s.t += dt;
+    s.vy += 20 * dt; // 重力
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vx *= 0.99;
+    if(s.y > H + 50) s._gone = true;
+  }
+  STATE.flyingSeeds = STATE.flyingSeeds.filter(s => !s._gone);
+}
+
+/* ============================================================
+ *  粒子
+ * ============================================================ */
+function spawnDrop(x,y){
+  STATE.particles.push({ kind:'drop', x, y, vx: rand(-20,20), vy: rand(60,120), life:0.5, max:0.5, r: 4, color:'#5aaeea' });
+}
+function spawnPollenBurst(x,y,color){
+  for(let i=0;i<14;i++){
+    STATE.particles.push({
+      kind:'pollen', x, y,
+      vx: rand(-40,40), vy: rand(-80,-10),
+      life: rand(1.2, 2.2), max: 2.2,
+      r: rand(2,4), color: color || '#ffc0d8',
+      ph: Math.random()*TAU,
+    });
+  }
+}
+function updateParticles(dt){
+  for(const p of STATE.particles){
+    p.life -= dt;
+    if(p.kind === 'drop'){
+      p.vy += 240 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    } else if(p.kind === 'pollen'){
+      p.vy += 18 * dt;
+      p.vx *= 0.99;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    } else if(p.kind === 'petal'){
+      p.vy += p.g * dt;
+      p.vx *= 0.98;
+      p.t += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.angle = (p.angle || 0) + p.vx * 0.02;
+    }
+  }
+  STATE.particles = STATE.particles.filter(p => p.life > 0);
+}
+
+function updateFloats(dt){
+  if(!STATE.floats) return;
+  for(const f of STATE.floats){
+    f.t += dt;
+    f.y -= 30 * dt;  // 向上飘
+  }
+  STATE.floats = STATE.floats.filter(f => f.t < 1.5);
+}
+
+function drawFloats(){
+  if(!STATE.floats) return;
+  for(const f of STATE.floats){
+    const alpha = clamp(1 - f.t / 1.5, 0, 1);
+    X.save();
+    X.globalAlpha = alpha;
+    X.fillStyle = f.color;
+    X.strokeStyle = '#fff';
+    X.lineWidth = 3;
+    X.font = 'bold 18px sans-serif';
+    X.textAlign = 'center';
+    X.textBaseline = 'middle';
+    X.strokeText(f.text, f.x, f.y);
+    X.fillText(f.text, f.x, f.y);
+    X.restore();
+  }
+}
+
+/* ============================================================
+ *  昼夜
+ * ============================================================ */
+function isNight(){
+  return STATE.dayTime > 0.78 || STATE.dayTime < 0.22;
+}
+function isDusk(){
+  return STATE.dayTime > 0.72 && STATE.dayTime <= 0.78;
+}
+function updateDay(dt){
+  const prev = STATE.dayTime;
+  STATE.dayTime = (STATE.dayTime + dt / STATE.dayLen) % 1;
+  // 跨过 1（wrap-around）→ 新的一天
+  if(prev > STATE.dayTime){
+    STATE.orderDay += 1;
+    generateOrders();
+    showHint('新的一天！新订单来了～');
+  }
+}
+
+function updateOrders(dt){
+  for(const o of STATE.orders){
+    if(o.done) continue;
+    o.timeLeft -= dt;
+    if(o.timeLeft <= 0){
+      o.done = true;
+      o.failed = true;
+      o.timeLeft = 0;
+      STATE.reputation = Math.max(0, STATE.reputation - 5);
+      showHint(`${o.npc.name} 等不及走了… 声望 -5`);
+    }
+  }
+}
+
+/* ============================================================
+ *  音效（WebAudio 合成）
+ * ============================================================ */
+let AC = null;
+function initAudio(){
+  if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playSplash(){
+  if(!AC) return;
+  const buf = AC.createBuffer(1, AC.sampleRate * 0.18, AC.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){
+    const t = i / d.length;
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5) * 0.4;
+  }
+  const src = AC.createBufferSource();
+  src.buffer = buf;
+  const bp = AC.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 800; bp.Q.value = 1.5;
+  const g = AC.createGain(); g.gain.value = 0.25;
+  src.connect(bp).connect(g).connect(AC.destination);
+  src.start();
+}
+function playBloom(){
+  if(!AC) return;
+  const t = AC.currentTime;
+  [523.25, 659.25, 783.99].forEach((f,i) => {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t + i*0.08);
+    g.gain.linearRampToValueAtTime(0.18, t + i*0.08 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i*0.08 + 0.5);
+    o.connect(g).connect(AC.destination);
+    o.start(t + i*0.08);
+    o.stop(t + i*0.08 + 0.55);
+  });
+}
+function playSeedPop(){
+  if(!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator();
+  const g = AC.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(800, t);
+  o.frequency.exponentialRampToValueAtTime(200, t + 0.3);
+  g.gain.setValueAtTime(0.2, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  o.connect(g).connect(AC.destination);
+  o.start(t); o.stop(t + 0.35);
+}
+
+/* ============================================================
+ *  渲染
+ * ============================================================ */
+function drawSky(){
+  const g = X.createLinearGradient(0, 0, 0, SCENE.groundY);
+  if(isNight()){
+    g.addColorStop(0, '#1a2050');
+    g.addColorStop(0.6, '#2a3070');
+    g.addColorStop(1, '#5a4880');
+  } else if(isDusk()){
+    g.addColorStop(0, '#f0a060');
+    g.addColorStop(0.5, '#f0c890');
+    g.addColorStop(1, '#f8e0b0');
+  } else {
+    g.addColorStop(0, '#9ed8f8');
+    g.addColorStop(0.6, '#c8e8f8');
+    g.addColorStop(1, '#f0e8c8');
+  }
+  X.fillStyle = g;
+  X.fillRect(0, 0, W, SCENE.groundY);
+}
+
+function drawCloud(){
+  // 简单的云：3 圆
+  X.fillStyle = isNight() ? 'rgba(220,220,240,0.7)' : 'rgba(255,255,255,0.85)';
+  const cx = W * 0.3 + Math.sin(STATE.time * 0.05) * 20;
+  const cy = H * 0.12;
+  X.beginPath();
+  X.arc(cx, cy, 26, 0, TAU);
+  X.arc(cx + 22, cy + 6, 30, 0, TAU);
+  X.arc(cx + 48, cy, 22, 0, TAU);
+  X.arc(cx + 22, cy - 8, 22, 0, TAU);
+  X.fill();
+}
+
+function drawSunMoon(){
+  const r = SCENE.sun.r;
+  if(isNight()){
+    // 月亮
+    X.fillStyle = '#fff8d0';
+    X.beginPath(); X.arc(SCENE.sun.x, SCENE.sun.y, r, 0, TAU); X.fill();
+    X.fillStyle = '#d8d0a8';
+    X.beginPath(); X.arc(SCENE.sun.x - r*0.3, SCENE.sun.y - r*0.2, r*0.18, 0, TAU); X.fill();
+    X.beginPath(); X.arc(SCENE.sun.x + r*0.3, SCENE.sun.y + r*0.1, r*0.12, 0, TAU); X.fill();
+    // 星星
+    X.fillStyle = '#fff8d0';
+    for(let i=0;i<10;i++){
+      const sx = (W * 0.1 + i * 60 + Math.sin(i*3.7)*10) % W;
+      const sy = (H * 0.06 + Math.cos(i*2.3) * 20);
+      const tw = 0.6 + 0.4 * Math.sin(STATE.time * 3 + i);
+      X.globalAlpha = tw;
+      X.fillRect(sx, sy, 2, 2);
+    }
+    X.globalAlpha = 1;
+  } else {
+    // 太阳 + 光晕
+    const grd = X.createRadialGradient(SCENE.sun.x, SCENE.sun.y, r*0.5, SCENE.sun.x, SCENE.sun.y, r*2);
+    grd.addColorStop(0, 'rgba(255,240,160,0.7)');
+    grd.addColorStop(1, 'rgba(255,240,160,0)');
+    X.fillStyle = grd;
+    X.beginPath(); X.arc(SCENE.sun.x, SCENE.sun.y, r*2, 0, TAU); X.fill();
+    X.fillStyle = '#ffe060';
+    X.beginPath(); X.arc(SCENE.sun.x, SCENE.sun.y, r, 0, TAU); X.fill();
+    // 笑脸
+    X.fillStyle = '#c87020';
+    X.beginPath(); X.arc(SCENE.sun.x - r*0.3, SCENE.sun.y - r*0.15, r*0.08, 0, TAU); X.fill();
+    X.beginPath(); X.arc(SCENE.sun.x + r*0.3, SCENE.sun.y - r*0.15, r*0.08, 0, TAU); X.fill();
+    X.strokeStyle = '#c87020';
+    X.lineWidth = Math.max(2, r*0.08);
+    X.beginPath();
+    X.arc(SCENE.sun.x, SCENE.sun.y + r*0.1, r*0.35, 0.2*Math.PI, 0.8*Math.PI);
+    X.stroke();
+  }
+}
+
+function drawGround(){
+  // 草地
+  const gg = X.createLinearGradient(0, SCENE.groundY, 0, H);
+  gg.addColorStop(0, '#7ac050');
+  gg.addColorStop(1, '#4a8030');
+  X.fillStyle = gg;
+  X.fillRect(0, SCENE.groundY, W, H - SCENE.groundY);
+  // 草地纹理：小草
+  X.strokeStyle = '#5a9038';
+  X.lineWidth = 1.5;
+  for(let i=0;i<60;i++){
+    const gx = (i * 47 + 13) % W;
+    const gy = SCENE.groundY + ((i * 31) % (H - SCENE.groundY - 5));
+    X.beginPath();
+    X.moveTo(gx, gy);
+    X.lineTo(gx + Math.sin(i)*2, gy - 6);
+    X.stroke();
+  }
+}
+
+function drawBeds(){
+  for(const b of SCENE.beds){
+    // 土堆（土棕椭圆）
+    const moist = b.moisture;
+    const baseR = 90, baseG = 60, baseB = 30;
+    const dr = baseR - moist * 18;
+    const dg = baseG - moist * 14;
+    const db = baseB - moist * 8;
+    X.fillStyle = `rgb(${dr|0},${dg|0},${db|0})`;
+    X.beginPath();
+    X.ellipse(b.cx, b.cy + 12, b.w*0.55, 18, 0, 0, TAU);
+    X.fill();
+    // 阴影
+    X.fillStyle = 'rgba(0,0,0,0.15)';
+    X.beginPath();
+    X.ellipse(b.cx, b.cy + 22, b.w*0.5, 6, 0, 0, TAU);
+    X.fill();
+    // 高亮光环（空位提示）
+    if(!b.occupied){
+      X.strokeStyle = 'rgba(255,255,255,0.4)';
+      X.lineWidth = 2;
+      X.setLineDash([4,4]);
+      X.beginPath();
+      X.ellipse(b.cx, b.cy + 12, b.w*0.5, 14, 0, 0, TAU);
+      X.stroke();
+      X.setLineDash([]);
+    }
+  }
+}
+
+function drawPlants(){
+  for(const p of STATE.plants){
+    const x = p.bed.cx, baseY = p.bed.cy + 4;
+    const sway = Math.sin(STATE.time * 1.5 + p.phase) * 0.015;
+    if(p.dead){
+      // 枯萎棕色缩
+      const s = clamp(1 - p._dieT / 1.5, 0, 1);
+      X.save();
+      X.translate(x, baseY);
+      X.scale(s, s);
+      X.fillStyle = '#6a4a20';
+      X.beginPath();
+      X.moveTo(0, 0); X.lineTo(-2*sway*100, -20); X.lineTo(2*sway*100, -20);
+      X.closePath(); X.fill();
+      X.restore();
+      continue;
+    }
+    const age = p.age;
+    X.save();
+    X.translate(x, baseY);
+    X.rotate(sway);
+    // 阶段 1: 种子期（0-25%）显示半截种子
+    if(age < 0.25){
+      const k = age / 0.25;
+      X.fillStyle = p.def.seedColor;
+      X.beginPath();
+      X.ellipse(0, 2 - k*4, 5, 4 + k*2, 0, 0, TAU);
+      X.fill();
+    }
+    // 阶段 2: 发芽（25-50%）
+    if(age >= 0.20){
+      const stemH = lerp(0, 22, clamp((age - 0.20) / 0.30, 0, 1));
+      X.strokeStyle = '#5ac050';
+      X.lineWidth = 3;
+      X.lineCap = 'round';
+      X.beginPath();
+      X.moveTo(0, 0);
+      X.lineTo(0, -stemH);
+      X.stroke();
+      // 嫩芽叶
+      if(age >= 0.30){
+        const lk = clamp((age - 0.30) / 0.20, 0, 1);
+        X.fillStyle = '#7ad060';
+        X.beginPath();
+        X.ellipse(-4, -stemH + 2, 4*lk, 3*lk, -0.5, 0, TAU);
+        X.fill();
+        X.beginPath();
+        X.ellipse(4, -stemH + 6, 4*lk, 3*lk, 0.5, 0, TAU);
+        X.fill();
+      }
+    }
+    // 阶段 3: 长叶期（50-75%）
+    if(age >= 0.45){
+      const stemH = lerp(22, 60, clamp((age - 0.45) / 0.30, 0, 1));
+      X.strokeStyle = '#3a9030';
+      X.lineWidth = 4;
+      X.beginPath();
+      X.moveTo(0, 0);
+      X.lineTo(0, -stemH);
+      X.stroke();
+      // 叶片
+      const lk = clamp((age - 0.45) / 0.15, 0, 1);
+      X.fillStyle = '#5ac050';
+      X.beginPath(); X.ellipse(-10, -stemH*0.5, 9*lk, 5*lk, -0.4, 0, TAU); X.fill();
+      X.beginPath(); X.ellipse( 10, -stemH*0.7, 9*lk, 5*lk,  0.4, 0, TAU); X.fill();
+    }
+    // 阶段 4: 开花（>=75%）
+    if(age >= 0.75){
+      const stemH = 60;
+      const fk = clamp((age - 0.75) / 0.20, 0, 1);
+      const hs = p.harvestScale || 1;
+      drawFlower(0, -stemH, p.def, fk * hs, p.pollCount);
+    }
+    X.restore();
+  }
+}
+
+function drawFlower(x, y, def, k, pollCount){
+  X.save();
+  X.translate(x, y);
+  if(def.id === 'sun'){
+    // 向日葵：大黄盘
+    const r = 18 * k;
+    for(let i=0;i<12;i++){
+      const a = i / 12 * TAU;
+      X.fillStyle = i % 2 === 0 ? '#ffd040' : '#ffb820';
+      X.beginPath();
+      X.ellipse(Math.cos(a)*r*0.9, Math.sin(a)*r*0.9, 6*k, 10*k, a, 0, TAU);
+      X.fill();
+    }
+    X.fillStyle = def.flowerCore;
+    X.beginPath(); X.arc(0, 0, 9*k, 0, TAU); X.fill();
+    // 笑脸
+    if(pollCount > 0){
+      X.fillStyle = '#fff';
+      X.beginPath(); X.arc(-3*k, -2*k, 1.5*k, 0, TAU); X.fill();
+      X.beginPath(); X.arc( 3*k, -2*k, 1.5*k, 0, TAU); X.fill();
+    }
+  } else if(def.id === 'rose'){
+    // 玫瑰：螺旋
+    const r = 14 * k;
+    for(let layer=3; layer>=0; layer--){
+      const lr = r * (1 - layer*0.2);
+      X.fillStyle = `hsl(345,${70-layer*8}%,${55-layer*8}%)`;
+      X.beginPath();
+      for(let i=0;i<6;i++){
+        const a = i/6 * TAU + layer*0.3;
+        X.ellipse(Math.cos(a)*lr*0.5, Math.sin(a)*lr*0.5, lr*0.6, lr*0.4, a, 0, TAU);
+      }
+      X.fill();
+    }
+    X.fillStyle = '#a02040';
+    X.beginPath(); X.arc(0,0, 4*k, 0, TAU); X.fill();
+  } else if(def.id === 'daisy'){
+    // 雏菊：白瓣 + 黄心
+    const r = 14 * k;
+    for(let i=0;i<10;i++){
+      const a = i/10 * TAU;
+      X.fillStyle = '#ffffff';
+      X.strokeStyle = '#e0d8b8';
+      X.lineWidth = 1;
+      X.beginPath();
+      X.ellipse(Math.cos(a)*r*0.85, Math.sin(a)*r*0.85, 4*k, 7*k, a, 0, TAU);
+      X.fill(); X.stroke();
+    }
+    X.fillStyle = '#f0c040';
+    X.beginPath(); X.arc(0,0, 5*k, 0, TAU); X.fill();
+  } else if(def.id === 'tulip'){
+    // 郁金香：紫色杯
+    const r = 12 * k;
+    X.fillStyle = '#9050d0';
+    // 三个瓣
+    X.beginPath();
+    X.moveTo(-r, 0);
+    X.quadraticCurveTo(-r*1.1, -r*0.8, 0, -r*1.4);
+    X.quadraticCurveTo(r*1.1, -r*0.8, r, 0);
+    X.quadraticCurveTo(0, r*0.3, -r, 0);
+    X.fill();
+    X.fillStyle = '#7028b0';
+    X.beginPath();
+    X.ellipse(-r*0.4, -r*0.5, r*0.5, r*1.2, -0.3, 0, TAU);
+    X.fill();
+    X.beginPath();
+    X.ellipse(r*0.4, -r*0.5, r*0.5, r*1.2, 0.3, 0, TAU);
+    X.fill();
+  } else if(def.id === 'dand'){
+    // 蒲公英：黄色绒球
+    if(!def._spent){
+      const r = 14 * k;
+      // 多根黄线条
+      X.strokeStyle = def.flowerColor;
+      X.lineWidth = 1.5;
+      for(let i=0;i<18;i++){
+        const a = i/18 * TAU;
+        X.beginPath();
+        X.moveTo(0, 0);
+        X.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+        X.stroke();
+      }
+      X.fillStyle = def.flowerCore;
+      X.beginPath(); X.arc(0,0, r*0.4, 0, TAU); X.fill();
+    }
+  }
+  // 枯萎
+  if(pollCount >= 3){
+    X.fillStyle = 'rgba(80,50,20,0.5)';
+    X.beginPath(); X.arc(0,0, 16, 0, TAU); X.fill();
+  }
+  X.restore();
+}
+
+function drawButterflies(){
+  for(const b of STATE.butterflies){
+    const x = b.x, y = b.y;
+    const flap = Math.sin(b.t * 12) * 0.6 + 0.4; // 翅膀扇动
+    // 阴影
+    X.fillStyle = 'rgba(0,0,0,0.15)';
+    X.beginPath();
+    X.ellipse(x, b.plant.bed.cy + 8, 6, 2, 0, 0, TAU);
+    X.fill();
+    // 翅膀
+    X.fillStyle = '#ffa040';
+    X.save();
+    X.translate(x, y);
+    // 左翅
+    X.save();
+    X.scale(-flap, 1);
+    X.beginPath();
+    X.ellipse(-4, -2, 6, 9, -0.3, 0, TAU);
+    X.fill();
+    X.fillStyle = '#5a2a80';
+    X.beginPath();
+    X.ellipse(-4, 1, 3, 4, -0.3, 0, TAU);
+    X.fill();
+    X.restore();
+    // 右翅
+    X.fillStyle = '#ffa040';
+    X.save();
+    X.scale(flap, 1);
+    X.beginPath();
+    X.ellipse(4, -2, 6, 9, 0.3, 0, TAU);
+    X.fill();
+    X.fillStyle = '#5a2a80';
+    X.beginPath();
+    X.ellipse(4, 1, 3, 4, 0.3, 0, TAU);
+    X.fill();
+    X.restore();
+    // 身体
+    X.fillStyle = '#3a1a40';
+    X.beginPath();
+    X.ellipse(0, 0, 1.5, 5, 0, 0, TAU);
+    X.fill();
+    // 触角
+    X.strokeStyle = '#3a1a40';
+    X.lineWidth = 1;
+    X.beginPath();
+    X.moveTo(-1, -4); X.lineTo(-3, -8);
+    X.moveTo( 1, -4); X.lineTo( 3, -8);
+    X.stroke();
+    X.restore();
+  }
+}
+
+function drawOrders(){
+  if(!STATE.started || STATE.shopOpen) return;
+  const b = SCENE.orderBox;
+  if(!b) return;
+  const ox = b.x, oy = b.y, ow = b.w, oh = b.h;
+  // 背景
+  X.fillStyle = 'rgba(255,250,235,0.88)';
+  roundRect(ox, oy, ow, oh, 12);
+  X.fill();
+  X.strokeStyle = '#a07040';
+  X.lineWidth = 2;
+  roundRect(ox, oy, ow, oh, 12);
+  X.stroke();
+  // 标题
+  X.fillStyle = '#7a4a20';
+  X.font = 'bold 12px sans-serif';
+  X.textAlign = 'left';
+  X.textBaseline = 'top';
+  X.fillText('📋 今日订单', ox + 8, oy + 6);
+  // 声望
+  X.fillStyle = '#a07020';
+  X.font = 'bold 11px sans-serif';
+  X.textAlign = 'right';
+  X.textBaseline = 'top';
+  X.fillText(`⭐ ${STATE.reputation}`, ox + ow - 8, oy + 6);
+  X.textBaseline = 'middle';
+  // 3 单
+  for(let i=0;i<STATE.orders.length;i++){
+    const o = STATE.orders[i];
+    const rowY = oy + 26 + i * 28;
+    if(o.done){
+      X.globalAlpha = 0.4;
+    }
+    // NPC 头像（圆形）
+    X.fillStyle = o.npc.color;
+    X.beginPath();
+    X.arc(ox + 16, rowY + 10, 10, 0, TAU);
+    X.fill();
+    X.font = '13px sans-serif';
+    X.textAlign = 'center';
+    X.textBaseline = 'middle';
+    X.fillText(o.npc.emoji, ox + 16, rowY + 10);
+    // 想要的花
+    X.fillStyle = '#3a2010';
+    X.font = 'bold 12px sans-serif';
+    X.textAlign = 'left';
+    X.textBaseline = 'top';
+    X.fillText(`想要 ${o.wantName}`, ox + 32, rowY + 2);
+    // 倒计时
+    const t = Math.max(0, o.timeLeft | 0);
+    X.fillStyle = o.done ? (o.failed ? '#a85050' : '#5a9050') : (t < 30 ? '#e85050' : '#7a4a20');
+    X.font = '11px sans-serif';
+    X.fillText(o.done ? (o.failed ? '走了' : '完成') : `${t}s`, ox + 32, rowY + 16);
+    // 报酬
+    X.fillStyle = '#c89020';
+    X.font = 'bold 12px sans-serif';
+    X.textAlign = 'right';
+    X.textBaseline = 'middle';
+    X.fillText(`+${o.pay}💰`, ox + ow - 50, rowY + 10);
+    // 提交按钮
+    const btnX = ox + ow - 44, btnY = rowY, btnW = 36, btnH = 22;
+    if(!o.done){
+      X.fillStyle = '#7bc050';
+      roundRect(btnX, btnY, btnW, btnH, 6);
+      X.fill();
+      X.strokeStyle = '#4a8030'; X.lineWidth = 1.5;
+      roundRect(btnX, btnY, btnW, btnH, 6);
+      X.stroke();
+      X.fillStyle = '#fff';
+      X.font = 'bold 11px sans-serif';
+      X.textAlign = 'center';
+      X.textBaseline = 'middle';
+      X.fillText('卖', btnX + btnW/2, btnY + btnH/2);
+      o._sellBox = { x:btnX, y:btnY, w:btnW, h:btnH };
+    } else {
+      o._sellBox = null;
+    }
+    X.globalAlpha = 1;
+  }
+  X.textAlign = 'left';
+  X.textBaseline = 'middle';
+}
+
+function drawSeedBag(){
+  const b = SCENE.bagBox;
+  // 背景
+  X.fillStyle = 'rgba(255,250,235,0.85)';
+  roundRect(b.x, b.y, b.w, b.h, 12);
+  X.fill();
+  X.strokeStyle = '#a07040';
+  X.lineWidth = 2;
+  roundRect(b.x, b.y, b.w, b.h, 12);
+  X.stroke();
+  // 标题
+  X.fillStyle = '#7a4a20';
+  X.font = 'bold 11px sans-serif';
+  X.textBaseline = 'top';
+  X.textAlign = 'left';
+  X.fillText('🌰 种子袋', b.x + 8, b.y + 4);
+  // 只显示已解锁的种子 + 1 个"+"按钮（宽度根据 bagBox 自适应）
+  const unlockedSeeds = SEEDS.filter(s => STATE.unlocked[s.id] && STATE.seedBag.includes(s.id));
+  const maxCells = Math.max(1, Math.floor((b.w - 50) / 70));  // 每格 ~70px，留 50px 给"+"和 padding
+  const showSeeds = unlockedSeeds.slice(0, maxCells);
+  const cellW = 70;
+  const startX = b.x + 10;
+  const cy = b.y + 32;
+  for(let i=0;i<showSeeds.length;i++){
+    const def = showSeeds[i];
+    const cx = startX + cellW * i + cellW/2;
+    const isSelected = STATE.selectedSeed === def.id;
+    // 选中高亮
+    if(isSelected){
+      X.fillStyle = 'rgba(255,220,120,0.55)';
+      X.beginPath();
+      X.arc(cx, cy, 22, 0, TAU);
+      X.fill();
+    }
+    // 种子图标
+    X.fillStyle = def.seedColor;
+    X.beginPath();
+    X.ellipse(cx, cy, 10, 7, 0, 0, TAU);
+    X.fill();
+    X.strokeStyle = 'rgba(0,0,0,0.4)';
+    X.lineWidth = 1.5;
+    X.stroke();
+    // 名字
+    X.fillStyle = '#3a2010';
+    X.font = '9px sans-serif';
+    X.textAlign = 'center';
+    X.textBaseline = 'top';
+    X.fillText(def.name, cx, cy + 12);
+    // 触摸区域存到 def
+    def._bagBox = { x:cx-cellW/2, y:cy-22, w:cellW, h:44 };
+  }
+  // "+" 按钮：跳到商店
+  const plusX = startX + cellW * showSeeds.length + 30;
+  // 如果 plusX 超出 bagBox 则隐藏
+  if(plusX + 20 < b.x + b.w){
+    X.fillStyle = 'rgba(150,200,255,0.7)';
+    X.beginPath();
+    X.arc(plusX, cy, 18, 0, TAU);
+    X.fill();
+    X.strokeStyle = '#3a6a90'; X.lineWidth = 2;
+    X.stroke();
+    X.fillStyle = '#1a3a5a';
+    X.font = 'bold 22px sans-serif';
+    X.textAlign = 'center'; X.textBaseline = 'middle';
+    X.fillText('+', plusX, cy + 1);
+    SCENE.bagPlus = { x:plusX-20, y:cy-20, w:40, h:40 };
+  }
+  X.textAlign = 'left';
+  X.textBaseline = 'middle';
+}
+
+function drawWateringPot(){
+  const b = SCENE.potBox;
+  if(!STATE.holdingPot){
+    // 静止在盒子里
+    X.fillStyle = 'rgba(255,250,235,0.85)';
+    roundRect(b.x, b.y, b.w, b.h, 12);
+    X.fill();
+    X.strokeStyle = '#a07040';
+    X.lineWidth = 2;
+    roundRect(b.x, b.y, b.w, b.h, 12);
+    X.stroke();
+    drawPotIcon(b.x + b.w/2, b.y + b.h/2, 0);
+  } else {
+    drawPotIcon(STATE.pot.x, STATE.pot.y, STATE.pot.angle);
+    // 提示
+    X.fillStyle = '#5a3a1a';
+    X.font = 'bold 11px sans-serif';
+    X.textAlign = 'center';
+    X.textBaseline = 'top';
+    X.fillText('💧点一下', STATE.pot.x, STATE.pot.y + 28);
+    X.textAlign = 'left';
+  }
+}
+
+function drawPotIcon(x, y, angle){
+  X.save();
+  X.translate(x, y);
+  X.rotate(angle);
+  // 壶身
+  X.fillStyle = '#6ab0d8';
+  X.strokeStyle = '#3a5878';
+  X.lineWidth = 2;
+  X.beginPath();
+  X.ellipse(0, 0, 16, 14, 0, 0, TAU);
+  X.fill(); X.stroke();
+  // 提手
+  X.strokeStyle = '#3a5878';
+  X.lineWidth = 2;
+  X.beginPath();
+  X.arc(0, -2, 10, Math.PI*1.1, Math.PI*1.9);
+  X.stroke();
+  // 壶嘴
+  X.fillStyle = '#6ab0d8';
+  X.beginPath();
+  X.moveTo(12, -2);
+  X.lineTo(28, -8);
+  X.lineTo(28, -2);
+  X.lineTo(14, 4);
+  X.closePath();
+  X.fill(); X.stroke();
+  // 高光
+  X.fillStyle = 'rgba(255,255,255,0.5)';
+  X.beginPath();
+  X.ellipse(-5, -4, 4, 3, 0, 0, TAU);
+  X.fill();
+  X.restore();
+}
+
+function drawTimeIndicator(){
+  const b = SCENE.timeBox;
+  X.fillStyle = 'rgba(255,250,235,0.85)';
+  roundRect(b.x, b.y, b.w, b.h, 12);
+  X.fill();
+  X.strokeStyle = '#a07040';
+  X.lineWidth = 2;
+  roundRect(b.x, b.y, b.w, b.h, 12);
+  X.stroke();
+  // 时间圆环
+  const cx = b.x + b.w/2, cy = b.y + b.h/2 - 4;
+  X.strokeStyle = 'rgba(0,0,0,0.15)';
+  X.lineWidth = 3;
+  X.beginPath(); X.arc(cx, cy, 14, 0, TAU); X.stroke();
+  X.strokeStyle = '#f0a040';
+  X.beginPath();
+  X.arc(cx, cy, 14, -Math.PI/2, -Math.PI/2 + STATE.dayTime * TAU);
+  X.stroke();
+  // 太阳/月亮图标
+  if(isNight()){
+    X.fillStyle = '#fff8d0';
+    X.beginPath(); X.arc(cx, cy, 7, 0, TAU); X.fill();
+  } else {
+    X.fillStyle = '#ffd040';
+    X.beginPath(); X.arc(cx, cy, 7, 0, TAU); X.fill();
+  }
+  X.fillStyle = '#7a4a20';
+  X.font = '10px sans-serif';
+  X.textAlign = 'center';
+  X.fillText('跳时间', cx, b.y + b.h - 12);
+  X.textAlign = 'left';
+}
+
+function drawFlyingSeeds(){
+  for(const s of STATE.flyingSeeds){
+    X.save();
+    X.translate(s.x, s.y);
+    X.rotate(s.t * 2);
+    X.fillStyle = '#fff8d0';
+    for(let i=0;i<6;i++){
+      const a = i/6 * TAU;
+      X.beginPath();
+      X.moveTo(0, 0);
+      X.lineTo(Math.cos(a)*10, Math.sin(a)*10);
+      X.strokeStyle = '#c8b870';
+      X.lineWidth = 1.2;
+      X.stroke();
+    }
+    X.fillStyle = '#a08040';
+    X.beginPath(); X.arc(0,0, 2, 0, TAU); X.fill();
+    X.restore();
+  }
+}
+
+function drawParticles(){
+  for(const p of STATE.particles){
+    const a = clamp(p.life / p.max, 0, 1);
+    if(p.kind === 'drop'){
+      X.fillStyle = `rgba(80,160,220,${a})`;
+      X.beginPath();
+      X.ellipse(p.x, p.y, p.r*a, p.r*1.5*a, 0, 0, TAU);
+      X.fill();
+    } else {
+      X.fillStyle = p.color;
+      X.globalAlpha = a;
+      X.beginPath();
+      X.arc(p.x + Math.sin(p.ph + STATE.time*2)*2, p.y, p.r, 0, TAU);
+      X.fill();
+      X.globalAlpha = 1;
+    }
+  }
+}
+
+function drawDragSeed(){
+  if(!STATE.dragSeed) return;
+  const s = STATE.dragSeed;
+  X.save();
+  X.globalAlpha = 0.85;
+  X.translate(s.x, s.y);
+  X.fillStyle = s.def.seedColor;
+  X.beginPath();
+  X.ellipse(0, 0, 14, 10, 0, 0, TAU);
+  X.fill();
+  X.strokeStyle = 'rgba(0,0,0,0.4)';
+  X.lineWidth = 2;
+  X.stroke();
+  X.restore();
+}
+
+function drawArrow(){
+  if(STATE.arrowTimer <= 0) return;
+  STATE.arrowTimer -= 1/60;
+  const alpha = STATE.arrowTimer / 5;
+  X.save();
+  X.globalAlpha = alpha;
+  const b = SCENE.bagBox;
+  X.strokeStyle = '#c85020';
+  X.fillStyle = '#c85020';
+  X.lineWidth = 4;
+  // 弧形箭头指向种子袋
+  X.beginPath();
+  X.moveTo(b.x + b.w + 80, b.y + b.h + 60);
+  X.quadraticCurveTo(b.x + b.w + 60, b.y + b.h, b.x + b.w, b.y + b.h - 5);
+  X.stroke();
+  // 箭头三角
+  X.beginPath();
+  X.moveTo(b.x + b.w - 5, b.y + b.h - 15);
+  X.lineTo(b.x + b.w, b.y + b.h - 5);
+  X.lineTo(b.x + b.w - 12, b.y + b.h - 2);
+  X.closePath();
+  X.fill();
+  // 文字
+  X.font = 'bold 16px sans-serif';
+  X.fillText('点这里选种子 →', b.x + b.w + 10, b.y + b.h + 50);
+  X.restore();
+}
+
+function drawCoinHUD(){
+  const c = SCENE.coinHud;
+  X.fillStyle = 'rgba(255,250,235,0.9)';
+  roundRect(c.x, c.y, c.w, c.h, 18);
+  X.fill();
+  X.strokeStyle = '#c89020'; X.lineWidth = 2;
+  X.stroke();
+  X.fillStyle = '#7a5010';
+  X.font = 'bold 16px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillText(`💰 ${STATE.coins}`, c.x + c.w/2, c.y + c.h/2);
+}
+
+function drawShopButton(){
+  const b = SCENE.shopBtn;
+  X.fillStyle = STATE.shopOpen ? 'rgba(80,150,220,0.95)' : 'rgba(150,200,255,0.9)';
+  roundRect(b.x, b.y, b.w, b.h, 16);
+  X.fill();
+  X.strokeStyle = '#3a6a90'; X.lineWidth = 2;
+  X.stroke();
+  X.fillStyle = '#fff';
+  X.font = 'bold 13px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillText('🏪 商店', b.x + b.w/2, b.y + b.h/2);
+}
+
+function drawShop(){
+  if(!STATE.shopOpen) return;
+  X.fillStyle = 'rgba(0,0,0,0.4)';
+  X.fillRect(0, 0, W, H);
+  const cx = W/2 - 200, cy = H/2 - 240, cw = 400, ch = 480;
+  X.fillStyle = '#fff8e8';
+  roundRect(cx, cy, cw, ch, 16);
+  X.fill();
+  X.strokeStyle = '#a07040'; X.lineWidth = 3;
+  X.stroke();
+  X.fillStyle = '#5a3a1a';
+  X.font = 'bold 22px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'top';
+  X.fillText('🏪 商店', W/2, cy + 16);
+  X.fillStyle = '#e85050';
+  X.beginPath(); X.arc(cx + cw - 20, cy + 20, 14, 0, TAU); X.fill();
+  X.fillStyle = '#fff';
+  X.font = 'bold 18px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillText('×', cx + cw - 20, cy + 20);
+  SCENE.shopClose = { x:cx+cw-32, y:cy+8, w:24, h:24 };
+  const newSeeds = SEEDS.filter(s => !STATE.unlocked[s.id]);
+  let y = cy + 60;
+  for(const def of newSeeds){
+    const cardX = cx + 20, cardY = y, cardW = cw - 40, cardH = 70;
+    X.fillStyle = '#fff';
+    roundRect(cardX, cardY, cardW, cardH, 10);
+    X.fill();
+    X.strokeStyle = '#c0a070'; X.lineWidth = 1.5;
+    X.stroke();
+    X.fillStyle = def.seedColor;
+    X.beginPath();
+    X.ellipse(cardX + 30, cardY + 35, 12, 8, 0, 0, TAU);
+    X.fill();
+    X.fillStyle = '#3a2010';
+    X.font = 'bold 14px sans-serif';
+    X.textAlign = 'left'; X.textBaseline = 'middle';
+    X.fillText(def.name, cardX + 55, cardY + 25);
+    X.fillStyle = '#a07020';
+    X.font = '12px sans-serif';
+    X.fillText(`卖价 ${def.sellPrice} 💰`, cardX + 55, cardY + 45);
+    const btnX = cardX + cardW - 80, btnY = cardY + 18, btnW = 64, btnH = 34;
+    const canBuy = STATE.coins >= 8;
+    X.fillStyle = canBuy ? '#7bc050' : '#aaa';
+    roundRect(btnX, btnY, btnW, btnH, 8);
+    X.fill();
+    X.fillStyle = '#fff';
+    X.font = 'bold 13px sans-serif';
+    X.textAlign = 'center'; X.textBaseline = 'middle';
+    X.fillText(`8 💰 买`, btnX + btnW/2, btnY + btnH/2);
+    def._buyBox = { x:btnX, y:btnY, w:btnW, h:btnH };
+    y += cardH + 8;
+  }
+  X.textAlign = 'left';
+  X.textBaseline = 'middle';
+}
+
+function roundRect(x,y,w,h,r){
+  X.beginPath();
+  X.moveTo(x+r, y);
+  X.lineTo(x+w-r, y); X.quadraticCurveTo(x+w, y, x+w, y+r);
+  X.lineTo(x+w, y+h-r); X.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  X.lineTo(x+r, y+h); X.quadraticCurveTo(x, y+h, x, y+h-r);
+  X.lineTo(x, y+r); X.quadraticCurveTo(x, y, x+r, y);
+}
+
+/* ============================================================
+ *  主循环
+ * ============================================================ */
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  STATE.time += dt;
+  if(STATE.started){
+    updateDay(dt);
+    updateOrders(dt);
+    updatePot(dt);
+    updatePlants(dt);
+    updateButterflies(dt);
+    updateFlyingSeeds(dt);
+    updateParticles(dt);
+    updateFloats(dt);
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+function render(){
+  drawSky();
+  drawCloud();
+  drawSunMoon();
+  drawGround();
+  drawBeds();
+  drawPlants();
+  drawButterflies();
+  drawFlyingSeeds();
+  drawParticles();
+  drawFloats();
+  drawSeedBag();
+  drawOrders();
+  drawWateringPot();
+  drawTimeIndicator();
+  drawShopButton();
+  drawCoinHUD();
+  drawDragSeed();
+  drawArrow();
+  drawShop();
+}
+
+/* ============================================================
+ *  启动
+ * ============================================================ */
+document.getElementById('startBtn').addEventListener('click', () => {
+  initAudio();
+  STATE.started = true;
+  // 初始只给 5 种基础 + 6 金币（够买 1 颗 3 金币的薰衣草）—— 不，初始金币 6，新种子 8 金币
+  // 改：初始 3 金币 + 5 种基础，玩家卖花 1 朵就够买薰衣草
+  STATE.seedBag = ['sun', 'rose', 'daisy', 'tulip', 'dand']; // 初始 5 种基础
+  STATE.coins = 3; // 初始 3 金币（卖 1 朵雏菊 4 金币 → 买 1 颗薰衣草 8 金币，需要卖 2 朵）
+  STATE.unlocked = { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false };
+  STATE.arrowTimer = 5;
+  // v1 订单系统：开张第一单
+  generateOrders();
+  FADE.classList.add('hidden');
+  showHint('从种子袋选一颗种子种到土里～', 3500);
+});
+
+resize();
+requestAnimationFrame(loop);
+
+/* ============================================================
+ *  测试钩子（浏览器控制台可用）
+ * ============================================================ */
+window.__test = {
+  plant: (id='sun') => {
+    const def = SEEDS.find(s => s.id === id) || SEEDS[0];
+    const bed = SCENE.beds.find(b => !b.occupied);
+    if(bed) plantSeed(bed, def);
+    return bed ? bed.plantId : null;
+  },
+  water: (pid) => {
+    const p = STATE.plants.find(p => p.id === pid);
+    if(p){ p.age = Math.min(1, p.age + 0.30); p.moisture = 1; p.waterTimer = 0; }
+    return p ? p.age : null;
+  },
+  state: () => ({
+    time: STATE.time.toFixed(1),
+    dayTime: STATE.dayTime.toFixed(2),
+    plants: STATE.plants.map(p => ({
+      id: p.id, def: p.def.id, age: p.age.toFixed(3),
+      moist: p.moisture.toFixed(2), bloom: p.hasBloomed,
+      dead: p.dead, pollCount: p.pollCount,
+    })),
+    butterflies: STATE.butterflies.length,
+    flyingSeeds: STATE.flyingSeeds.length,
+    seedBag: STATE.seedBag,
+  }),
+  advance: (sec=60) => {
+    // 加速推进时间
+    for(let i=0;i<sec*60;i++){
+      updateDay(1/60);
+      updatePlants(1/60);
+      updateButterflies(1/60);
+    }
+    return __test.state();
+  },
+  toFlower: (id='sun') => {
+    const def = SEEDS.find(s => s.id === id) || SEEDS[0];
+    const bed = SCENE.beds.find(b => !b.occupied);
+    if(!bed) return null;
+    plantSeed(bed, def);
+    const p = STATE.plants[STATE.plants.length-1];
+    p.age = 1;
+    p.hasBloomed = true;
+    return p.id;
+  },
+  pollinate: (pid) => {
+    const p = STATE.plants.find(p => p.id === pid);
+    if(!p) return null;
+    p.pollCount = 3;
+    p.flowerSpent = true;
+    if(p.def.dandelion) releaseDandelion(p);
+    else releaseSeedFromFlower(p);
+    return 'done';
+  },
+};
+
+</script>
+</body>
+</html>
