@@ -81,6 +81,34 @@ const SEEDS = [
   { id:'sunred',   name:'红葵',   seedColor:'#702010', seedShape:'oval', growMs:60000, sellPrice:25, flowerColor:'#e85030', flowerCore:'#5a2010' },
 ];
 
+/* ---------- 种子稀有度（采花掉落概率用） ---------- */
+// 0 = common, 1 = uncommon, 2 = rare
+const SEED_RARITY = {
+  daisy: 0, dand: 0,                       // common
+  rose: 1, sun: 1, tulip: 1, lavender: 1, cactus: 1,  // uncommon
+  sakura: 2, lotus: 2, sunred: 2,         // rare
+};
+
+function rollDropDefId(plantDef){
+  // 蒲公英：固定掉落自己（蒲公英种子很珍贵）
+  if(plantDef.dandelion) return 'dand';
+  const r = Math.random();
+  const myRarity = SEED_RARITY[plantDef.id] ?? 0;
+  if(r < 0.80){
+    return plantDef.id;  // 80% 同种
+  } else if(r < 0.95){
+    // 15% 更稀有种（至少比当前 +1 阶）
+    const candidates = SEEDS.filter(s => (SEED_RARITY[s.id] ?? 0) > myRarity);
+    if(candidates.length) return choice(candidates).id;
+    return plantDef.id;
+  } else {
+    // 5% 普通种（common）
+    const candidates = SEEDS.filter(s => (SEED_RARITY[s.id] ?? 0) === 0);
+    if(candidates.length) return choice(candidates).id;
+    return plantDef.id;
+  }
+}
+
 /* ---------- 全局状态 ---------- */
 const STATE = {
   started: false,
@@ -96,7 +124,8 @@ const STATE = {
   plants: [],      // 场景里正在生长的植物
   particles: [],   // 通用粒子（水滴/花粉/星点）
   butterflies: [], // 蝴蝶
-  seedBag: [],     // 种子袋里"已有"的种子（id）
+  seeds: {},       // 种子库存：defId → 数量（采花掉落、商店购买都进这里）
+  groundSeeds: [], // 地上掉落的种子（点中后入库）
   selectedSeed: null, // 当前选中的种子 id（用于种子袋高亮）
   flyingSeeds: [], // 飞散的种子（蒲公英种子飞散后的可捡种子）
   coins: 6,         // 初始 6 金币
@@ -308,7 +337,7 @@ function handleClick(p){
       if(def._buyBox && pointInBox(p.x, p.y, def._buyBox)){
         if(STATE.coins >= 8){
           STATE.coins -= 8;
-          STATE.seedBag.push(def.id);
+          STATE.seeds[def.id] = (STATE.seeds[def.id] || 0) + 1;
           STATE.unlocked[def.id] = true;
           showHint(`买了 ${def.name}！`);
         } else {
@@ -345,7 +374,8 @@ function handleClick(p){
     }
     // 否则按 _bagBox 找点中了哪个种子
     for(const def of SEEDS){
-      if(def._bagBox && pointInBox(p.x, p.y, def._bagBox) && STATE.seedBag.includes(def.id)){
+      if(def._bagBox && pointInBox(p.x, p.y, def._bagBox) && (STATE.seeds[def.id] || 0) > 0){
+        STATE.seeds[def.id] -= 1;  // 从库存拿出 1 颗
         STATE.selectedSeed = def.id;
         STATE.dragSeed = {
           def, x: p.x - 20, y: p.y - 20, offsetX:20, offsetY:20,
@@ -365,17 +395,40 @@ function handleClick(p){
       showHint('点击一下 = 浇透一次～');
       return;
     } else {
+      // 拖到无效位置 → 退回库存（避免种子凭空消失）
+      if(STATE.dragSeed && STATE.dragSeed.def){
+        const did = STATE.dragSeed.def.id;
+        STATE.seeds[did] = (STATE.seeds[did] || 0) + 1;
+      }
       STATE.dragSeed = null;
       C.classList.remove('grabbing');
     }
   }
-  // 5. 飞散种子可捡回
+  // 5. 飞散种子可捡回（蒲公英/授粉后的）→ 入库
   for(let i=STATE.flyingSeeds.length-1; i>=0; i--){
     const s = STATE.flyingSeeds[i];
     if(Math.hypot(s.x-p.x, s.y-p.y) < 24){
-      STATE.seedBag.push(s.defId);
+      STATE.seeds[s.defId] = (STATE.seeds[s.defId] || 0) + 1;
       STATE.flyingSeeds.splice(i,1);
-      showHint('+1 颗种子');
+      const def = SEEDS.find(d => d.id === s.defId);
+      showHint(`+1 ${def ? def.name : ''}种子`);
+      return;
+    }
+  }
+  // 5b. 地上掉落种子可捡起 → 入库 + 飘字 + 叮咚声
+  for(let i=STATE.groundSeeds.length-1; i>=0; i--){
+    const s = STATE.groundSeeds[i];
+    if(Math.hypot(s.x-p.x, s.y-p.y) < 16){
+      STATE.seeds[s.defId] = (STATE.seeds[s.defId] || 0) + 1;
+      const def = SEEDS.find(d => d.id === s.defId);
+      STATE.floats = STATE.floats || [];
+      STATE.floats.push({
+        x: s.x, y: s.y - 10,
+        text: `+1 ${def ? def.name : ''}种子`,
+        t: 0, color: '#7a4a20',
+      });
+      STATE.groundSeeds.splice(i, 1);
+      playSeedPop();
       return;
     }
   }
@@ -526,6 +579,25 @@ function harvestPlant(plant){
   if(typeof playDing === 'function') playDing();
   // 视觉反馈：花变小（每次 -15% 大小）
   plant.harvestScale = Math.max(0.4, 1 - plant.harvests * 0.18);
+  // === Round 1：采花掉落种子（仅第一次收获时掉落；必须在蒲公英 return 之前） ===
+  if(!plant._droppedSeed){
+    plant._droppedSeed = true;
+    // 蒲公英固定 1 颗；其他 50% 概率掉 1 或 2 颗
+    const dropCount = plant.def.dandelion ? 1 : (Math.random() < 0.5 ? 1 : 2);
+    for(let i=0; i<dropCount; i++){
+      const defId = rollDropDefId(plant.def);
+      const dx = plant.bed.cx + rand(-14, 14);
+      const dy = plant.bed.cy - 30 - i * 8;
+      STATE.groundSeeds.push({
+        defId,
+        x: dx,
+        y: dy,
+        vx: rand(-30, 30),
+        vy: rand(-90, -50),
+        t: 0,
+      });
+    }
+  }
   // 蒲公英：直接完成
   if(plant.def.dandelion){
     plant.flowerSpent = true;
@@ -690,6 +762,27 @@ function updateFlyingSeeds(dt){
     if(s.y > H + 50) s._gone = true;
   }
   STATE.flyingSeeds = STATE.flyingSeeds.filter(s => !s._gone);
+}
+
+// 地上掉落种子：重力下落 + 弹一下停在地面
+function updateGroundSeeds(dt){
+  const groundY = SCENE.groundY - 6;
+  for(const s of STATE.groundSeeds){
+    s.t += dt;
+    s.vy += 320 * dt;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vx *= 0.92;
+    if(s.y > groundY){
+      s.y = groundY;
+      if(Math.abs(s.vy) > 30){
+        s.vy *= -0.45;
+        s.vx *= 0.7;
+      } else {
+        s.vy = 0;
+      }
+    }
+  }
 }
 
 /* ============================================================
@@ -1293,8 +1386,15 @@ function drawSeedBag(){
   X.textBaseline = 'top';
   X.textAlign = 'left';
   X.fillText('🌰 种子袋', b.x + 8, b.y + 4);
-  // 只显示已解锁的种子 + 1 个"+"按钮（宽度根据 bagBox 自适应）
-  const unlockedSeeds = SEEDS.filter(s => STATE.unlocked[s.id] && STATE.seedBag.includes(s.id));
+  // 库存总数（右上角）
+  const totalSeeds = Object.values(STATE.seeds).reduce((a, b) => a + (b || 0), 0);
+  X.fillStyle = '#a07020';
+  X.font = 'bold 10px sans-serif';
+  X.textAlign = 'right';
+  X.fillText(`📦 ${totalSeeds}`, b.x + b.w - 8, b.y + 5);
+  X.textAlign = 'left';
+  // 只显示已解锁 + 库存 > 0 的种子 + 1 个"+"按钮（宽度根据 bagBox 自适应）
+  const unlockedSeeds = SEEDS.filter(s => STATE.unlocked[s.id] && (STATE.seeds[s.id] || 0) > 0);
   const maxCells = Math.max(1, Math.floor((b.w - 50) / 70));  // 每格 ~70px，留 50px 给"+"和 padding
   const showSeeds = unlockedSeeds.slice(0, maxCells);
   const cellW = 70;
@@ -1304,6 +1404,7 @@ function drawSeedBag(){
     const def = showSeeds[i];
     const cx = startX + cellW * i + cellW/2;
     const isSelected = STATE.selectedSeed === def.id;
+    const cnt = STATE.seeds[def.id] || 0;
     // 选中高亮
     if(isSelected){
       X.fillStyle = 'rgba(255,220,120,0.55)';
@@ -1319,6 +1420,19 @@ function drawSeedBag(){
     X.strokeStyle = 'rgba(0,0,0,0.4)';
     X.lineWidth = 1.5;
     X.stroke();
+    // 数量小徽章（右上角）
+    X.fillStyle = '#fff';
+    X.strokeStyle = '#7a4a20';
+    X.lineWidth = 1.5;
+    X.beginPath();
+    X.arc(cx + 12, cy - 10, 7, 0, TAU);
+    X.fill();
+    X.stroke();
+    X.fillStyle = '#7a4a20';
+    X.font = 'bold 9px sans-serif';
+    X.textAlign = 'center';
+    X.textBaseline = 'middle';
+    X.fillText(String(cnt), cx + 12, cy - 10);
     // 名字
     X.fillStyle = '#3a2010';
     X.font = '9px sans-serif';
@@ -1456,6 +1570,32 @@ function drawFlyingSeeds(){
     }
     X.fillStyle = '#a08040';
     X.beginPath(); X.arc(0,0, 2, 0, TAU); X.fill();
+    X.restore();
+  }
+}
+
+// 地上掉落种子：小光球 + 脉动 + 种子色
+function drawGroundSeeds(){
+  for(const s of STATE.groundSeeds){
+    const def = SEEDS.find(d => d.id === s.defId);
+    if(!def) continue;
+    X.save();
+    X.translate(s.x, s.y);
+    const pulse = 1 + Math.sin(s.t * 4) * 0.10;
+    X.scale(pulse, pulse);
+    // 光晕
+    X.fillStyle = 'rgba(255,240,140,0.55)';
+    X.beginPath();
+    X.arc(0, 0, 10, 0, TAU);
+    X.fill();
+    // 种子本体
+    X.fillStyle = def.seedColor;
+    X.beginPath();
+    X.ellipse(0, 0, 7, 5, 0, 0, TAU);
+    X.fill();
+    X.strokeStyle = 'rgba(0,0,0,0.45)';
+    X.lineWidth = 1.2;
+    X.stroke();
     X.restore();
   }
 }
@@ -1630,6 +1770,7 @@ function loop(now){
     updatePlants(dt);
     updateButterflies(dt);
     updateFlyingSeeds(dt);
+    updateGroundSeeds(dt);
     updateParticles(dt);
     updateFloats(dt);
   }
@@ -1646,6 +1787,7 @@ function render(){
   drawPlants();
   drawButterflies();
   drawFlyingSeeds();
+  drawGroundSeeds();
   drawParticles();
   drawFloats();
   drawSeedBag();
@@ -1667,7 +1809,8 @@ document.getElementById('startBtn').addEventListener('click', () => {
   STATE.started = true;
   // 初始只给 5 种基础 + 6 金币（够买 1 颗 3 金币的薰衣草）—— 不，初始金币 6，新种子 8 金币
   // 改：初始 3 金币 + 5 种基础，玩家卖花 1 朵就够买薰衣草
-  STATE.seedBag = ['sun', 'rose', 'daisy', 'tulip', 'dand']; // 初始 5 种基础
+  STATE.seeds = { sun:1, rose:1, daisy:1, tulip:1, dand:1 }; // 初始 5 种基础各 1 颗
+  STATE.groundSeeds = []; // 地上掉落种子
   STATE.coins = 3; // 初始 3 金币（卖 1 朵雏菊 4 金币 → 买 1 颗薰衣草 8 金币，需要卖 2 朵）
   STATE.unlocked = { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false };
   STATE.arrowTimer = 5;
@@ -1705,7 +1848,9 @@ window.__test = {
     })),
     butterflies: STATE.butterflies.length,
     flyingSeeds: STATE.flyingSeeds.length,
-    seedBag: STATE.seedBag,
+    groundSeeds: STATE.groundSeeds.length,
+    seeds: { ...STATE.seeds },
+    coins: STATE.coins,
   }),
   advance: (sec=60) => {
     // 加速推进时间
