@@ -1,0 +1,3413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>感知边界 —— 为什么宇宙寂静</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Preload critical CDN scripts so the mobile browser starts fetching
+       them in parallel with the HTML/CSS instead of waiting for parse. -->
+  <link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" />
+  <link rel="preload" as="script" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0a0a14;
+      --bg-deep: #050510;
+      --text: #d0d0d8;
+      --text-dim: #6e6e7a;
+      --accent: #8ab4f8;
+      --accent-soft: rgba(138, 180, 248, 0.18);
+      --accent-2: #a78bfa;
+      --warn: #f47868;
+      --green: #4ade80;
+      --orange: #fb923c;
+      --purple: #a78bfa;
+      --line: rgba(255, 255, 255, 0.08);
+      --glow: rgba(138, 180, 248, 0.15);
+      --font-serif: 'Noto Serif SC', 'Songti SC', serif;
+      --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-serif);
+      font-weight: 300;
+      scroll-behavior: smooth;
+      overflow-x: hidden;
+      transition: background 1.4s ease;
+      line-height: 1.7;
+      letter-spacing: 0.02em;
+    }
+
+    /* Stacking context for body so ::before z-index:-1 stays contained
+     * (otherwise the pseudo-element sinks behind the html background). */
+    body {
+      position: relative;
+      isolation: isolate;
+    }
+
+    /* CSS starfield fallback — sits at z-index:-1, behind the Three.js
+     * canvas (z-index:0) and behind all modules (z-index:1). Generated
+     * in JS at boot (see __PB_BUILD_CSS_STARS__) so positions are random
+     * per session. Even when WebGL works, this layer is always present
+     * so that if WebGL ever throws or the canvas fails to mount, the
+     * starfield never disappears. */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(
+          ellipse at 50% 30%,
+          var(--glow) 0%,
+          transparent 65%
+        );
+      background-repeat: no-repeat;
+      transition: background 1.4s ease;
+      /* Layer 1: small (1px) stars — dense */
+      --pb-stars-small: var(--pb-stars-small-pos, none);
+      /* Layer 2: medium (2px) stars — sparser */
+      --pb-stars-mid: var(--pb-stars-mid-pos, none);
+      /* Layer 3: large (3px) stars — rare, these twinkle */
+      --pb-stars-large: var(--pb-stars-large-pos, none);
+      box-shadow: var(--pb-stars-small);
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      box-shadow: var(--pb-stars-mid);
+      animation: twinkle-mid 5.5s ease-in-out infinite alternate;
+    }
+
+    /* A second layer of larger twinkling stars — generated separately so
+     * the keyframes can change opacity / scale independently. */
+    .pb-twinkle-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      box-shadow: var(--pb-stars-large);
+      animation: twinkle-large 4.2s ease-in-out infinite alternate;
+    }
+
+    @keyframes twinkle-mid {
+      from { opacity: 0.35; }
+      to   { opacity: 0.95; }
+    }
+
+    @keyframes twinkle-large {
+      0%   { opacity: 0.25; transform: scale(0.85); }
+      50%  { opacity: 0.9;  transform: scale(1.1); }
+      100% { opacity: 0.4;  transform: scale(0.95); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      body::after,
+      .pb-twinkle-layer {
+        animation: none;
+      }
+    }
+
+    /* Slow-CDN warning bar (shown when CDN scripts don't load in time) */
+    .pb-cdn-warn {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 0.6rem 1rem;
+      background: rgba(244, 114, 104, 0.18);
+      border-bottom: 1px solid rgba(244, 114, 104, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: var(--warn);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-align: center;
+      display: none;
+    }
+
+    .pb-cdn-warn.is-shown {
+      display: block;
+    }
+
+    /* ---------- Section containers ---------- */
+    .module {
+      position: relative;
+      min-height: 100vh;
+      padding: 6vh 6vw;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    .module + .module {
+      border-top: 1px solid var(--line);
+    }
+
+    h1.section-title {
+      font-family: var(--font-mono);
+      font-size: clamp(10px, 1vw, 12px);
+      letter-spacing: 0.5em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 1.6rem;
+    }
+
+    h2.module-title {
+      font-family: var(--font-serif);
+      font-weight: 400;
+      font-size: clamp(20px, 2.4vw, 30px);
+      color: var(--text);
+      margin-bottom: 0.8rem;
+    }
+
+    .lede {
+      color: var(--text-dim);
+      max-width: 56ch;
+      margin-bottom: 2.4rem;
+      font-size: clamp(13px, 1.05vw, 15px);
+    }
+
+    /* ===================== MODULE 1: Spectrum ===================== */
+    #three-canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    #three-canvas-container canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    #module-spectrum {
+      padding-top: 14vh;
+      padding-bottom: 14vh;
+    }
+
+    .spectrum-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 2rem;
+      z-index: 2;
+      position: relative;
+    }
+
+    .spectrum-btn {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      color: var(--text-dim);
+      background: rgba(20, 22, 32, 0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid var(--line);
+      padding: 0.55rem 1rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+    }
+
+    .spectrum-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent-soft);
+    }
+
+    .spectrum-btn.is-active {
+      color: var(--bg);
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .spectrum-stage {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 4rem;
+      align-items: end;
+      z-index: 2;
+      position: relative;
+    }
+
+    .spectrum-title {
+      font-family: var(--font-serif);
+      font-weight: 400;
+      font-size: clamp(28px, 3.6vw, 48px);
+      color: var(--accent);
+      line-height: 1.3;
+      margin-bottom: 1.2rem;
+      letter-spacing: 0.04em;
+    }
+
+    .spectrum-description {
+      max-width: 46ch;
+      color: var(--text);
+      font-size: clamp(14px, 1.1vw, 16px);
+    }
+
+    .spectrum-description .meta {
+      display: block;
+      margin-top: 1.4rem;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .spectrum-wavelength {
+      font-family: var(--font-mono);
+      font-size: clamp(36px, 5vw, 64px);
+      color: var(--text);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .spectrum-wavelength .unit {
+      font-size: 0.4em;
+      color: var(--text-dim);
+      margin-left: 0.4em;
+    }
+
+    .spectrum-strip {
+      margin-top: 2rem;
+      height: 6px;
+      width: 100%;
+      border-radius: 3px;
+      background: linear-gradient(
+        90deg,
+        #2a1a4d 0%,
+        #4338ca 15%,
+        #8ab4f8 30%,
+        #ffffff 50%,
+        #f87171 70%,
+        #ea580c 85%,
+        #2a0810 100%
+      );
+      opacity: 0.65;
+      position: relative;
+    }
+
+    .spectrum-strip .marker {
+      position: absolute;
+      top: -6px;
+      width: 2px;
+      height: 18px;
+      background: var(--accent);
+      transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .spectrum-footer {
+      position: absolute;
+      bottom: 5vh;
+      left: 6vw;
+      right: 6vw;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      z-index: 2;
+    }
+
+    /* ===================== MODULE 2: Cognition ===================== */
+    #module-cognition {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(8, 10, 18, 0.4) 8%,
+        rgba(8, 10, 18, 0.4) 92%,
+        transparent 100%
+      );
+    }
+
+    .concepts-frame {
+      max-width: 760px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .concept-card {
+      display: none;
+      animation: cardFade 0.6s ease both;
+    }
+
+    .concept-card.is-active {
+      display: block;
+    }
+
+    @keyframes cardFade {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .concept-index {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      color: var(--text-dim);
+      margin-bottom: 1.4rem;
+    }
+
+    .concept-statement {
+      font-family: var(--font-serif);
+      font-weight: 400;
+      font-size: clamp(22px, 2.6vw, 32px);
+      line-height: 1.5;
+      color: var(--text);
+      letter-spacing: 0.02em;
+      margin-bottom: 2rem;
+      padding-left: 1rem;
+      border-left: 2px solid var(--accent);
+    }
+
+    .concept-input {
+      width: 100%;
+      min-height: 110px;
+      background: rgba(15, 17, 26, 0.6);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1rem 1.2rem;
+      color: var(--text);
+      font-family: var(--font-serif);
+      font-size: 15px;
+      line-height: 1.7;
+      resize: vertical;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .concept-input:focus {
+      outline: none;
+      border-color: var(--accent-soft);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .concept-input.shake {
+      animation: shake 0.45s ease both;
+      border-color: var(--warn);
+    }
+
+    @keyframes shake {
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+      20% {
+        transform: translateX(-6px);
+      }
+      40% {
+        transform: translateX(6px);
+      }
+      60% {
+        transform: translateX(-4px);
+      }
+      80% {
+        transform: translateX(4px);
+      }
+    }
+
+    .concept-submit {
+      margin-top: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.7rem 1.6rem;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .concept-submit:hover {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .concept-commentary {
+      margin-top: 1.8rem;
+      min-height: 1.4em;
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 15px;
+      color: var(--warn);
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.8s ease 0.4s, transform 0.8s ease 0.4s;
+      letter-spacing: 0.04em;
+    }
+
+    .concept-commentary.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .concept-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 3.4rem;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .concept-nav button {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 0.6rem 0;
+      transition: color 0.2s ease;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.25em;
+    }
+
+    .concept-nav button:hover:not(:disabled) {
+      color: var(--accent);
+    }
+
+    .concept-nav button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .concept-dots {
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    .concept-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      opacity: 0.3;
+      transition: all 0.25s ease;
+    }
+
+    .concept-dot.is-active {
+      background: var(--accent);
+      opacity: 1;
+      transform: scale(1.4);
+    }
+
+    .cognition-footer {
+      margin-top: 4rem;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ===================== MODULE 3: Probability ===================== */
+    #module-probability {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(8, 10, 18, 0.4) 8%,
+        rgba(8, 10, 18, 0.4) 92%,
+        transparent 100%
+      );
+    }
+
+    .prob-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    .chart-wrap {
+      background: rgba(15, 17, 26, 0.5);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1.6rem 1.6rem 1rem;
+      position: relative;
+    }
+
+    .chart-wrap canvas {
+      max-height: 360px;
+    }
+
+    .slider-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.4rem;
+    }
+
+    .slider-row {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1.2rem;
+    }
+
+    .slider-row:last-child {
+      border-bottom: none;
+    }
+
+    .slider-row .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.6rem;
+    }
+
+    .slider-row label {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .slider-row .value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    .slider-row input[type='range'] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .slider-row input[type='range']::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 4px rgba(138, 180, 248, 0.15);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .slider-row input[type='range']::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 0 8px rgba(138, 180, 248, 0.2);
+    }
+
+    .slider-row input[type='range']::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
+
+    .slider-row .blurb {
+      font-family: var(--font-serif);
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .result-block {
+      margin-top: 4rem;
+      padding: 2.4rem 2rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(10, 12, 22, 0.6);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2.4rem;
+      align-items: center;
+    }
+
+    .result-block .note {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      max-width: 52ch;
+    }
+
+    .result-value {
+      font-family: var(--font-mono);
+      text-align: right;
+    }
+
+    .result-value .head {
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 0.6rem;
+    }
+
+    .result-value .num {
+      font-size: clamp(36px, 5vw, 56px);
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+
+    .result-value .exp {
+      color: var(--accent);
+    }
+
+    .result-value .denom {
+      display: block;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.18em;
+      margin-top: 0.4rem;
+    }
+
+    /* ===================== MODULE 4: Light Speed & Time ===================== */
+    #module-lighttime {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(20, 10, 35, 0.4) 8%,
+        rgba(20, 10, 35, 0.4) 92%,
+        transparent 100%
+      );
+    }
+
+    .lt-stage {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2.4rem;
+      max-width: 880px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .lt-track {
+      position: relative;
+      height: 80px;
+      padding: 0 12px;
+    }
+
+    .lt-rail {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(
+        90deg,
+        rgba(167, 139, 250, 0.15) 0%,
+        rgba(167, 139, 250, 0.55) 50%,
+        rgba(167, 139, 250, 0.15) 100%
+      );
+      transform: translateY(-50%);
+      border-radius: 2px;
+    }
+
+    .lt-anchor {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      z-index: 3;
+    }
+
+    .lt-anchor .tick {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--purple);
+      background: var(--bg);
+      transition: all 0.25s ease;
+    }
+
+    .lt-anchor .lbl {
+      position: absolute;
+      top: 28px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .lt-anchor:hover .tick {
+      box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.18);
+    }
+
+    .lt-anchor.is-active .tick {
+      background: var(--purple);
+      box-shadow: 0 0 0 5px rgba(167, 139, 250, 0.25), 0 0 16px var(--purple);
+    }
+
+    .lt-anchor.is-active .lbl {
+      color: var(--purple);
+    }
+
+    .lt-cursor {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #d8b4fe, #a78bfa);
+      box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.2),
+        0 0 18px rgba(167, 139, 250, 0.6);
+      transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .lt-readouts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.2rem;
+      margin-top: 2.4rem;
+    }
+
+    .lt-readout {
+      background: rgba(20, 10, 35, 0.4);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1.4rem 1.2rem;
+    }
+
+    .lt-readout .head {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 0.6rem;
+    }
+
+    .lt-readout .value {
+      font-family: var(--font-mono);
+      font-size: clamp(20px, 2.4vw, 30px);
+      color: var(--purple);
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+    }
+
+    .lt-readout .unit {
+      font-size: 0.5em;
+      color: var(--text-dim);
+      margin-left: 0.4em;
+    }
+
+    .lt-readout .sub {
+      font-family: var(--font-serif);
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 0.6rem;
+      line-height: 1.5;
+    }
+
+    .lt-quote {
+      margin-top: 2.4rem;
+      padding: 1.6rem 1.8rem;
+      border-left: 2px solid var(--purple);
+      font-family: var(--font-serif);
+      font-size: clamp(15px, 1.3vw, 17px);
+      color: var(--text);
+      line-height: 1.7;
+      letter-spacing: 0.02em;
+      transition: opacity 0.5s ease;
+      min-height: 4.6em;
+    }
+
+    /* ===================== MODULE 5: Scale Destruction ===================== */
+    #module-scale {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(8, 10, 18, 0.4) 8%,
+        rgba(8, 10, 18, 0.4) 92%,
+        transparent 100%
+      );
+    }
+
+    .scale-stage {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 4rem;
+      align-items: center;
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .scale-visual {
+      position: relative;
+      height: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(8, 10, 22, 0.45);
+    }
+
+    .scale-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at 35% 35%,
+        var(--accent) 0%,
+        rgba(138, 180, 248, 0.4) 50%,
+        rgba(138, 180, 248, 0.05) 100%
+      );
+      box-shadow: 0 0 16px rgba(138, 180, 248, 0.4);
+      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.7s ease, box-shadow 0.7s ease;
+      position: relative;
+    }
+
+    .scale-icon::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 1px solid rgba(138, 180, 248, 0.25);
+      transition: all 0.7s ease;
+    }
+
+    .scale-icon::after {
+      content: '';
+      position: absolute;
+      inset: -10px;
+      border-radius: 50%;
+      border: 1px dashed rgba(138, 180, 248, 0.12);
+      transition: all 0.7s ease;
+    }
+
+    .scale-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1.6rem;
+    }
+
+    .scale-info .exp {
+      font-family: var(--font-mono);
+      font-size: clamp(36px, 5vw, 64px);
+      color: var(--accent);
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .scale-info .exp .unit {
+      font-size: 0.4em;
+      color: var(--text-dim);
+      margin-left: 0.4em;
+    }
+
+    .scale-info .label {
+      font-family: var(--font-serif);
+      font-size: clamp(22px, 2.6vw, 32px);
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+
+    .scale-info .rep {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--purple);
+      letter-spacing: 0.1em;
+    }
+
+    .scale-info .narrate {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 15px;
+      color: var(--warn);
+      line-height: 1.6;
+      letter-spacing: 0.02em;
+      transition: opacity 0.4s ease;
+    }
+
+    .scale-info .narrate.is-fading {
+      opacity: 0;
+    }
+
+    .scale-slider {
+      margin-top: 1rem;
+    }
+
+    .scale-slider input[type='range'] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .scale-slider input[type='range']::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 4px rgba(138, 180, 248, 0.15);
+    }
+
+    .scale-slider input[type='range']::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
+
+    .scale-slider .scale-ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    /* ===================== MODULE 6: Philosophy Prism ===================== */
+    #module-prism {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(12, 8, 24, 0.45) 8%,
+        rgba(12, 8, 24, 0.45) 92%,
+        transparent 100%
+      );
+    }
+
+    .prism-stage {
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 3rem;
+    }
+
+    .prism-fact {
+      background: rgba(20, 12, 36, 0.45);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1.8rem 2rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .prism-fact .label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+    }
+
+    .prism-fact .text {
+      font-family: var(--font-serif);
+      font-size: clamp(16px, 1.5vw, 20px);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .prism-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .prism-card {
+      background: rgba(15, 17, 26, 0.45);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1.4rem 1.6rem;
+      transition: border-color 0.3s ease;
+    }
+
+    .prism-card:hover {
+      border-color: rgba(167, 139, 250, 0.35);
+    }
+
+    .prism-card .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.8rem;
+    }
+
+    .prism-card .name {
+      font-family: var(--font-serif);
+      font-size: 16px;
+      color: var(--text);
+    }
+
+    .prism-card .name .roman {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-2);
+      margin-right: 0.6em;
+      letter-spacing: 0.15em;
+    }
+
+    .prism-card .quote {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .prism-vote {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+    }
+
+    .prism-vote .q {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .prism-vote label {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+
+    .prism-vote label:hover {
+      color: var(--text);
+    }
+
+    .prism-vote input[type='radio'] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .prism-vote input[type='radio']:checked {
+      background: var(--accent-2);
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+    }
+
+    .prism-results {
+      background: rgba(15, 17, 26, 0.4);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1.6rem;
+      height: fit-content;
+      position: sticky;
+      top: 14vh;
+    }
+
+    .prism-results .head {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 1.4rem;
+    }
+
+    .prism-result-row {
+      margin-bottom: 1.2rem;
+    }
+
+    .prism-result-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .prism-result-row .name {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .prism-result-row .name .count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .prism-result-row .bars {
+      display: flex;
+      gap: 2px;
+      height: 8px;
+      border-radius: 2px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .prism-result-row .bar {
+      height: 100%;
+      transition: width 0.4s ease;
+    }
+
+    .prism-result-row .bar.agree {
+      background: var(--green);
+    }
+
+    .prism-result-row .bar.disagree {
+      background: var(--warn);
+    }
+
+    .prism-result-row .bar.unsure {
+      background: var(--purple);
+    }
+
+    .prism-results .total {
+      margin-top: 1.4rem;
+      padding-top: 1.2rem;
+      border-top: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .prism-results .total .num {
+      color: var(--accent-2);
+    }
+
+    .prism-final {
+      max-width: 800px;
+      margin: 3.6rem auto 0;
+      text-align: center;
+      font-family: var(--font-serif);
+      font-size: clamp(15px, 1.3vw, 17px);
+      color: var(--warn);
+      letter-spacing: 0.02em;
+      line-height: 1.7;
+      padding: 0 1rem;
+    }
+
+    /* ===================== MODULE 7: Cognitive Bias ===================== */
+    #module-bias {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(8, 10, 18, 0.4) 8%,
+        rgba(8, 10, 18, 0.4) 92%,
+        transparent 100%
+      );
+    }
+
+    .bias-stage {
+      max-width: 880px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
+    }
+
+    .bias-card {
+      background: rgba(15, 17, 26, 0.45);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2rem 2.2rem;
+    }
+
+    .bias-card .label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 0.6rem;
+    }
+
+    .bias-card h3 {
+      font-family: var(--font-serif);
+      font-weight: 400;
+      font-size: clamp(20px, 2.2vw, 26px);
+      color: var(--text);
+      margin-bottom: 0.8rem;
+    }
+
+    .bias-card .desc {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 1.6rem;
+      max-width: 60ch;
+    }
+
+    /* Experiment 1 — Stroop */
+    .stroop-stage {
+      display: flex;
+      flex-direction: column;
+      gap: 1.6rem;
+      align-items: center;
+    }
+
+    .stroop-word {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: clamp(64px, 10vw, 120px);
+      letter-spacing: 0.05em;
+      line-height: 1;
+      transition: color 0.4s ease;
+      min-height: 1.2em;
+    }
+
+    .stroop-choices {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .stroop-mode-row {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .stroop-mode-row button {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--line);
+      padding: 0.5rem 0.9rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+
+    .stroop-mode-row button.is-active {
+      color: var(--bg);
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .stroop-result {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      min-height: 1.4em;
+      text-align: center;
+    }
+
+    .stroop-result .delta {
+      color: var(--warn);
+      margin-left: 0.8em;
+    }
+
+    /* Experiment 2 — Color illusion */
+    .illusion-stage {
+      display: flex;
+      flex-direction: column;
+      gap: 1.4rem;
+    }
+
+    .illusion-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0;
+      height: 180px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .illusion-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .illusion-center {
+      transition: background 0.2s ease;
+    }
+
+    .illusion-controls {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    .illusion-controls label {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--text-dim);
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .illusion-controls input[type='range'] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 200px;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .illusion-controls input[type='range']::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .illusion-controls input[type='range']::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
+
+    .illusion-controls .val {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .illusion-reveal {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--warn);
+      letter-spacing: 0.05em;
+      min-height: 1.4em;
+    }
+
+    /* Experiment 3 — Choice blind */
+    .cb-stage {
+      display: flex;
+      flex-direction: column;
+      gap: 1.4rem;
+    }
+
+    .cb-prompt {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 0.6rem;
+    }
+
+    .cb-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.8rem;
+    }
+
+    .cb-opt {
+      background: rgba(20, 22, 32, 0.55);
+      border: 2px solid var(--line);
+      border-radius: 6px;
+      padding: 1.4rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .cb-opt:hover {
+      border-color: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .cb-opt.is-selected {
+      border-color: var(--accent);
+      background: rgba(138, 180, 248, 0.1);
+    }
+
+    .cb-glyph {
+      font-size: 32px;
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+
+    .cb-feedback {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--warn);
+      min-height: 1.4em;
+      margin-top: 0.6rem;
+    }
+
+    .cb-question {
+      display: flex;
+      gap: 0.8rem;
+      margin-top: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .cb-question button {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--line);
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+
+    .cb-question button:hover {
+      color: var(--accent);
+      border-color: var(--accent-soft);
+    }
+
+    .bias-note {
+      margin-top: 1.6rem;
+      padding-top: 1.4rem;
+      border-top: 1px solid var(--line);
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      letter-spacing: 0.02em;
+    }
+
+    .bias-final {
+      margin-top: 4rem;
+      text-align: center;
+      font-family: var(--font-serif);
+      font-size: clamp(15px, 1.4vw, 18px);
+      color: var(--warn);
+      line-height: 1.7;
+      letter-spacing: 0.02em;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ===================== TOP NAVIGATION (v2.0) ===================== */
+    .topnav {
+      position: fixed;
+      top: 1.8rem;
+      right: 1.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      z-index: 50;
+      padding: 0.6rem 0.4rem;
+      background: rgba(10, 12, 22, 0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+    }
+
+    .topnav-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      opacity: 0.4;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .topnav-dot:hover {
+      opacity: 0.9;
+      transform: scale(1.3);
+    }
+
+    .topnav-dot.is-active {
+      background: var(--accent);
+      opacity: 1;
+      transform: scale(1.6);
+      box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.2),
+        0 0 12px rgba(138, 180, 248, 0.6);
+    }
+
+    .topnav-dot::after {
+      content: attr(data-name);
+      position: absolute;
+      right: calc(100% + 12px);
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      color: var(--text-dim);
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+      text-transform: uppercase;
+    }
+
+    .topnav-dot:hover::after,
+    .topnav-dot.is-active::after {
+      opacity: 1;
+    }
+
+    .scroll-hint {
+      position: fixed;
+      bottom: 1.6rem;
+      right: 1.6rem;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      opacity: 0.6;
+      animation: pulse 2.6s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 30;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 0.2;
+      }
+      50% {
+        opacity: 0.7;
+      }
+    }
+
+    /* Module entry transitions */
+    .module {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.9s ease, transform 0.9s ease;
+    }
+
+    .module.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ===================== Responsive ===================== */
+    @media (max-width: 900px) {
+      .scale-stage,
+      .prism-stage {
+        grid-template-columns: 1fr;
+        gap: 2.4rem;
+      }
+      .prism-results {
+        position: relative;
+        top: 0;
+      }
+    }
+
+    @media (max-width: 800px) {
+      .spectrum-stage {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+      .prob-grid {
+        grid-template-columns: 1fr;
+        gap: 2.4rem;
+      }
+      .result-block {
+        grid-template-columns: 1fr;
+        text-align: left;
+      }
+      .result-value {
+        text-align: left;
+      }
+      .spectrum-footer {
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+      .lt-readouts {
+        grid-template-columns: 1fr;
+      }
+      .illusion-grid {
+        height: 130px;
+      }
+      .cb-options {
+        grid-template-columns: 1fr;
+      }
+      .topnav {
+        top: 1rem;
+        right: 1rem;
+        gap: 0.55rem;
+      }
+      .topnav-dot {
+        width: 7px;
+        height: 7px;
+      }
+      .topnav-dot::after {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Three.js starfield container -->
+  <div id="three-canvas-container" aria-hidden="true"></div>
+
+  <!-- CSS-only fallback starfield layer (twinkling large stars). The
+       small + medium layers live on body::before / body::after; this
+       third layer is a real element so it can carry an independent
+       animation timeline. -->
+  <div class="pb-twinkle-layer" aria-hidden="true"></div>
+
+  <!-- Slow-CDN warning (hidden by default; shown by JS if the CDN
+       scripts haven't loaded after a short timeout). -->
+  <div class="pb-cdn-warn" id="pb-cdn-warn" role="status" aria-live="polite">
+    CDN 加载慢，可能需要刷新 · CDN is slow, try refreshing
+  </div>
+
+  <!-- =================== TOP NAVIGATION (v2.0) =================== -->
+  <nav class="topnav" aria-label="模块导航">
+    <span class="topnav-dot is-active" data-target="module-spectrum" data-name="I · Spectrum"></span>
+    <span class="topnav-dot" data-target="module-cognition" data-name="II · Cognition"></span>
+    <span class="topnav-dot" data-target="module-probability" data-name="III · Probability"></span>
+    <span class="topnav-dot" data-target="module-lighttime" data-name="IV · Light & Time"></span>
+    <span class="topnav-dot" data-target="module-scale" data-name="V · Scale"></span>
+    <span class="topnav-dot" data-target="module-prism" data-name="VI · Prism"></span>
+    <span class="topnav-dot" data-target="module-bias" data-name="VII · Bias"></span>
+  </nav>
+
+  <!-- =================== MODULE 1 =================== -->
+  <section id="module-spectrum" class="module">
+    <h1 class="section-title">I / Spectrum</h1>
+    <div class="spectrum-buttons" role="tablist" aria-label="电磁波段切换">
+      <button class="spectrum-btn is-active" data-band="visible">可见光</button>
+      <button class="spectrum-btn" data-band="radio">射电</button>
+      <button class="spectrum-btn" data-band="infrared">红外</button>
+      <button class="spectrum-btn" data-band="ultraviolet">紫外</button>
+      <button class="spectrum-btn" data-band="xray">X射线</button>
+      <button class="spectrum-btn" data-band="gamma">伽马射线</button>
+    </div>
+
+    <div class="spectrum-stage">
+      <div>
+        <div class="spectrum-title" id="spec-title">璀璨星辰</div>
+        <p class="spectrum-description" id="spec-desc">
+          这是人类肉眼可见的宇宙：恒星的炽热光环，星云的缓慢呼吸，星系的悬臂在深空中舒展。我们用这双眼睛，写下了所有关于星空的诗篇——
+          也用它，宣布宇宙寂静。
+        </p>
+        <span class="spectrum-description meta" id="spec-meta">
+          波长 380 – 780 nm · 恒星表面与反射光
+        </span>
+      </div>
+      <div>
+        <div class="spectrum-wavelength">
+          <span id="spec-num">0.0035</span>
+          <span class="unit">% 可见</span>
+        </div>
+        <div class="spectrum-strip">
+          <div class="marker" id="spec-marker" style="left: 49.5%"></div>
+        </div>
+        <span class="spectrum-description meta" id="spec-meta-2">
+          这就是你眼睛能在电磁波谱里看到的全部。
+        </span>
+      </div>
+    </div>
+
+    <div class="spectrum-footer">
+      <span>人类可见光仅占电磁波谱的 0.0035%</span>
+      <span id="spec-range">可见光 · 380–780 nm</span>
+    </div>
+  </section>
+
+  <!-- =================== MODULE 2 =================== -->
+  <section id="module-cognition" class="module">
+    <h1 class="section-title">II / Cognition</h1>
+    <h2 class="module-title">试图描述那些无法被容纳的概念</h2>
+    <p class="lede">
+      大脑不是宇宙的接口。它是一头在草原上进化出来的动物手上的工具，
+      被校准了去处理三维、因果、相关的世界。下面这些概念，是这道校准之外的余震。
+    </p>
+
+    <div class="concepts-frame">
+      <!-- Concept 1 -->
+      <div class="concept-card is-active" data-index="0">
+        <div class="concept-index">Concept 01 / 三</div>
+        <p class="concept-statement">
+          一个存在，它同时存在于所有地方，又不存在于任何地方。
+        </p>
+        <textarea
+          class="concept-input"
+          data-index="0"
+          placeholder="试着描述它——"
+        ></textarea>
+        <button class="concept-submit" data-index="0">提交理解 →</button>
+        <p class="concept-commentary" data-index="0"></p>
+      </div>
+
+      <!-- Concept 2 -->
+      <div class="concept-card" data-index="1">
+        <div class="concept-index">Concept 02 / 三</div>
+        <p class="concept-statement">
+          一个事件，它发生在原因之前。
+        </p>
+        <textarea
+          class="concept-input"
+          data-index="1"
+          placeholder="试着描述它——"
+        ></textarea>
+        <button class="concept-submit" data-index="1">提交理解 →</button>
+        <p class="concept-commentary" data-index="1"></p>
+      </div>
+
+      <!-- Concept 3 -->
+      <div class="concept-card" data-index="2">
+        <div class="concept-index">Concept 03 / 三</div>
+        <p class="concept-statement">
+          一个关系，它既不是因果，也不是相关。
+        </p>
+        <textarea
+          class="concept-input"
+          data-index="2"
+          placeholder="试着描述它——"
+        ></textarea>
+        <button class="concept-submit" data-index="2">提交理解 →</button>
+        <p class="concept-commentary" data-index="2"></p>
+      </div>
+
+      <div class="concept-nav">
+        <button id="prev-concept">← 上一概念</button>
+        <div class="concept-dots">
+          <span class="concept-dot is-active" data-dot="0"></span>
+          <span class="concept-dot" data-dot="1"></span>
+          <span class="concept-dot" data-dot="2"></span>
+        </div>
+        <button id="next-concept">下一概念 →</button>
+      </div>
+    </div>
+
+    <p class="cognition-footer">
+      我们的概念框架是进化的产物，不是宇宙的源代码。
+    </p>
+  </section>
+
+  <!-- =================== MODULE 3 =================== -->
+  <section id="module-probability" class="module">
+    <h1 class="section-title">III / Probability</h1>
+    <h2 class="module-title">
+      如果宇宙中有其他文明，我们能收到信号的概率有多大？
+    </h2>
+    <p class="lede">
+      拖动每一条假设的权重。你会看到一个乘积——而乘积是最诚实的运算符。
+    </p>
+
+    <div class="prob-grid">
+      <div class="chart-wrap">
+        <canvas id="probability-chart"></canvas>
+      </div>
+      <div class="slider-list" id="slider-list">
+        <!-- Sliders injected by JS -->
+      </div>
+    </div>
+
+    <div class="result-block">
+      <div class="note" id="result-note">
+        当五个 P 相乘，再乘上银河里大约 <span
+          style="color: var(--accent); font-family: var(--font-mono)"
+          >10<sup>11</sup></span
+        >
+        颗可能宜居的行星，得出的，是一夜之内某颗行星同时对准我们、又恰好在广播的瞬间概率。
+      </div>
+      <div class="result-value">
+        <div class="head">综合期望概率</div>
+        <div class="num">
+          ≈ 10<sup id="result-exp">-7.8</sup>
+        </div>
+        <span class="denom" id="result-denom">/ 10^11 颗宜居行星</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== MODULE 4 =================== -->
+  <section id="module-lighttime" class="module">
+    <h1 class="section-title">IV / Light & Time</h1>
+    <h2 class="module-title">即使以光速飞行</h2>
+    <p class="lede">
+      拖动游标到任意距离，看看以光速跨越这段距离需要多久，以及——
+      在这段"飞行"中，地球已经换过多少个朝代。
+    </p>
+
+    <div class="lt-stage">
+      <div class="lt-track">
+        <div class="lt-rail"></div>
+        <div class="lt-cursor" id="lt-cursor" style="left: 4%"></div>
+        <div class="lt-anchor is-active" data-pos="4.2" style="left: 4%">
+          <div class="tick"></div>
+          <div class="lbl">4.2 ly</div>
+        </div>
+        <div class="lt-anchor" data-pos="100" style="left: 28%">
+          <div class="tick"></div>
+          <div class="lbl">100 ly</div>
+        </div>
+        <div class="lt-anchor" data-pos="1000" style="left: 46%">
+          <div class="tick"></div>
+          <div class="lbl">1,000 ly</div>
+        </div>
+        <div class="lt-anchor" data-pos="100000" style="left: 68%">
+          <div class="tick"></div>
+          <div class="lbl">100,000 ly</div>
+        </div>
+        <div class="lt-anchor" data-pos="13800000000" style="left: 94%">
+          <div class="tick"></div>
+          <div class="lbl">13.8 B ly</div>
+        </div>
+      </div>
+
+      <div class="lt-readouts">
+        <div class="lt-readout">
+          <div class="head">旅行时间</div>
+          <div class="value" id="lt-time">4.2</div>
+          <div class="sub" id="lt-time-sub">单程约 4.2 年</div>
+        </div>
+        <div class="lt-readout">
+          <div class="head">朝代更迭</div>
+          <div class="value" id="lt-dyn">~ 0</div>
+          <div class="sub">地球上已改朝换代 (按 250 年/朝代)</div>
+        </div>
+        <div class="lt-readout">
+          <div class="head">你 vs 地球上的你</div>
+          <div class="value" id="lt-age">4.2 年</div>
+          <div class="sub">接近光速飞行时年龄差 (双程)</div>
+        </div>
+      </div>
+
+      <div class="lt-quote" id="lt-quote">
+        你能给比邻星发一条短信，8 年后收到回复。勉强能开始对话。
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== MODULE 5 =================== -->
+  <section id="module-scale" class="module">
+    <h1 class="section-title">V / Scale</h1>
+    <h2 class="module-title">尺度感崩塌</h2>
+    <p class="lede">
+      从 10<sup>-18</sup> 米到 10<sup>26</sup> 米——
+      44 个数量级，每个数量级上都住着一整个你无法想象的宇宙。
+    </p>
+
+    <div class="scale-stage">
+      <div class="scale-visual">
+        <div class="scale-icon" id="scale-icon"></div>
+      </div>
+      <div class="scale-info">
+        <div class="exp">
+          10<sup id="scale-exp">0</sup><span class="unit">m</span>
+        </div>
+        <div class="label" id="scale-label">人类</div>
+        <div class="rep" id="scale-rep">代表物: 你</div>
+        <div class="narrate" id="scale-narrate">
+          你认为这是你的尺度，但你的身体里有 10 倍于人体细胞的微生物。
+        </div>
+
+        <div class="scale-slider">
+          <input
+            type="range"
+            id="scale-slider"
+            min="-18"
+            max="26"
+            step="1"
+            value="0"
+          />
+          <div class="scale-ticks">
+            <span>10⁻¹⁸</span>
+            <span>10⁻⁹</span>
+            <span>10⁰</span>
+            <span>10⁹</span>
+            <span>10¹⁸</span>
+            <span>10²⁶</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== MODULE 6 =================== -->
+  <section id="module-prism" class="module">
+    <h1 class="section-title">VI / Prism</h1>
+    <h2 class="module-title">同一个寂静，五个故事</h2>
+    <p class="lede">
+      "138 亿年的宇宙，我们没有收到过任何地外信号"——
+      同一个事实，五种解读。它们都不一定是答案，但每一种都说出了一部分真相。
+    </p>
+
+    <div class="prism-stage">
+      <div class="prism-col-left">
+        <div class="prism-fact">
+          <div class="label">THE FACT / 事实</div>
+          <div class="text">
+            138 亿年的宇宙，我们没有收到过任何地外信号。
+          </div>
+        </div>
+
+        <div class="prism-list" id="prism-list">
+          <!-- Cards injected by JS -->
+        </div>
+      </div>
+
+      <div class="prism-results">
+        <div class="head">REAL-TIME / 实时统计</div>
+        <div id="prism-results-body">
+          <div
+            style="
+              font-family: var(--font-serif);
+              font-style: italic;
+              font-size: 13px;
+              color: var(--text-dim);
+              line-height: 1.7;
+            "
+          >
+            选择你的立场。结果会出现在这里。
+          </div>
+        </div>
+        <div class="total">
+          <span>总投票数</span>
+          <span class="num" id="prism-total">0</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="prism-final">
+      这些都不是答案。这些是同一个问题的不同影子。
+      <br />问问题的方式，比问题本身更重要。
+    </p>
+  </section>
+
+  <!-- =================== MODULE 7 =================== -->
+  <section id="module-bias" class="module">
+    <h1 class="section-title">VII / Bias</h1>
+    <h2 class="module-title">你的大脑一直在骗你</h2>
+    <p class="lede">
+      三个小小的实验。你会发现自己并不像你以为的那样——
+      在观察现实。你只是在观察大脑替你"还原"的现实。
+    </p>
+
+    <div class="bias-stage">
+      <!-- Experiment 1: Stroop -->
+      <div class="bias-card">
+        <div class="label">EXPERIMENT 01 / STROOP</div>
+        <h3>你说出的是字义，还是颜色？</h3>
+        <p class="desc">
+          字义和颜色在大脑里走两条不同的通路。当它们冲突时，你会被绊倒。
+          试试看——先做"读字"模式（默认），再切到"读色"。
+        </p>
+
+        <div class="stroop-stage">
+          <div class="stroop-mode-row">
+            <button class="is-active" data-mode="word">读字义</button>
+            <button data-mode="color">读颜色</button>
+          </div>
+          <div class="stroop-word" id="stroop-word">红</div>
+          <div class="stroop-choices" id="stroop-choices">
+            <button class="stroop-btn" data-choice="red">红</button>
+            <button class="stroop-btn" data-choice="blue">蓝</button>
+            <button class="stroop-btn" data-choice="green">绿</button>
+            <button class="stroop-btn" data-choice="yellow">黄</button>
+          </div>
+          <div class="stroop-result" id="stroop-result"></div>
+        </div>
+
+        <div class="bias-note">
+          读字和读色，前者快、自动化；后者需要你抑制字义。结果差异不是反应速度问题，而是大脑在两条通路之间"打架"。
+        </div>
+      </div>
+
+      <!-- Experiment 2: Color illusion -->
+      <div class="bias-card">
+        <div class="label">EXPERIMENT 02 / CONTRAST ILLUSION</div>
+        <h3>同一块灰色，看起来真的同色吗？</h3>
+        <p class="desc">
+          中央的灰色块，左右两侧背景色不同。
+          拖动滑块让中央看起来和某侧"一致"——然后揭示真相。
+        </p>
+
+        <div class="illusion-stage">
+          <div class="illusion-grid">
+            <div class="illusion-cell" id="ill-left" style="background: #1f2937"></div>
+            <div class="illusion-cell illusion-center" id="ill-center"></div>
+            <div class="illusion-cell" id="ill-right" style="background: #4b5563"></div>
+          </div>
+
+          <div class="illusion-controls">
+            <label>中央灰色亮度</label>
+            <input
+              type="range"
+              id="ill-slider"
+              min="0"
+              max="255"
+              step="1"
+              value="100"
+            />
+            <span class="val" id="ill-val">100</span>
+          </div>
+
+          <div class="illusion-controls">
+            <button class="ill-btn is-active" data-bg="dark">背景 A (深)</button>
+            <button class="ill-btn" data-bg="light">背景 B (浅)</button>
+          </div>
+
+          <div class="illusion-reveal" id="ill-reveal">
+            提示：无论背景如何变化，中央的灰色始终是同一个值。
+          </div>
+        </div>
+
+        <div class="bias-note">
+          你的视觉皮层用相对对比来识别颜色，而不是绝对值。这就是为什么同一件衣服在不同光线下会被你"判定"成不同颜色——不是你眼瞎，是大脑在做它认为正确的事。
+        </div>
+      </div>
+
+      <!-- Experiment 3: Choice blind -->
+      <div class="bias-card">
+        <div class="label">EXPERIMENT 03 / CHOICE BLINDNESS</div>
+        <h3>你选的是哪一个？</h3>
+        <p class="desc">
+          下面三个选项中，选你最喜欢的。
+          选完之后，我们可能会悄悄把它换掉——看看你是否察觉。
+        </p>
+
+        <div class="cb-stage">
+          <div class="cb-prompt" id="cb-prompt">
+            选一个你愿意摆在书桌上的东西：
+          </div>
+          <div class="cb-options" id="cb-options">
+            <div class="cb-opt" data-key="lamp">
+              <span class="cb-glyph">🪔</span>一盏小台灯
+            </div>
+            <div class="cb-opt" data-key="plant">
+              <span class="cb-glyph">🪴</span>一盆绿植
+            </div>
+            <div class="cb-opt" data-key="book">
+              <span class="cb-glyph">📖</span>一本旧书
+            </div>
+          </div>
+          <div class="cb-feedback" id="cb-feedback"></div>
+          <div class="cb-question" id="cb-question" style="display: none">
+            <span style="font-family: var(--font-serif); font-size: 13px; color: var(--text-dim); align-self: center;">
+              刚才选的就是这个吗？
+            </span>
+            <button data-cbq="yes">是的，就是它</button>
+            <button data-cbq="no">不，我选的是另一个</button>
+          </div>
+        </div>
+
+        <div class="bias-note">
+          选择后的事后构建，常常覆盖原始体验。大脑不是录像机——它是叙事生成器。"我记得我选了什么"和"我真的选了什么"，是两条不同的路径。
+        </div>
+      </div>
+    </div>
+
+    <p class="bias-final">
+      我们用这套充满 bug 的认知系统，去理解寂静。
+      <br />寂静可能不在宇宙里——在我们脑子里。
+    </p>
+  </section>
+
+  <div class="scroll-hint">SCROLL ↓</div>
+
+  <script>
+    /* =====================================================
+     * Module 1 — Spectrum Browser (Three.js starfield)
+     * ===================================================== */
+    const BANDS = {
+      visible: {
+        name: '璀璨星辰',
+        bg: '#0a0a14',
+        glow: 'rgba(138,180,248,0.15)',
+        starRGB: [1, 1, 1],
+        accent: '#8ab4f8',
+        marker: 49.5,
+        desc:
+          '这是人类肉眼可见的宇宙：恒星的炽热光环，星云的缓慢呼吸，星系的悬臂在深空中舒展。我们用这双眼睛，写下了所有关于星空的诗篇——也用它，宣布宇宙寂静。',
+        meta: '波长 380 – 780 nm · 恒星表面与反射光',
+        meta2: '这就是你眼睛能在电磁波谱里看到的全部。',
+        range: '可见光 · 380–780 nm',
+        visiblePct: '0.0035',
+      },
+      radio: {
+        name: '脉冲星、类星体、宇宙微波背景辐射',
+        bg: '#02120a',
+        glow: 'rgba(74, 222, 128, 0.18)',
+        starRGB: [0.25, 0.95, 0.55],
+        accent: '#4ade80',
+        marker: 0.5,
+        desc:
+          '把望远镜调到射电波段，寂静的宇宙开始轰鸣——脉冲星以毫秒级节奏闪烁，类星体的喷流横跨数百万光年，而宇宙微波背景辐射，是大爆炸 38 万年后留下的余晖，从每一寸天空同时涌来。',
+        meta: '波长 1 mm – 100 m · 冷气体、磁场、原始回声',
+        meta2: '一半宇宙的质量藏在你看不见的低频里。',
+        range: '射电 · 1 mm – 100 m',
+        visiblePct: '∞',
+      },
+      infrared: {
+        name: '暗星、行星、恒星诞生地',
+        bg: '#1a0a06',
+        glow: 'rgba(251, 146, 60, 0.22)',
+        starRGB: [1, 0.55, 0.25],
+        accent: '#fb923c',
+        marker: 30,
+        desc:
+          '红外线穿过尘埃，看到可见光永远照不亮的深处——正在形成的褐矮星、被行星盘包围的婴儿恒星、以及被包裹在星云茧壳里的最初光点。宇宙相当一部分"质量"，是被这颗温度之眼打开的。',
+        meta: '波长 700 nm – 1 mm · 冷物质、尘埃、热辐射',
+        meta2: '你看到的"黑"，正是另一类存在的"热"。',
+        range: '红外 · 700 nm – 1 mm',
+        visiblePct: '∞',
+      },
+      ultraviolet: {
+        name: '年轻炙热恒星的紫光',
+        bg: '#0c0820',
+        glow: 'rgba(167, 139, 250, 0.22)',
+        starRGB: [0.7, 0.55, 1],
+        accent: '#a78bfa',
+        marker: 52,
+        desc:
+          '最热、最年轻、最短命的恒星，把大部分能量倾注在紫外波段。它们不等到衰老，就已经在烧光自己。星暴星系、沃尔夫-拉叶星、行星状星云中央垂死的恒星——这是燃烧的紫色档案。',
+        meta: '波长 10 – 400 nm · 高温电离气体、恒星风',
+        meta2: '最暴烈的光，最短暂的生命。',
+        range: '紫外 · 10 – 400 nm',
+        visiblePct: '∞',
+      },
+      xray: {
+        name: '黑洞周围的吸积盘',
+        bg: '#04020a',
+        glow: 'rgba(244, 244, 245, 0.18)',
+        starRGB: [0.9, 0.95, 1],
+        accent: '#f4f4f5',
+        marker: 55,
+        desc:
+          '物质在落入黑洞前，被压缩、加压到几百万度，发出 X 射线。银心方向的人马座 A*，双星系统中被白矮星或中子星吸取的伴星，遥远活动星系的炽热冕——这些都是黑洞吃饭时刀叉碰撞的声音。',
+        meta: '波长 0.01 – 10 nm · 高能吸积、致密天体',
+        meta2: '最安静的天体，发出最响亮的尖叫。',
+        range: 'X射线 · 0.01 – 10 nm',
+        visiblePct: '∞',
+      },
+      gamma: {
+        name: '恒星坍缩、伽马暴',
+        bg: '#0a0008',
+        glow: 'rgba(244, 114, 104, 0.22)',
+        starRGB: [1, 0.3, 0.3],
+        accent: '#f47868',
+        marker: 60,
+        desc:
+          '伽马射线暴是宇宙里最强的爆炸——单次释放的能量超过太阳整个一生。它们标记着大质量恒星坍缩成黑洞的瞬间、双中子星合并的时刻，也是整个电磁波谱里最锋利的事件。',
+        meta: '波长 < 0.01 nm · 极端事件、核反应、湮灭',
+        meta2: '宇宙没有用它最响的语言打招呼。',
+        range: '伽马射线 · < 0.01 nm',
+        visiblePct: '∞',
+      },
+    };
+
+    let renderer, scene, camera, particles, particleGeometry, particleMaterial;
+    let currentBand = 'visible';
+    let targetColors;
+
+    /* =====================================================
+     * Capability detection — WebGL + mobile + CDN health
+     * ===================================================== */
+
+    // Detect WebGL the same way Three.js does internally: try to create
+    // a real context on a tiny canvas. If anything throws, mark unavailable.
+    function detectWebGL() {
+      try {
+        const c = document.createElement('canvas');
+        const gl =
+          c.getContext('webgl2') ||
+          c.getContext('webgl') ||
+          c.getContext('experimental-webgl');
+        return !!gl;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    // Mobile detection: prefer the modern UA Client Hints API, fall back
+    // to UA-string sniffing. Touch-only tablets sometimes masquerade as
+    // desktops in UA, so we also factor in narrow viewports.
+    function detectMobile() {
+      const dpr = navigator.userAgentData;
+      if (dpr && typeof dpr.mobile === 'boolean') return dpr.mobile;
+      const ua = (navigator.userAgent || '').toLowerCase();
+      if (
+        /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/.test(
+          ua
+        )
+      ) {
+        return true;
+      }
+      // iPad on iOS 13+ reports as Mac — sniff for touch + narrow width.
+      if (
+        ua.includes('mac') &&
+        navigator.maxTouchPoints > 1 &&
+        Math.min(window.innerWidth, window.innerHeight) < 900
+      ) {
+        return true;
+      }
+      return false;
+    }
+
+    const PB = {
+      webgl: detectWebGL(),
+      isMobile: detectMobile(),
+      particleCount: 3200,
+    };
+
+    // On mobile, apply the documented performance budget: fewer particles,
+    // capped pixel ratio, no MSAA, no additive blending, lower opacity.
+    if (PB.isMobile) {
+      PB.particleCount = 800;
+    }
+
+    // Publish to window for ad-hoc inspection from devtools.
+    window.__PB_DEBUG__ = PB;
+
+    console.log('[PB] WebGL: ' + (PB.webgl ? 'available' : 'unavailable'));
+    console.log('[PB] Mobile: ' + (PB.isMobile ? 'yes' : 'no'));
+    console.log('[PB] Particles: ' + PB.particleCount);
+
+    /* =====================================================
+     * CSS-only starfield — always rendered, behind everything.
+     * Three random layers (small / medium / large) so the fall-back
+     * is dense enough to look intentional when WebGL is unavailable.
+     * ===================================================== */
+    function buildCssStarfield() {
+      // Spread stars across a virtual 2000x1200 canvas; CSS handles the
+      // tiling. Box-shadow with `none` at the start is required by some
+      // browsers when using CSS custom properties for box-shadow lists.
+      function randomStars(count, maxX, maxY, color, spread) {
+        const shadows = [];
+        for (let i = 0; i < count; i++) {
+          const x = Math.random() * maxX;
+          const y = Math.random() * maxY;
+          // spread is unused for now but kept for future per-star sizing.
+          void spread;
+          shadows.push(`${x.toFixed(1)}px ${y.toFixed(1)}px 0 ${color}`);
+        }
+        return shadows.join(', ');
+      }
+      // Dense small stars (white) on body::before.
+      const small = randomStars(220, 2000, 1200, '#ffffff', 1);
+      // Medium stars on body::after (also white, twinkle).
+      const mid = randomStars(90, 2000, 1200, '#ffffff', 2);
+      // Large stars on the twinkle layer (cool-blue tinted, rare).
+      const large = randomStars(35, 2000, 1200, '#cfe0ff', 3);
+
+      document.documentElement.style.setProperty(
+        '--pb-stars-small-pos',
+        small || 'none'
+      );
+      document.documentElement.style.setProperty(
+        '--pb-stars-mid-pos',
+        mid || 'none'
+      );
+      document.documentElement.style.setProperty(
+        '--pb-stars-large-pos',
+        large || 'none'
+      );
+    }
+    buildCssStarfield();
+
+    /* =====================================================
+     * CDN health watchdog — if Three.js / Chart.js haven't loaded
+     * after a few seconds on a slow mobile connection, surface a
+     * non-blocking banner so the user knows to refresh.
+     * ===================================================== */
+    (function cdnWatchdog() {
+      const start = Date.now();
+      const WARN_AFTER_MS = 6000;
+      setTimeout(() => {
+        const threeLoaded = typeof window.THREE !== 'undefined';
+        const chartLoaded = typeof window.Chart !== 'undefined';
+        if (threeLoaded && chartLoaded) return;
+        if (Date.now() - start < WARN_AFTER_MS) return;
+        const warn = document.getElementById('pb-cdn-warn');
+        if (warn) warn.classList.add('is-shown');
+      }, WARN_AFTER_MS);
+    })();
+
+    function initThree() {
+      const container = document.getElementById('three-canvas-container');
+      const isMobile = PB.isMobile;
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(
+        62,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        2000
+      );
+      camera.position.z = 0;
+
+      renderer = new THREE.WebGLRenderer({
+        // MSAA is expensive on mobile GPUs — disable there.
+        antialias: !isMobile,
+        alpha: true,
+        powerPreference: isMobile ? 'low-power' : 'high-performance',
+      });
+      // Cap DPR at 1.5 on both desktop and mobile to keep fragment cost
+      // bounded on retina phones (would otherwise render at 3x).
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000, 0);
+      container.appendChild(renderer.domElement);
+
+      const COUNT = PB.particleCount;
+      const positions = new Float32Array(COUNT * 3);
+      const colors = new Float32Array(COUNT * 3);
+      targetColors = new Float32Array(COUNT * 3);
+      const sizes = new Float32Array(COUNT);
+
+      for (let i = 0; i < COUNT; i++) {
+        // Place stars on a sphere shell around the camera
+        const r = 80 + Math.random() * 800;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(Math.random() * 2 - 1);
+        positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+        positions[i * 3 + 2] = r * Math.cos(phi);
+
+        const brightness = 0.4 + Math.random() * 0.6;
+        colors[i * 3] = brightness;
+        colors[i * 3 + 1] = brightness;
+        colors[i * 3 + 2] = brightness;
+        targetColors[i * 3] = brightness;
+        targetColors[i * 3 + 1] = brightness;
+        targetColors[i * 3 + 2] = brightness;
+
+        sizes[i] = Math.random() * 0.8 + 0.4;
+      }
+
+      particleGeometry = new THREE.BufferGeometry();
+      particleGeometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(positions, 3)
+      );
+      particleGeometry.setAttribute(
+        'color',
+        new THREE.BufferAttribute(colors, 3)
+      );
+
+      // Mobile: drop additive blending (it over-saturates on bright
+      // overlaps and burns fillrate) and lower opacity by ~30% to
+      // reduce the visible cost of overdraw.
+      const baseOpacity = isMobile ? 0.85 * 0.7 : 0.85;
+      particleMaterial = new THREE.PointsMaterial({
+        size: 0.9,
+        vertexColors: true,
+        transparent: true,
+        opacity: baseOpacity,
+        blending: isMobile ? THREE.NormalBlending : THREE.AdditiveBlending,
+        sizeAttenuation: true,
+        depthWrite: false,
+      });
+
+      particles = new THREE.Points(particleGeometry, particleMaterial);
+      scene.add(particles);
+
+      window.addEventListener('resize', onResize);
+      animate();
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    let frame = 0;
+    // Saved at init so animate() respects the mobile opacity budget.
+    let baseOpacity = 0.85;
+
+    function animate() {
+      frame++;
+      particles.rotation.y += 0.0003;
+      particles.rotation.x += 0.00012;
+
+      // Pulse for gamma / radio
+      const t = frame * 0.02;
+      const pulse =
+        currentBand === 'gamma'
+          ? 0.7 + 0.3 * Math.abs(Math.sin(t * 0.4))
+          : currentBand === 'radio'
+          ? 0.85 + 0.15 * Math.sin(t * 0.3)
+          : 1;
+
+      particleMaterial.opacity = baseOpacity * pulse;
+
+      // Lerp colors toward target
+      const colArr = particleGeometry.attributes.color.array;
+      for (let i = 0; i < colArr.length; i++) {
+        colArr[i] += (targetColors[i] - colArr[i]) * 0.04;
+      }
+      particleGeometry.attributes.color.needsUpdate = true;
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    function setBand(bandKey) {
+      const cfg = BANDS[bandKey];
+      currentBand = bandKey;
+
+      // CSS background + glow
+      document.documentElement.style.setProperty('--bg', cfg.bg);
+      document.documentElement.style.setProperty('--glow', cfg.glow);
+      document.documentElement.style.setProperty('--accent', cfg.accent);
+
+      // Update text
+      document.getElementById('spec-title').textContent = cfg.name;
+      document.getElementById('spec-desc').textContent = cfg.desc;
+      document.getElementById('spec-meta').textContent = cfg.meta;
+      document.getElementById('spec-meta-2').textContent = cfg.meta2;
+      document.getElementById('spec-range').textContent = cfg.range;
+      document.getElementById('spec-num').textContent = cfg.visiblePct;
+      document.getElementById('spec-marker').style.left = cfg.marker + '%';
+
+      // Set target colors for the starfield. Skip silently if Three.js
+      // never came up (CSS starfield stays; band still updates the
+      // background + accent colors via the CSS vars above).
+      if (typeof particleGeometry === 'undefined' || !particleGeometry) {
+        document.querySelectorAll('.spectrum-btn').forEach((btn) => {
+          btn.classList.toggle('is-active', btn.dataset.band === bandKey);
+        });
+        return;
+      }
+      const [r, g, b] = cfg.starRGB;
+      const colors = particleGeometry.attributes.color.array;
+      const COUNT = colors.length / 3;
+      for (let i = 0; i < COUNT; i++) {
+        const brightness = 0.35 + Math.random() * 0.65;
+        targetColors[i * 3] = r * brightness;
+        targetColors[i * 3 + 1] = g * brightness;
+        targetColors[i * 3 + 2] = b * brightness;
+      }
+
+      // Toggle active button
+      document.querySelectorAll('.spectrum-btn').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.band === bandKey);
+      });
+    }
+
+    document.querySelectorAll('.spectrum-btn').forEach((btn) => {
+      btn.addEventListener('click', () => setBand(btn.dataset.band));
+    });
+
+    /* =====================================================
+     * Module 2 — Cognitive Dimension Challenge
+     * ===================================================== */
+    const COMMENTARIES = [
+      '你试图用「地方」这个词描述它，但「地方」本身是一个三维空间的概念。三维空间也许只是你大脑用来过滤信息的过滤器。',
+      '「之前」是时间概念——而原因和结果的时间顺序，只是因果关系的一种属性，不是因果本身。你描述的，是被我们误称为时间的那道影子。',
+      '你的思维已经在「因果」和「无关」之间二选一——但这种二选一本身就是这个框架的产物。框架之内没有第三种位置，所以它只能站在框架之外。',
+    ];
+
+    let activeConcept = 0;
+
+    function showConcept(idx) {
+      activeConcept = idx;
+      document.querySelectorAll('.concept-card').forEach((c, i) => {
+        c.classList.toggle('is-active', i === idx);
+      });
+      document.querySelectorAll('.concept-dot').forEach((d, i) => {
+        d.classList.toggle('is-active', i === idx);
+      });
+      document.getElementById('prev-concept').disabled = idx === 0;
+      document.getElementById('next-concept').disabled = idx === 2;
+    }
+
+    document.querySelectorAll('.concept-submit').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.index, 10);
+        const ta = document.querySelector(
+          `.concept-input[data-index="${i}"]`
+        );
+        const commentary = document.querySelector(
+          `.concept-commentary[data-index="${i}"]`
+        );
+
+        // Shake + clear + reveal
+        ta.classList.remove('shake');
+        // force reflow
+        void ta.offsetWidth;
+        ta.classList.add('shake');
+        commentary.classList.remove('is-visible');
+
+        setTimeout(() => {
+          commentary.textContent = COMMENTARIES[i];
+          commentary.classList.add('is-visible');
+        }, 600);
+      });
+    });
+
+    // Allow Enter+Shift to submit
+    document.querySelectorAll('.concept-input').forEach((ta) => {
+      ta.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          const i = ta.dataset.index;
+          document
+            .querySelector(`.concept-submit[data-index="${i}"]`)
+            .click();
+        }
+      });
+    });
+
+    document.getElementById('prev-concept').addEventListener('click', () => {
+      if (activeConcept > 0) showConcept(activeConcept - 1);
+    });
+    document.getElementById('next-concept').addEventListener('click', () => {
+      if (activeConcept < 2) showConcept(activeConcept + 1);
+    });
+    document.querySelectorAll('.concept-dot').forEach((dot) => {
+      dot.addEventListener('click', () =>
+        showConcept(parseInt(dot.dataset.dot, 10))
+      );
+    });
+
+    showConcept(0);
+
+    /* =====================================================
+     * Module 3 — Probability distribution
+     * ===================================================== */
+    const HYPOTHESES = [
+      {
+        name: '光速壁垒',
+        blurb:
+          '任何信号都被限制在光速以下，银河系的直径要 10 万光年才能横穿——对话时间大于文明寿命。',
+        p: 0.85,
+      },
+      {
+        name: '信号窗口极短',
+        blurb:
+          '一个文明从发射无线电到自我沉默，宇宙尺度上只是一瞬。我们恰好不在这一刻收听，概率不小。',
+        p: 0.72,
+      },
+      {
+        name: '智慧是偶然',
+        blurb:
+          '在无数物种里，只有一支发展出技术文明。也许智慧不是进化的必然终点，只是多次掷骰的偶然。',
+        p: 0.65,
+      },
+      {
+        name: '感知盲区',
+        blurb:
+          '它们也许一直都在广播，使用我们读不出格式的载波，或者就藏在「可见光只是电磁波谱 0.0035%」的空白里。',
+        p: 0.80,
+      },
+      {
+        name: '自我毁灭',
+        blurb:
+          '能够制造原子能的文明，距离自我终结只有几个时代。卡尔达肖夫 I 型，可能只在史前存在过。',
+        p: 0.55,
+      },
+    ];
+
+    const HABITABLE_EXP = 11; // 10^11
+
+    const sliderList = document.getElementById('slider-list');
+    HYPOTHESES.forEach((h, i) => {
+      const row = document.createElement('div');
+      row.className = 'slider-row';
+      row.innerHTML = `
+        <div class="label-row">
+          <label>${h.name}</label>
+          <span class="value" id="val-${i}">${h.p.toFixed(2)}</span>
+        </div>
+        <input type="range" min="0" max="1" step="0.01" value="${h.p}" data-index="${i}" />
+        <p class="blurb">${h.blurb}</p>
+      `;
+      sliderList.appendChild(row);
+    });
+
+    const ctx = document
+      .getElementById('probability-chart')
+      .getContext('2d');
+    const labels = HYPOTHESES.map((h) => h.name);
+    const data = HYPOTHESES.map((h) => h.p);
+
+    const gradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, 0);
+    gradient.addColorStop(0, 'rgba(138,180,248,0.9)');
+    gradient.addColorStop(1, 'rgba(167,139,250,0.9)');
+
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'P',
+            data: data,
+            backgroundColor: gradient,
+            borderColor: 'rgba(138,180,248,0.7)',
+            borderWidth: 1,
+            borderRadius: 2,
+            barThickness: 16,
+          },
+        ],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 350 },
+        scales: {
+          x: {
+            min: 0,
+            max: 1,
+            grid: {
+              color: 'rgba(255,255,255,0.05)',
+            },
+            ticks: {
+              color: '#6e6e7a',
+              font: {
+                family: 'Space Mono',
+                size: 10,
+              },
+            },
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              color: '#d0d0d8',
+              font: {
+                family: 'Noto Serif SC',
+                size: 12,
+              },
+            },
+          },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(10,12,22,0.95)',
+            borderColor: 'rgba(138,180,248,0.4)',
+            borderWidth: 1,
+            titleColor: '#d0d0d8',
+            bodyColor: '#8ab4f8',
+            titleFont: { family: 'Noto Serif SC', size: 12 },
+            bodyFont: { family: 'Space Mono', size: 12 },
+            padding: 8,
+          },
+        },
+      },
+    });
+
+    function recompute() {
+      let productLog = 0;
+      HYPOTHESES.forEach((h, i) => {
+        chart.data.datasets[0].data[i] = h.p;
+        if (h.p > 0) productLog += Math.log10(h.p);
+      });
+      chart.update();
+
+      const totalExp = productLog + HABITABLE_EXP;
+
+      // Format result
+      let expStr;
+      if (!isFinite(totalExp)) {
+        expStr = '-∞';
+      } else {
+        expStr = totalExp.toFixed(2);
+      }
+      document.getElementById('result-exp').textContent = expStr;
+
+      // Update interpretation note
+      const resultVal = document.querySelector('.result-value .num');
+      let interp;
+      if (totalExp > HABITABLE_EXP - 1) {
+        interp =
+          '很可能听到——但前提是，这些 P 值没有一个被你高估。';
+        resultVal.style.color = '#4ade80';
+      } else if (totalExp > 0) {
+        interp =
+          '银河系尺度上，几乎是必然；但跨星系尺度上，仍是地质级的概率。';
+        resultVal.style.color = 'var(--accent)';
+      } else if (totalExp > -3) {
+        interp =
+          '千分之一的概率——通常意义上的"会发生"。但乘数一变，结论就翻篇。';
+        resultVal.style.color = '#fbbf24';
+      } else if (totalExp > -8) {
+        interp =
+          '亿分之一的概率——意味着今夜，不会发生；但某夜的某一夜，仍会。';
+        resultVal.style.color = '#fb923c';
+      } else {
+        interp =
+          '在银河系尺度上，我们几乎是孤独的。宇宙的沉默，不是空，是满——只是满在我们读不出的频段里。';
+        resultVal.style.color = '#f47868';
+      }
+      document.getElementById('result-note').innerHTML =
+        interp +
+        ` 乘上银河里大约 <span style="color: var(--accent); font-family: var(--font-mono)">10<sup>${HABITABLE_EXP}</sup></span> 颗可能宜居的行星，得到的就是这个乘积。`;
+    }
+
+    document.querySelectorAll('.slider-row input[type="range"]').forEach(
+      (slider) => {
+        slider.addEventListener('input', () => {
+          const i = parseInt(slider.dataset.index, 10);
+          const v = parseFloat(slider.value);
+          HYPOTHESES[i].p = v;
+          document.getElementById(`val-${i}`).textContent = v.toFixed(2);
+          recompute();
+        });
+      }
+    );
+
+    recompute();
+
+    /* =====================================================
+     * Module 4 — Light Speed & Time
+     * ===================================================== */
+    const LT_ANCHORS = [
+      { ly: 4.2, left: 4, quote: '你能给比邻星发一条短信，8 年后收到回复。勉强能开始对话。' },
+      { ly: 100, left: 28, quote: '从地球发出信号，要等你孙子辈才能收到回复。两代人的耐心。' },
+      { ly: 1000, left: 46, quote: '你发出信号时，地球处于宋朝。信号到达时，人类文明已经换了几代。' },
+      { ly: 100000, left: 68, quote: '跨越银河系直径。你出发时的文明，收不到你任何消息。' },
+      { ly: 13800000000, left: 94, quote: '可观测宇宙的边缘。你的信号永远不会到达那里。' },
+    ];
+
+    function formatTime(years) {
+      // Choose the best unit
+      if (years < 1000) {
+        return { value: years.toFixed(1), unit: '年' };
+      } else if (years < 1e6) {
+        return { value: (years / 1e3).toFixed(2), unit: '千年' };
+      } else if (years < 1e9) {
+        return { value: (years / 1e6).toFixed(2), unit: '百万年' };
+      } else {
+        return { value: (years / 1e9).toFixed(2), unit: '十亿年' };
+      }
+    }
+
+    function updateLT(idx) {
+      const anchor = LT_ANCHORS[idx];
+      const years = anchor.ly;
+
+      // Time
+      const t = formatTime(years);
+      const timeStr = `${t.value} <span class="unit">${t.unit}</span>`;
+      document.getElementById('lt-time').innerHTML = timeStr;
+      document.getElementById('lt-time-sub').textContent = `单程约 ${t.value} ${t.unit}`;
+
+      // Dynasty
+      const dynCount = Math.floor(years / 250);
+      document.getElementById('lt-dyn').textContent =
+        dynCount > 0 ? `~ ${dynCount.toLocaleString()}` : '~ 0';
+
+      // Age diff
+      const ageDiff = years * 2; // round trip
+      const ageStr = formatTime(ageDiff);
+      document.getElementById('lt-age').innerHTML =
+        `${ageStr.value} <span class="unit">${ageStr.unit}</span>`;
+
+      // Quote
+      const quoteEl = document.getElementById('lt-quote');
+      quoteEl.style.opacity = '0';
+      setTimeout(() => {
+        quoteEl.textContent = anchor.quote;
+        quoteEl.style.opacity = '1';
+      }, 250);
+
+      // Cursor + active anchor
+      document.getElementById('lt-cursor').style.left = anchor.left + '%';
+      document.querySelectorAll('.lt-anchor').forEach((a, i) => {
+        a.classList.toggle('is-active', i === idx);
+      });
+    }
+
+    document.querySelectorAll('.lt-anchor').forEach((a, i) => {
+      a.addEventListener('click', () => updateLT(i));
+    });
+
+    // Track click / drag for continuous navigation
+    const ltTrack = document.querySelector('.lt-track');
+    let ltDragging = false;
+    function nearestAnchor(clientX) {
+      const rect = ltTrack.getBoundingClientRect();
+      let nearest = 0;
+      let minDist = Infinity;
+      LT_ANCHORS.forEach((a, i) => {
+        const ax = rect.left + (a.left / 100) * rect.width;
+        const d = Math.abs(clientX - ax);
+        if (d < minDist) {
+          minDist = d;
+          nearest = i;
+        }
+      });
+      return nearest;
+    }
+    ltTrack.addEventListener('mousedown', (e) => {
+      ltDragging = true;
+      updateLT(nearestAnchor(e.clientX));
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (ltDragging) updateLT(nearestAnchor(e.clientX));
+    });
+    window.addEventListener('mouseup', () => {
+      ltDragging = false;
+    });
+    ltTrack.addEventListener('touchstart', (e) => {
+      ltDragging = true;
+      updateLT(nearestAnchor(e.touches[0].clientX));
+    }, { passive: true });
+    ltTrack.addEventListener('touchmove', (e) => {
+      if (ltDragging) updateLT(nearestAnchor(e.touches[0].clientX));
+    }, { passive: true });
+    ltTrack.addEventListener('touchend', () => {
+      ltDragging = false;
+    });
+
+    updateLT(0);
+
+    /* =====================================================
+     * Module 5 — Scale Destruction
+     * ===================================================== */
+    const SCALE_DATA = {
+      '-18': { label: '原子核', rep: '代表物: 夸克', narrate: '这里没有"物体"。只有场、概率、和相互作用的余波。' },
+      '-15': { label: '质子', rep: '代表物: 一颗质子', narrate: '你能摸到的最小"实心"——但它 99% 是空的。' },
+      '-10': { label: '原子', rep: '代表物: 氢原子', narrate: '这里没有颜色。颜色是电子激发态的副产品。' },
+      '-9':  { label: 'DNA 链', rep: '代表物: 双螺旋', narrate: '生命的源代码——但它没有"想活下去"的属性。' },
+      '-7':  { label: '病毒', rep: '代表物: 冠状病毒', narrate: '生命和非生命的边界模糊了——病毒算什么？' },
+      '-6':  { label: '细菌', rep: '代表物: 大肠杆菌', narrate: '最简单的独立生命形式，已经比任何人类发明都精妙。' },
+      '-5':  { label: '细胞', rep: '代表物: 红细胞', narrate: '你身体里有 37 万亿个——它们从不疲倦。' },
+      '-4':  { label: '跳蚤卵', rep: '代表物: 一粒尘', narrate: '在这个尺度，世界看起来像一座城市——每一粒尘都是一颗星。' },
+      '-3':  { label: '蚂蚁', rep: '代表物: 工蚁', narrate: '它们有自己的农业、化学战、奴隶制度。文明不需要体积大。' },
+      '-2':  { label: '拳头', rep: '代表物: 蒲公英种子', narrate: '一个蒲公英种子的降落伞，是这个尺度上的"飞行器"。' },
+      '-1':  { label: '手掌', rep: '代表物: 蝴蝶', narrate: '鳞片的颜色是结构色——不是颜料，是物理。' },
+      '0':   { label: '人类', rep: '代表物: 你', narrate: '你认为这是你的尺度，但你的身体里有 10 倍于人体细胞的微生物。' },
+      '1':   { label: '公交车', rep: '代表物: 大象', narrate: '大象的鼻子有 4 万块肌肉。它独立思考。' },
+      '2':   { label: '楼房', rep: '代表物: 蓝鲸', narrate: '地球上有史以来最大的动物——叫一声，半个海洋都听得见。' },
+      '3':   { label: '街区', rep: '代表物: 红杉', narrate: '一棵树可以高过 100 米——它的根系和树冠一样宽。' },
+      '4':   { label: '山脉', rep: '代表物: 珠穆朗玛', narrate: '岩石的年龄是地球的 1/3。它们见过恐龙灭绝。' },
+      '5':   { label: '小行星', rep: '代表物: 灶神星', narrate: '太阳系里最古老、最原始的遗物之一。' },
+      '6':   { label: '月球', rep: '代表物: 我们的月亮', narrate: '它正在以每年 4 厘米的速度远离我们——总有一天会走掉。' },
+      '7':   { label: '地球', rep: '代表物: 一颗蓝点', narrate: '从月球回望，它只是一颗蓝点。所有战争、爱情、诗歌，都发生在这粒尘上。' },
+      '8':   { label: '气巨星', rep: '代表物: 木星', narrate: '木星大红斑是一个已经刮了 350 年的风暴。' },
+      '9':   { label: '太阳', rep: '代表物: 一颗黄矮星', narrate: '它每秒钟把 600 万吨物质变成光。你看到的所有光都是它过去的化石。' },
+      '10':  { label: '红巨星', rep: '代表物: 参宿四', narrate: '如果参宿四替代太阳，它的表面会延伸到木星轨道。' },
+      '11':  { label: '中子星', rep: '代表物: 一颗脉冲星', narrate: '一茶匙中子星物质重 10 亿吨。' },
+      '12':  { label: '白矮星', rep: '代表物: 天狼 B', narrate: '一颗恒星死后的尸体——但它还要冷却一万亿年。' },
+      '13':  { label: '黑洞', rep: '代表物: 人马座 A*', narrate: '信息只进不出。物理定律在视界上不再可靠。' },
+      '14':  { label: '太阳系', rep: '代表物: 奥尔特云', narrate: '我们以为是边界的地方，其实只是最稀疏的郊区。' },
+      '15':  { label: '近邻恒星', rep: '代表物: 比邻星', narrate: '4.2 光年——在星际尺度上，这是"隔壁"。' },
+      '16':  { label: '星团', rep: '代表物: 昴星团', narrate: '几十到几万颗恒星在同一引力场里共同成长。' },
+      '17':  { label: '星云', rep: '代表物: 蟹状星云', narrate: '1054 年中国人看见的超新星爆炸——现在还在膨胀。' },
+      '18':  { label: '银河系', rep: '代表物: 我们的家', narrate: '银河系有 1000 亿颗恒星。但你一颗都摸不到。' },
+      '19':  { label: '本星系群', rep: '代表物: 银河 + 仙女', narrate: '银河和仙女座正在以每秒 110 公里互相靠近——40 亿年后相撞。' },
+      '20':  { label: '超星系团', rep: '代表物: 拉尼亚凯亚', narrate: '10 万个星系被引力捆在一起——我们就在这张网的边缘。' },
+      '21':  { label: '宇宙网', rep: '代表物: 长城 / 空洞', narrate: '星系不是均匀分布的——它们像泡沫，贴在丝状的骨架上。' },
+      '22':  { label: '类星体', rep: '代表物: 3C 273', narrate: '宇宙中最亮的天体——比一整个星系亮 1000 倍。' },
+      '23':  { label: '类星体群', rep: '代表物: 早期宇宙', narrate: '宇宙不到 10 亿岁时，这些"灯塔"在燃烧。' },
+      '24':  { label: '宇宙微波背景', rep: '代表物: 第一束光', narrate: '大爆炸 38 万年后留下的余晖——仍然充满整片天空。' },
+      '25':  { label: '可观测宇宙边缘', rep: '代表物: 最后的视界', narrate: '这里的光，是宇宙刚诞生时的样子。' },
+      '26':  { label: '整个宇宙', rep: '代表物: 全部', narrate: '这个尺度上，"你"这个概念不存在。' },
+    };
+
+    function updateScale(exp) {
+      const e = String(exp);
+      const data = SCALE_DATA[e] || SCALE_DATA['0'];
+
+      // Fade narrate
+      const narrate = document.getElementById('scale-narrate');
+      narrate.classList.add('is-fading');
+      setTimeout(() => {
+        narrate.textContent = data.narrate;
+        narrate.classList.remove('is-fading');
+      }, 350);
+
+      document.getElementById('scale-exp').textContent = exp;
+      document.getElementById('scale-label').textContent = data.label;
+      document.getElementById('scale-rep').textContent = data.rep;
+
+      // Visual scale — each power of 10 = ~4x in CSS pixels (compressed)
+      // Map -18..26 to a 14px..420px diameter range
+      const visualExp = parseInt(exp, 10);
+      const minExp = -18, maxExp = 26;
+      const t = (visualExp - minExp) / (maxExp - minExp); // 0..1
+      const minPx = 8, maxPx = 380;
+      const px = minPx + Math.pow(t, 1.6) * (maxPx - minPx);
+      const icon = document.getElementById('scale-icon');
+      icon.style.width = px + 'px';
+      icon.style.height = px + 'px';
+
+      // Color shift: cold (small) -> warm (large)
+      if (visualExp < -5) {
+        icon.style.background = 'radial-gradient(circle at 35% 35%, #c4b5fd 0%, rgba(167,139,250,0.4) 50%, rgba(167,139,250,0.05) 100%)';
+        icon.style.boxShadow = '0 0 12px rgba(167,139,250,0.5)';
+      } else if (visualExp < 5) {
+        icon.style.background = 'radial-gradient(circle at 35% 35%, #8ab4f8 0%, rgba(138,180,248,0.4) 50%, rgba(138,180,248,0.05) 100%)';
+        icon.style.boxShadow = '0 0 16px rgba(138,180,248,0.4)';
+      } else if (visualExp < 15) {
+        icon.style.background = 'radial-gradient(circle at 35% 35%, #fb923c 0%, rgba(251,146,60,0.4) 50%, rgba(251,146,60,0.05) 100%)';
+        icon.style.boxShadow = '0 0 20px rgba(251,146,60,0.45)';
+      } else {
+        icon.style.background = 'radial-gradient(circle at 35% 35%, #f47868 0%, rgba(244,114,104,0.4) 50%, rgba(244,114,104,0.05) 100%)';
+        icon.style.boxShadow = '0 0 28px rgba(244,114,104,0.55)';
+      }
+    }
+
+    const scaleSlider = document.getElementById('scale-slider');
+    scaleSlider.addEventListener('input', (e) => {
+      updateScale(parseInt(e.target.value, 10));
+    });
+
+    // Allow scroll wheel on the scale visual
+    document.getElementById('module-scale').addEventListener(
+      'wheel',
+      (e) => {
+        if (!document.getElementById('module-scale').classList.contains('is-visible')) return;
+        const delta = e.deltaY > 0 ? 1 : -1;
+        let cur = parseInt(scaleSlider.value, 10);
+        cur = Math.max(-18, Math.min(26, cur + delta));
+        scaleSlider.value = cur;
+        updateScale(cur);
+        e.preventDefault();
+      },
+      { passive: false }
+    );
+
+    updateScale(0);
+
+    /* =====================================================
+     * Module 6 — Philosophy Prism
+     * ===================================================== */
+    const PRISM_CARDS = [
+      {
+        key: 'anthropocentrism',
+        name: '人类中心主义',
+        quote: '我们很特别。宇宙为人类而存在，寂静是"还没准备好"的暗示。',
+      },
+      {
+        key: 'great-filter',
+        name: '大过滤器',
+        quote: '寂静是过滤器在工作。智慧文明大概率在某个阶段自我毁灭。',
+      },
+      {
+        key: 'zoo',
+        name: '动物园假说',
+        quote: '我们被隔离观察。寂静是一种"礼貌"——他们不想打扰我们。',
+      },
+      {
+        key: 'animism',
+        name: '泛灵论 / 深层生态',
+        quote: '宇宙不寂静。你听不到，是因为你在用错误的频率听。山川、恒星、黑洞都是"活着"的，只是不以你认识的方式存在。',
+      },
+      {
+        key: 'zen',
+        name: '东方禅意',
+        quote: '寂静不是"没有"。寂静是"一切已经在了，不需要任何东西来填充"。问"为什么寂静"本身就预设了宇宙应该喧嚣。',
+      },
+    ];
+
+    const prismVotes = {}; // {key: {agree, disagree, unsure}}
+    PRISM_CARDS.forEach((c) => {
+      prismVotes[c.key] = { agree: 0, disagree: 0, unsure: 0 };
+    });
+
+    const prismList = document.getElementById('prism-list');
+    PRISM_CARDS.forEach((card, i) => {
+      const el = document.createElement('div');
+      el.className = 'prism-card';
+      el.innerHTML = `
+        <div class="head">
+          <span class="name"><span class="roman">0${i + 1}</span>${card.name}</span>
+        </div>
+        <p class="quote">"${card.quote}"</p>
+        <div class="prism-vote" data-key="${card.key}">
+          <span class="q">你怎么看？</span>
+          <label><input type="radio" name="vote-${card.key}" value="agree" /> 赞同</label>
+          <label><input type="radio" name="vote-${card.key}" value="disagree" /> 反对</label>
+          <label><input type="radio" name="vote-${card.key}" value="unsure" /> 不确定</label>
+        </div>
+      `;
+      prismList.appendChild(el);
+    });
+
+    prismList.addEventListener('change', (e) => {
+      if (e.target.name && e.target.name.startsWith('vote-')) {
+        const key = e.target.name.replace('vote-', '');
+        const val = e.target.value;
+        // For simplicity, just bump that single counter (local-only)
+        prismVotes[key][val]++;
+        renderPrismResults();
+      }
+    });
+
+    function renderPrismResults() {
+      const body = document.getElementById('prism-results-body');
+      let total = 0;
+      PRISM_CARDS.forEach((card) => {
+        const v = prismVotes[card.key];
+        total += v.agree + v.disagree + v.unsure;
+      });
+
+      if (total === 0) {
+        body.innerHTML = `
+          <div style="font-family: var(--font-serif); font-style: italic; font-size: 13px; color: var(--text-dim); line-height: 1.7;">
+            选择你的立场。结果会出现在这里。
+          </div>
+        `;
+        document.getElementById('prism-total').textContent = '0';
+        return;
+      }
+
+      body.innerHTML = PRISM_CARDS.map((card) => {
+        const v = prismVotes[card.key];
+        const sum = v.agree + v.disagree + v.unsure || 1;
+        return `
+          <div class="prism-result-row">
+            <div class="name">
+              <span>${card.name}</span>
+              <span class="count">${sum}</span>
+            </div>
+            <div class="bars">
+              <div class="bar agree" style="width: ${(v.agree / sum) * 100}%"></div>
+              <div class="bar disagree" style="width: ${(v.disagree / sum) * 100}%"></div>
+              <div class="bar unsure" style="width: ${(v.unsure / sum) * 100}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('prism-total').textContent = total;
+    }
+
+    renderPrismResults();
+
+    /* =====================================================
+     * Module 7 — Cognitive Bias Experiments
+     * ===================================================== */
+
+    /* --- Experiment 1: Stroop --- */
+    const STROOP_COLORS = {
+      red: '#f87171',
+      blue: '#60a5fa',
+      green: '#4ade80',
+      yellow: '#fde047',
+    };
+    const STROOP_WORDS = ['红', '蓝', '绿', '黄'];
+    const STROOP_KEYS = Object.keys(STROOP_COLORS);
+
+    let stroopMode = 'word';
+    let stroopTarget = { word: '红', color: 'blue' };
+    let stroopRT = null;
+    let stroopStart = 0;
+    let stroopHistory = { word: [], color: [] };
+
+    function pickStroopTarget() {
+      const wordIdx = Math.floor(Math.random() * STROOP_WORDS.length);
+      let colorIdx = Math.floor(Math.random() * STROOP_KEYS.length);
+      if (stroopMode === 'color') {
+        // Bias toward mismatch to make the test interesting
+        if (Math.random() < 0.85 && colorIdx === wordIdx) {
+          colorIdx = (colorIdx + 1) % STROOP_KEYS.length;
+        }
+      }
+      stroopTarget.word = STROOP_WORDS[wordIdx];
+      stroopTarget.color = STROOP_KEYS[colorIdx];
+      document.getElementById('stroop-word').textContent = stroopTarget.word;
+      document.getElementById('stroop-word').style.color =
+        STROOP_COLORS[stroopTarget.color];
+      stroopStart = performance.now();
+    }
+
+    function stroopChoose(choice) {
+      const rt = performance.now() - stroopStart;
+      let correct;
+      if (stroopMode === 'word') {
+        correct = STROOP_KEYS[STROOP_WORDS.indexOf(stroopTarget.word)] === choice;
+      } else {
+        correct = stroopTarget.color === choice;
+      }
+      stroopHistory[stroopMode].push(rt);
+      const avg =
+        stroopHistory[stroopMode].reduce((a, b) => a + b, 0) /
+        stroopHistory[stroopMode].length;
+      const other = stroopMode === 'word' ? 'color' : 'word';
+      const otherAvg =
+        stroopHistory[other].length > 0
+          ? stroopHistory[other].reduce((a, b) => a + b, 0) /
+            stroopHistory[other].length
+          : null;
+      const resultEl = document.getElementById('stroop-result');
+      if (correct) {
+        if (otherAvg) {
+          const delta = avg - otherAvg;
+          const deltaStr =
+            delta > 0
+              ? `<span class="delta">+${delta.toFixed(0)} ms vs ${other === 'word' ? '读字' : '读色'}</span>`
+              : `<span class="delta">${delta.toFixed(0)} ms vs ${other === 'word' ? '读字' : '读色'}</span>`;
+          resultEl.innerHTML = `正确 · ${rt.toFixed(0)} ms (平均 ${avg.toFixed(0)} ms)${deltaStr}`;
+        } else {
+          resultEl.innerHTML = `正确 · ${rt.toFixed(0)} ms (平均 ${avg.toFixed(0)} ms)`;
+        }
+      } else {
+        resultEl.innerHTML = `<span style="color: var(--warn)">错误</span> · ${rt.toFixed(0)} ms`;
+      }
+      setTimeout(pickStroopTarget, 700);
+    }
+
+    document.querySelectorAll('.stroop-mode-row button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        stroopMode = btn.dataset.mode;
+        document.querySelectorAll('.stroop-mode-row button').forEach((b) =>
+          b.classList.toggle('is-active', b === btn)
+        );
+        pickStroopTarget();
+      });
+    });
+    document.querySelectorAll('.stroop-btn').forEach((btn) => {
+      btn.addEventListener('click', () => stroopChoose(btn.dataset.choice));
+    });
+    pickStroopTarget();
+
+    /* --- Experiment 2: Color illusion --- */
+    const illSlider = document.getElementById('ill-slider');
+    const illCenter = document.getElementById('ill-center');
+    const illVal = document.getElementById('ill-val');
+    const illLeft = document.getElementById('ill-left');
+    const illRight = document.getElementById('ill-right');
+    const illReveal = document.getElementById('ill-reveal');
+
+    let illBgMode = 'dark';
+    function applyIllusion() {
+      const v = parseInt(illSlider.value, 10);
+      illCenter.style.background = `rgb(${v},${v},${v})`;
+      illVal.textContent = v;
+      // Background mode toggle
+      if (illBgMode === 'dark') {
+        illLeft.style.background = '#0f172a';
+        illRight.style.background = '#94a3b8';
+      } else {
+        illLeft.style.background = '#1e293b';
+        illRight.style.background = '#e2e8f0';
+      }
+      illReveal.textContent =
+        '提示：无论背景如何变化，中央的灰色始终是同一个值 (当前 ' + v + ')';
+    }
+
+    illSlider.addEventListener('input', applyIllusion);
+    document.querySelectorAll('.ill-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        illBgMode = btn.dataset.bg;
+        document.querySelectorAll('.ill-btn').forEach((b) =>
+          b.classList.toggle('is-active', b === btn)
+        );
+        applyIllusion();
+      });
+    });
+    applyIllusion();
+
+    /* --- Experiment 3: Choice blindness --- */
+    const cbOptions = document.querySelectorAll('.cb-opt');
+    const cbFeedback = document.getElementById('cb-feedback');
+    const cbQuestion = document.getElementById('cb-question');
+    let cbSelected = null;
+    let cbRevealed = null;
+
+    cbOptions.forEach((opt) => {
+      opt.addEventListener('click', () => {
+        cbSelected = opt.dataset.key;
+        cbOptions.forEach((o) =>
+          o.classList.toggle('is-selected', o === opt)
+        );
+
+        // 50% chance to swap silently with one of the other two
+        const others = Array.from(cbOptions).filter(
+          (o) => o !== opt
+        );
+        const swap = Math.random() < 0.5;
+        if (swap) {
+          const swapped = others[Math.floor(Math.random() * others.length)];
+          // Swap displayed content via temporary highlight
+          cbRevealed = swapped.dataset.key;
+          cbFeedback.innerHTML = `<em>你选的是</em>「${swapped.querySelector('.cb-glyph').textContent} ${swapped.textContent.trim().split(/\s+/)[1]}」<br/>现在它在你面前。请确认。`;
+        } else {
+          cbRevealed = cbSelected;
+          cbFeedback.innerHTML = `<em>你选的是</em>「${opt.querySelector('.cb-glyph').textContent} ${opt.textContent.trim().split(/\s+/)[1]}」<br/>现在它在你面前。请确认。`;
+        }
+        cbQuestion.style.display = 'flex';
+      });
+    });
+
+    cbQuestion.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const answer = btn.dataset.cbq;
+        if (answer === 'yes') {
+          if (cbRevealed !== cbSelected) {
+            cbFeedback.innerHTML =
+              '<em style="color: var(--warn)">但其实，你选的是另一个。我们悄悄换过了——你没察觉。</em><br/>这就是"选择盲"。事后构建的记忆常常覆盖原始体验。';
+          } else {
+            cbFeedback.innerHTML =
+              '<em>没错，这就是你选的。我们没有换。</em>';
+          }
+        } else {
+          cbFeedback.innerHTML =
+            '<em style="color: var(--warn)">你察觉到了——很好。你比大多数人更敏锐。</em><br/>但对多数人来说，选择盲实验在 75% 的情况下不会被察觉。';
+        }
+        // Reset for next round after a delay
+        setTimeout(() => {
+          cbOptions.forEach((o) => o.classList.remove('is-selected'));
+          cbSelected = null;
+          cbRevealed = null;
+          cbFeedback.innerHTML = '';
+          cbQuestion.style.display = 'none';
+        }, 5000);
+      });
+    });
+
+    /* =====================================================
+     * Top navigation — IntersectionObserver + click-to-jump
+     * ===================================================== */
+    const navDots = document.querySelectorAll('.topnav-dot');
+    navDots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const target = document.getElementById(dot.dataset.target);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    const moduleEls = document.querySelectorAll('.module');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            const id = entry.target.id;
+            navDots.forEach((dot) =>
+              dot.classList.toggle('is-active', dot.dataset.target === id)
+            );
+          }
+        });
+      },
+      { threshold: 0.35 }
+    );
+    moduleEls.forEach((m) => observer.observe(m));
+
+    /* =====================================================
+     * Boot
+     * ===================================================== */
+    // Three separate reasons we might skip WebGL:
+    //   1) detectWebGL() says no context can be created
+    //   2) the Three.js CDN script didn't load in time
+    // In both cases the CSS starfield remains visible.
+    if (!PB.webgl) {
+      console.warn('WebGL unavailable, falling back to CSS starfield');
+    } else if (typeof window.THREE === 'undefined') {
+      console.warn(
+        'Three.js failed to load from CDN, falling back to CSS starfield'
+      );
+      PB.webgl = false;
+    } else {
+      initThree();
+      // Persist the mobile-aware base opacity so animate() uses it.
+      baseOpacity = particleMaterial.opacity;
+      // Initialize with the visible-light palette applied
+      setBand('visible');
+    }
+  </script>
+</body>
+</html>

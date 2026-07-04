@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#f5f0e8" />
+  <title>我 25 岁</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    :root {
+      /* Morandi palette */
+      --bg: #f5f0e8;
+      --bg-card: #ede4d3;
+      --bg-soft: #e8dfce;
+      --cream: #efe7d6;
+      --coral: #c98a7a;
+      --coral-soft: #d9a89a;
+      --sage: #9ba89a;
+      --sage-soft: #b8c2b3;
+      --dusty-blue: #8ea3b0;
+      --dusty-blue-soft: #b3c2cb;
+      --mustard: #c9a96e;
+      --ink: #3d3a35;
+      --ink-soft: #6b645b;
+      --ink-light: #948a7e;
+      --line: rgba(61, 58, 53, 0.12);
+      --shadow: 0 8px 24px rgba(61, 58, 53, 0.08);
+      --shadow-soft: 0 2px 12px rgba(61, 58, 53, 0.06);
+      --font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+      --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-weight: 300;
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at 20% 10%, rgba(201, 138, 122, 0.06), transparent 50%),
+        radial-gradient(circle at 80% 90%, rgba(142, 163, 176, 0.06), transparent 50%),
+        var(--bg);
+      background-attachment: fixed;
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 24px 22px 100px;
+      position: relative;
+    }
+
+    /* ---------- Header ---------- */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0 24px;
+    }
+
+    .brand {
+      font-family: var(--font-serif);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--ink);
+      letter-spacing: 0.08em;
+    }
+
+    .brand .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: var(--coral);
+      border-radius: 50%;
+      margin: 0 4px 3px;
+      vertical-align: middle;
+    }
+
+    .step-indicator {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--ink-soft);
+      letter-spacing: 0.1em;
+    }
+
+    .step-indicator strong {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    /* ---------- Steps container ---------- */
+    .step-wrap {
+      position: relative;
+      min-height: 70vh;
+    }
+
+    .step {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      opacity: 0;
+      transform: translateX(20px);
+      pointer-events: none;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .step.active {
+      position: relative;
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
+    .step.exit-left {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+
+    /* ---------- Question header ---------- */
+    .q-tag {
+      display: inline-block;
+      font-family: var(--font-serif);
+      font-size: 12px;
+      color: var(--ink-soft);
+      letter-spacing: 0.2em;
+      padding: 4px 12px;
+      background: var(--bg-card);
+      border-radius: 100px;
+      margin-bottom: 16px;
+    }
+
+    .q-title {
+      font-family: var(--font-serif);
+      font-size: 30px;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--ink);
+      margin-bottom: 12px;
+      letter-spacing: 0.04em;
+    }
+
+    .q-subtitle {
+      font-size: 14px;
+      color: var(--ink-soft);
+      line-height: 1.7;
+      margin-bottom: 36px;
+      font-weight: 300;
+    }
+
+    /* ---------- Value display ---------- */
+    .value-display {
+      text-align: center;
+      margin: 24px 0 12px;
+    }
+
+    .value-display .num {
+      font-family: var(--font-serif);
+      font-size: 56px;
+      font-weight: 500;
+      color: var(--coral);
+      line-height: 1;
+      letter-spacing: 0.02em;
+      transition: color 0.3s;
+    }
+
+    .value-display .unit {
+      font-family: var(--font-serif);
+      font-size: 18px;
+      color: var(--ink-soft);
+      margin-left: 6px;
+      font-weight: 300;
+    }
+
+    /* ---------- Slider ---------- */
+    .slider-block {
+      background: var(--bg-card);
+      border-radius: 24px;
+      padding: 32px 24px 28px;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 24px;
+    }
+
+    .slider-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .slider-label {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--ink-soft);
+      letter-spacing: 0.06em;
+    }
+
+    .slider-current {
+      font-family: var(--font-serif);
+      font-size: 16px;
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--bg-soft);
+      border-radius: 100px;
+      outline: none;
+      margin: 16px 0 12px;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 26px;
+      height: 26px;
+      background: var(--coral);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(201, 138, 122, 0.4);
+      border: 3px solid var(--cream);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(201, 138, 122, 0.5);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 26px;
+      height: 26px;
+      background: var(--coral);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(201, 138, 122, 0.4);
+      border: 3px solid var(--cream);
+    }
+
+    .slider-bounds {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--ink-light);
+      letter-spacing: 0.1em;
+    }
+
+    /* ---------- Visualization containers ---------- */
+    .viz-card {
+      background: var(--bg-card);
+      border-radius: 24px;
+      padding: 28px 24px;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 24px;
+    }
+
+    .viz-title {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--ink-soft);
+      letter-spacing: 0.15em;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+
+    /* Horizontal bar — Step 1 */
+    .bar-track {
+      width: 100%;
+      height: 32px;
+      background: var(--bg-soft);
+      border-radius: 100px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      background: linear-gradient(90deg, var(--coral-soft), var(--coral));
+      border-radius: 100px;
+      transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .bar-marks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--ink-light);
+    }
+
+    /* Donut — Step 2 */
+    .donut-wrap {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .donut-canvas {
+      flex-shrink: 0;
+    }
+
+    .donut-legend {
+      flex: 1;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: var(--ink-soft);
+    }
+
+    .legend-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    .legend-dot.rent { background: var(--coral); }
+    .legend-dot.left { background: var(--cream); border: 1px solid var(--line); }
+
+    .legend-value {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      color: var(--ink);
+      margin-left: auto;
+    }
+
+    /* Subway line — Step 3 */
+    .subway-wrap {
+      position: relative;
+      padding: 30px 0 10px;
+    }
+
+    .subway-line {
+      width: 100%;
+      height: 4px;
+      background: var(--bg-soft);
+      border-radius: 100px;
+      position: relative;
+    }
+
+    .subway-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      background: linear-gradient(90deg, var(--dusty-blue-soft), var(--dusty-blue));
+      border-radius: 100px;
+      transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .subway-dot {
+      position: absolute;
+      top: 50%;
+      left: 0%;
+      transform: translate(-50%, -50%);
+      width: 22px;
+      height: 22px;
+      background: var(--dusty-blue);
+      border: 3px solid var(--cream);
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(142, 163, 176, 0.4);
+      transition: left 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .subway-dot::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px;
+      height: 6px;
+      background: var(--cream);
+      border-radius: 50%;
+    }
+
+    .subway-stations {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--ink-light);
+    }
+
+    .subway-stations span.active {
+      color: var(--dusty-blue);
+      font-weight: 500;
+    }
+
+    /* Coins — Step 4 */
+    .coin-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      min-height: 130px;
+      padding: 10px 0 0;
+    }
+
+    .coin {
+      width: 48px;
+      height: 12px;
+      background: linear-gradient(180deg, var(--mustard) 0%, #b08f56 100%);
+      border-radius: 50% / 50%;
+      margin-bottom: -4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), inset 0 -2px 3px rgba(0, 0, 0, 0.1);
+      position: relative;
+      opacity: 0;
+      transform: translateY(-20px) scale(0.7);
+      animation: coinIn 0.4s forwards;
+    }
+
+    .coin::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 50%;
+    }
+
+    @keyframes coinIn {
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .coin-empty {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--ink-light);
+      letter-spacing: 0.1em;
+      padding: 30px 0;
+    }
+
+    /* ---------- Insight text ---------- */
+    .insight {
+      background: linear-gradient(135deg, rgba(201, 138, 122, 0.08), rgba(155, 168, 154, 0.08));
+      border-left: 3px solid var(--coral);
+      border-radius: 4px 16px 16px 4px;
+      padding: 16px 20px;
+      margin-top: 8px;
+    }
+
+    .insight .label {
+      font-family: var(--font-serif);
+      font-size: 12px;
+      color: var(--coral);
+      letter-spacing: 0.15em;
+      margin-bottom: 6px;
+    }
+
+    .insight .text {
+      font-family: var(--font-serif);
+      font-size: 17px;
+      color: var(--ink);
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    .insight .text strong {
+      color: var(--coral);
+      font-weight: 500;
+      font-size: 20px;
+    }
+
+    /* ---------- Navigation buttons ---------- */
+    .nav-row {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 16px 22px 24px;
+      background: linear-gradient(180deg, rgba(245, 240, 232, 0) 0%, var(--bg) 50%);
+      pointer-events: none;
+    }
+
+    .nav-row > * {
+      pointer-events: auto;
+    }
+
+    .nav-inner {
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 16px 24px;
+      font-family: var(--font-serif);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      border: none;
+      border-radius: 100px;
+      cursor: pointer;
+      transition: all 0.3s;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: var(--coral);
+      color: var(--cream);
+      box-shadow: 0 4px 16px rgba(201, 138, 122, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(201, 138, 122, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--ink-soft);
+      border: 1px solid var(--line);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-card);
+    }
+
+    /* ---------- Step 5: Final map ---------- */
+    .final-wrap {
+      padding-top: 8px;
+    }
+
+    .final-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .final-title {
+      font-family: var(--font-serif);
+      font-size: 26px;
+      font-weight: 500;
+      color: var(--ink);
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+
+    .final-subtitle {
+      font-family: var(--font-serif);
+      font-size: 15px;
+      color: var(--ink-soft);
+      line-height: 1.7;
+      font-weight: 300;
+    }
+
+    .final-subtitle strong {
+      color: var(--coral);
+      font-weight: 500;
+    }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .map-cell {
+      background: var(--bg-card);
+      border-radius: 18px;
+      padding: 16px 14px;
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      flex-direction: column;
+      min-height: 180px;
+    }
+
+    .map-cell .cell-tag {
+      font-family: var(--font-serif);
+      font-size: 11px;
+      color: var(--ink-light);
+      letter-spacing: 0.2em;
+      margin-bottom: 6px;
+    }
+
+    .map-cell .cell-num {
+      font-family: var(--font-serif);
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .map-cell .cell-num small {
+      font-size: 12px;
+      color: var(--ink-soft);
+      font-weight: 300;
+      margin-left: 2px;
+    }
+
+    .map-cell .cell-viz {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .map-cell .cell-viz canvas {
+      max-width: 100%;
+    }
+
+    .map-cell .cell-foot {
+      font-size: 11px;
+      color: var(--ink-soft);
+      line-height: 1.5;
+      margin-top: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    .map-cell.tone-coral .cell-num { color: var(--coral); }
+    .map-cell.tone-sage .cell-num { color: var(--sage); }
+    .map-cell.tone-blue .cell-num { color: var(--dusty-blue); }
+    .map-cell.tone-mustard .cell-num { color: var(--mustard); }
+
+    .summary {
+      background: var(--bg-card);
+      border-radius: 18px;
+      padding: 22px 20px;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 20px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--line);
+    }
+
+    .summary-row:last-child {
+      border-bottom: none;
+    }
+
+    .summary-label {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--ink-soft);
+      letter-spacing: 0.08em;
+    }
+
+    .summary-value {
+      font-family: var(--font-serif);
+      font-size: 15px;
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .closing {
+      text-align: center;
+      padding: 20px 0 8px;
+    }
+
+    .closing p {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--ink-light);
+      line-height: 1.8;
+      letter-spacing: 0.06em;
+    }
+
+    .closing p + p {
+      margin-top: 6px;
+    }
+
+    .saved-toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      background: rgba(61, 58, 53, 0.92);
+      color: var(--cream);
+      padding: 12px 24px;
+      border-radius: 100px;
+      font-family: var(--font-serif);
+      font-size: 14px;
+      letter-spacing: 0.1em;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s, transform 0.3s;
+      z-index: 100;
+    }
+
+    .saved-toast.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    /* ---------- Intro screen ---------- */
+    .intro {
+      text-align: center;
+      padding: 40px 0 20px;
+    }
+
+    .intro-eyebrow {
+      font-family: var(--font-serif);
+      font-size: 12px;
+      color: var(--ink-soft);
+      letter-spacing: 0.3em;
+      margin-bottom: 24px;
+    }
+
+    .intro-title {
+      font-family: var(--font-serif);
+      font-size: 44px;
+      font-weight: 500;
+      color: var(--ink);
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .intro-title .num {
+      color: var(--coral);
+      font-size: 56px;
+    }
+
+    .intro-sub {
+      font-family: var(--font-serif);
+      font-size: 15px;
+      color: var(--ink-soft);
+      line-height: 1.8;
+      margin: 24px auto 40px;
+      max-width: 320px;
+      letter-spacing: 0.04em;
+    }
+
+    .intro-blocks {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: left;
+      max-width: 320px;
+      margin: 0 auto 36px;
+    }
+
+    .intro-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-radius: 14px;
+    }
+
+    .intro-block .icon {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--cream);
+    }
+
+    .intro-block:nth-child(1) .icon { background: var(--coral); }
+    .intro-block:nth-child(2) .icon { background: var(--sage); }
+    .intro-block:nth-child(3) .icon { background: var(--dusty-blue); }
+    .intro-block:nth-child(4) .icon { background: var(--mustard); }
+
+    .intro-block .b-text {
+      flex: 1;
+    }
+
+    .intro-block .b-title {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--ink);
+      margin-bottom: 2px;
+      font-weight: 500;
+    }
+
+    .intro-block .b-desc {
+      font-size: 11px;
+      color: var(--ink-soft);
+      line-height: 1.5;
+    }
+
+    .intro-foot {
+      font-family: var(--font-serif);
+      font-size: 12px;
+      color: var(--ink-light);
+      letter-spacing: 0.2em;
+      margin-top: 16px;
+    }
+
+    /* ---------- Capture area ---------- */
+    .capture-zone {
+      background: var(--bg);
+      padding: 20px 16px;
+      border-radius: 24px;
+    }
+
+    @media (min-width: 520px) {
+      body {
+        background: var(--bg-soft);
+      }
+      .app {
+        box-shadow: 0 0 40px rgba(61, 58, 53, 0.06);
+        background: var(--bg);
+        min-height: 100vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ============== INTRO SCREEN ============== -->
+    <section id="screen-intro" class="screen">
+      <div class="header">
+        <div class="brand">我<span class="dot"></span>25</div>
+        <div class="step-indicator">准备好了吗</div>
+      </div>
+
+      <div class="intro">
+        <div class="intro-eyebrow">一份给你的财务地图</div>
+        <h1 class="intro-title">「 我 <span class="num">25</span> 岁 」</h1>
+        <p class="intro-sub">
+          四个小问题，<br />
+          看清自己真实的生活。
+        </p>
+
+        <div class="intro-blocks">
+          <div class="intro-block">
+            <div class="icon">¥</div>
+            <div class="b-text">
+              <div class="b-title">你的月薪</div>
+              <div class="b-desc">抛开情绪，看看数字本身</div>
+            </div>
+          </div>
+          <div class="intro-block">
+            <div class="icon">家</div>
+            <div class="b-text">
+              <div class="b-title">房租占多少</div>
+              <div class="b-desc">工资里有多少留给自己</div>
+            </div>
+          </div>
+          <div class="intro-block">
+            <div class="icon">路</div>
+            <div class="b-text">
+              <div class="b-title">通勤多久</div>
+              <div class="b-desc">一年里被地铁吃掉的时光</div>
+            </div>
+          </div>
+          <div class="intro-block">
+            <div class="icon">存</div>
+            <div class="b-text">
+              <div class="b-title">每月存多少</div>
+              <div class="b-desc">小小的硬币，是你给未来的礼物</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-start" style="max-width: 280px; margin: 0 auto;">
+          开始
+        </button>
+        <div class="intro-foot">大约需要 1 分钟</div>
+      </div>
+    </section>
+
+    <!-- ============== STEP 1: 你的月薪 ============== -->
+    <section id="screen-1" class="screen" style="display:none;">
+      <div class="header">
+        <div class="brand">我<span class="dot"></span>25</div>
+        <div class="step-indicator"><strong>1</strong> / 5</div>
+      </div>
+
+      <div class="step active">
+        <div class="q-tag">QUESTION 01</div>
+        <h2 class="q-title">你的月薪</h2>
+        <p class="q-subtitle">先别焦虑，我们就只是看看数字本身。</p>
+
+        <div class="value-display">
+          <span class="num" id="s1-num">8000</span>
+          <span class="unit">元</span>
+        </div>
+
+        <div class="slider-block">
+          <input type="range" id="s1-slider" min="3000" max="30000" step="500" value="8000" />
+          <div class="slider-bounds">
+            <span>3,000</span>
+            <span>30,000</span>
+          </div>
+        </div>
+
+        <div class="viz-card">
+          <div class="viz-title">按每天 80 元算</div>
+          <div class="bar-track">
+            <div class="bar-fill" id="s1-bar"></div>
+          </div>
+          <div class="bar-marks">
+            <span>0 天</span>
+            <span>100 天</span>
+            <span>200 天</span>
+            <span>365 天</span>
+          </div>
+        </div>
+
+        <div class="insight">
+          <div class="label">够活</div>
+          <div class="text">你的工资够活 <strong id="s1-days">100</strong> 天</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== STEP 2: 房租占多少 ============== -->
+    <section id="screen-2" class="screen" style="display:none;">
+      <div class="header">
+        <div class="brand">我<span class="dot"></span>25</div>
+        <div class="step-indicator"><strong>2</strong> / 5</div>
+      </div>
+
+      <div class="step">
+        <div class="q-tag">QUESTION 02</div>
+        <h2 class="q-title">房租占多少</h2>
+        <p class="q-subtitle">工资里真正属于你的，是扣掉房租之后的那部分。</p>
+
+        <div class="value-display">
+          <span class="num" id="s2-num">30</span>
+          <span class="unit">%</span>
+        </div>
+
+        <div class="slider-block">
+          <input type="range" id="s2-slider" min="0" max="60" step="1" value="30" />
+          <div class="slider-bounds">
+            <span>0%</span>
+            <span>30%</span>
+            <span>60%</span>
+          </div>
+        </div>
+
+        <div class="viz-card">
+          <div class="viz-title">工资的去向</div>
+          <div class="donut-wrap">
+            <canvas class="donut-canvas" id="s2-donut" width="140" height="140"></canvas>
+            <div class="donut-legend">
+              <div class="legend-item">
+                <span class="legend-dot rent"></span>
+                <span>房租</span>
+                <span class="legend-value" id="s2-rent-amt">0 元</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot left"></span>
+                <span>剩余</span>
+                <span class="legend-value" id="s2-left-amt">0 元</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="insight">
+          <div class="label">工作日实际到手</div>
+          <div class="text">扣完房租，你一小时的工作值 <strong id="s2-hourly">0</strong> 元</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== STEP 3: 通勤多久 ============== -->
+    <section id="screen-3" class="screen" style="display:none;">
+      <div class="header">
+        <div class="brand">我<span class="dot"></span>25</div>
+        <div class="step-indicator"><strong>3</strong> / 5</div>
+      </div>
+
+      <div class="step">
+        <div class="q-tag">QUESTION 03</div>
+        <h2 class="q-title">通勤多久</h2>
+        <p class="q-subtitle">一天两趟，一年下来，这是一段不小的时光。</p>
+
+        <div class="value-display">
+          <span class="num" id="s3-num">30</span>
+          <span class="unit">分钟</span>
+        </div>
+
+        <div class="slider-block">
+          <input type="range" id="s3-slider" min="0" max="120" step="5" value="30" />
+          <div class="slider-bounds">
+            <span>0 min</span>
+            <span>60 min</span>
+            <span>120 min</span>
+          </div>
+        </div>
+
+        <div class="viz-card">
+          <div class="viz-title">你的通勤轨迹</div>
+          <div class="subway-wrap">
+            <div class="subway-line">
+              <div class="subway-fill" id="s3-subway-fill"></div>
+              <div class="subway-dot" id="s3-subway-dot"></div>
+            </div>
+            <div class="subway-stations">
+              <span data-station="0">家</span>
+              <span data-station="30">30</span>
+              <span data-station="60">60</span>
+              <span data-station="90">90</span>
+              <span data-station="120">公司</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="insight">
+          <div class="label">一年通勤</div>
+          <div class="text">你一年花 <strong id="s3-hours">0</strong> 小时在路上，相当于 <strong id="s3-days">0</strong> 个完整的日子</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== STEP 4: 每月存多少 ============== -->
+    <section id="screen-4" class="screen" style="display:none;">
+      <div class="header">
+        <div class="brand">我<span class="dot"></span>25</div>
+        <div class="step-indicator"><strong>4</strong> / 5</div>
+      </div>
+
+      <div class="step">
+        <div class="q-tag">QUESTION 04</div>
+        <h2 class="q-title">每月存多少</h2>
+        <p class="q-subtitle">哪怕是小小一枚硬币，也是在给未来的自己一份礼物。</p>
+
+        <div class="value-display">
+          <span class="num" id="s4-num">1000</span>
+          <span class="unit">元</span>
+        </div>
+
+        <div class="slider-block">
+          <input type="range" id="s4-slider" min="0" max="5000" step="100" value="1000" />
+          <div class="slider-bounds">
+            <span>0</span>
+            <span>2,500</span>
+            <span>5,000</span>
+          </div>
+        </div>
+
+        <div class="viz-card">
+          <div class="viz-title">一年存下的硬币</div>
+          <div class="coin-stack" id="s4-coins">
+            <div class="coin-empty">先别急，看看数字会变成什么样</div>
+          </div>
+        </div>
+
+        <div class="insight">
+          <div class="label">一年能存</div>
+          <div class="text">相当于 <strong id="s4-tickets">0</strong> 张去 XX 的机票</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== STEP 5: 最终地图 ============== -->
+    <section id="screen-5" class="screen" style="display:none;">
+      <div class="header">
+        <div class="brand">我<span class="dot"></span>25</div>
+        <div class="step-indicator"><strong>5</strong> / 5</div>
+      </div>
+
+      <div class="step">
+        <div id="capture-zone" class="capture-zone">
+          <div class="final-header">
+            <h2 class="final-title">你 25 岁的财务地图</h2>
+            <p class="final-subtitle" id="final-subtitle">你的生活还有 <strong>0%</strong> 属于你自己</p>
+          </div>
+
+          <div class="map-grid">
+            <div class="map-cell tone-coral">
+              <div class="cell-tag">月薪</div>
+              <div class="cell-num" id="f-salary">0<small>元</small></div>
+              <div class="cell-viz">
+                <canvas id="f-bar" width="120" height="60"></canvas>
+              </div>
+              <div class="cell-foot" id="f-days">够活 0 天</div>
+            </div>
+            <div class="map-cell tone-sage">
+              <div class="cell-tag">房租占比</div>
+              <div class="cell-num" id="f-rent-pct">0<small>%</small></div>
+              <div class="cell-viz">
+                <canvas id="f-donut" width="100" height="100"></canvas>
+              </div>
+              <div class="cell-foot" id="f-hourly">时薪 0 元</div>
+            </div>
+            <div class="map-cell tone-blue">
+              <div class="cell-tag">通勤</div>
+              <div class="cell-num" id="f-commute">0<small>min</small></div>
+              <div class="cell-viz">
+                <canvas id="f-subway" width="120" height="40"></canvas>
+              </div>
+              <div class="cell-foot" id="f-commute-days">相当于 0 天</div>
+            </div>
+            <div class="map-cell tone-mustard">
+              <div class="cell-tag">月存款</div>
+              <div class="cell-num" id="f-save">0<small>元</small></div>
+              <div class="cell-viz">
+                <canvas id="f-coins" width="120" height="60"></canvas>
+              </div>
+              <div class="cell-foot" id="f-tickets">≈ 0 张机票</div>
+            </div>
+          </div>
+
+          <div class="summary">
+            <div class="summary-row">
+              <span class="summary-label">时薪</span>
+              <span class="summary-value" id="sum-hourly">0 元</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">一年通勤</span>
+              <span class="summary-value" id="sum-commute">0 小时</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">一年存款</span>
+              <span class="summary-value" id="sum-save">0 元</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">可支配比例</span>
+              <span class="summary-value" id="sum-ratio">0%</span>
+            </div>
+          </div>
+
+          <div class="closing">
+            <p>看清了，才能慢慢改变。</p>
+            <p>25 岁，一切都还在生长。</p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 16px;">
+          <button class="btn btn-ghost" id="btn-restart">重新开始</button>
+          <button class="btn btn-primary" id="btn-save">保存图片</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== NAV BUTTONS ============== -->
+    <div class="nav-row" id="nav-row" style="display:none;">
+      <div class="nav-inner">
+        <button class="btn btn-ghost" id="btn-back">上一题</button>
+        <button class="btn btn-primary" id="btn-next">下一题</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="saved-toast" id="toast">已保存到相册</div>
+
+  <script>
+    /* =========================================================
+       STATE
+       ========================================================= */
+    const state = {
+      step: 0, // 0 = intro, 1..5
+      salary: 8000,
+      rentPct: 30,
+      commuteMin: 30,
+      monthlySave: 1000,
+    };
+
+    /* =========================================================
+       CALCULATIONS
+       ========================================================= */
+    const DAILY_COST = 80;     // 元 / 天
+    const WORK_DAYS = 22;       // 工作日 / 月
+    const WORK_HOURS = 8;       // 小时 / 工作日
+    const COMMUTE_DAYS = 250;   // 工作日 / 年
+
+    function calc() {
+      const salary = state.salary;
+      const rent = (salary * state.rentPct) / 100;
+      const hourly = salary / WORK_DAYS / WORK_HOURS;
+      const yearlySave = state.monthlySave * 12;
+      const yearlyCommuteHours = (state.commuteMin * 2 * COMMUTE_DAYS) / 60;
+      const commuteDays = yearlyCommuteHours / 24;
+      const daysCanLive = Math.round(salary / DAILY_COST);
+      const tickets = Math.floor(yearlySave / 2000); // 假设一张机票 2000 元
+      const ownRatio = Math.max(0, Math.round(((salary - rent) / salary) * 100));
+
+      return {
+        salary,
+        rent,
+        rentPct: state.rentPct,
+        hourly,
+        yearlySave,
+        yearlyCommuteHours: Math.round(yearlyCommuteHours),
+        commuteDays: Math.round(commuteDays),
+        daysCanLive,
+        tickets,
+        ownRatio,
+        commuteMin: state.commuteMin,
+        monthlySave: state.monthlySave,
+      };
+    }
+
+    /* =========================================================
+       FORMATTING
+       ========================================================= */
+    const fmt = (n) => Number(n).toLocaleString('zh-CN');
+    const fmtShort = (n) => {
+      if (n >= 10000) return (n / 10000).toFixed(1) + ' 万';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+      return String(n);
+    };
+
+    /* =========================================================
+       CANVAS HELPERS
+       ========================================================= */
+    function setupCanvas(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width;
+      const h = canvas.height;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      return { ctx, w, h };
+    }
+
+    /* =========================================================
+       STEP 1: BAR
+       ========================================================= */
+    function drawS1Bar() {
+      const days = calc().daysCanLive;
+      const pct = Math.min(100, (days / 365) * 100);
+      document.getElementById('s1-bar').style.width = pct + '%';
+    }
+
+    /* =========================================================
+       STEP 2: DONUT
+       ========================================================= */
+    function drawDonut(canvas, rentPct, size) {
+      const { ctx, w, h } = setupCanvas(canvas);
+      const cx = w / 2;
+      const cy = h / 2;
+      const r = Math.min(w, h) / 2 - 8;
+      const inner = r * 0.62;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // background ring (cream)
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#efe7d6';
+      ctx.fill();
+
+      // rent slice
+      const start = -Math.PI / 2;
+      const end = start + (Math.PI * 2 * (rentPct / 100));
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, start, end);
+      ctx.closePath();
+      ctx.fillStyle = '#c98a7a';
+      ctx.fill();
+
+      // inner circle (creates donut)
+      ctx.beginPath();
+      ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+      ctx.fillStyle = '#ede4d3';
+      ctx.fill();
+
+      // center text
+      ctx.fillStyle = '#3d3a35';
+      ctx.font = '500 ' + (size === 'big' ? 22 : 18) + 'px "Noto Serif SC", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(rentPct + '%', cx, cy - 4);
+      ctx.fillStyle = '#948a7e';
+      ctx.font = '300 ' + (size === 'big' ? 10 : 9) + 'px "Noto Serif SC", serif';
+      ctx.fillText('房租', cx, cy + 14);
+    }
+
+    /* =========================================================
+       STEP 3: SUBWAY
+       ========================================================= */
+    function drawSubwayPreview() {
+      // HTML/CSS based, just update styles
+    }
+
+    /* =========================================================
+       STEP 4: COINS
+       ========================================================= */
+    function drawCoins(container, monthlySave) {
+      container.innerHTML = '';
+      const count = Math.min(20, Math.max(1, Math.round(monthlySave / 250)));
+      if (monthlySave === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'coin-empty';
+        empty.textContent = '先别急，看看数字会变成什么样';
+        container.appendChild(empty);
+        return;
+      }
+      for (let i = 0; i < count; i++) {
+        const c = document.createElement('div');
+        c.className = 'coin';
+        c.style.animationDelay = (i * 0.04) + 's';
+        container.appendChild(c);
+      }
+    }
+
+    /* =========================================================
+       STEP 5: MINI CHARTS
+       ========================================================= */
+    function drawFinalBar(canvas, daysCanLive) {
+      const { ctx, w, h } = setupCanvas(canvas);
+      ctx.clearRect(0, 0, w, h);
+      const pct = Math.min(100, (daysCanLive / 365) * 100);
+      // bg
+      ctx.fillStyle = '#e8dfce';
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(0, h / 2 - 6, w, 12, 6) : ctx.rect(0, h / 2 - 6, w, 12);
+      ctx.fill();
+      // fill
+      ctx.fillStyle = '#c98a7a';
+      const fillW = (w * pct) / 100;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(0, h / 2 - 6, fillW, 12, 6);
+      else ctx.rect(0, h / 2 - 6, fillW, 12);
+      ctx.fill();
+    }
+
+    function drawFinalSubway(canvas, minutes) {
+      const { ctx, w, h } = setupCanvas(canvas);
+      ctx.clearRect(0, 0, w, h);
+      const mid = h / 2;
+      // line
+      ctx.fillStyle = '#e8dfce';
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(0, mid - 2, w, 4, 100) : ctx.rect(0, mid - 2, w, 4);
+      ctx.fill();
+      // fill
+      const pct = Math.min(100, (minutes / 120) * 100);
+      const fillW = (w * pct) / 100;
+      ctx.fillStyle = '#8ea3b0';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(0, mid - 2, fillW, 4, 100);
+      else ctx.rect(0, mid - 2, fillW, 4);
+      ctx.fill();
+      // dot
+      ctx.fillStyle = '#8ea3b0';
+      ctx.beginPath();
+      ctx.arc(Math.max(6, fillW), mid, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f5f0e8';
+      ctx.beginPath();
+      ctx.arc(Math.max(6, fillW), mid, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawFinalCoins(canvas, monthlySave) {
+      const { ctx, w, h } = setupCanvas(canvas);
+      ctx.clearRect(0, 0, w, h);
+      const count = Math.min(8, Math.max(0, Math.round(monthlySave / 625)));
+      const coinH = 5;
+      const coinW = 30;
+      const gap = 2;
+      const totalH = count * (coinH + gap) - gap;
+      const startY = h - totalH;
+      const startX = (w - coinW) / 2;
+      for (let i = 0; i < count; i++) {
+        const y = startY + i * (coinH + gap);
+        const grad = ctx.createLinearGradient(0, y, 0, y + coinH);
+        grad.addColorStop(0, '#d4b87a');
+        grad.addColorStop(1, '#a8862d');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(startX + coinW / 2, y + coinH / 2, coinW / 2, coinH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.beginPath();
+        ctx.ellipse(startX + coinW / 2, y + coinH - 1, coinW / 2 - 1, 1, 0, 0, Math.PI);
+        ctx.fill();
+      }
+    }
+
+    /* =========================================================
+       UPDATE FUNCTIONS
+       ========================================================= */
+    function updateS1() {
+      document.getElementById('s1-num').textContent = fmt(state.salary);
+      const days = calc().daysCanLive;
+      document.getElementById('s1-days').textContent = days;
+      drawS1Bar();
+    }
+
+    function updateS2() {
+      document.getElementById('s2-num').textContent = state.rentPct;
+      const c = calc();
+      document.getElementById('s2-rent-amt').textContent = fmt(c.rent) + ' 元';
+      document.getElementById('s2-left-amt').textContent = fmt(c.salary - c.rent) + ' 元';
+      document.getElementById('s2-hourly').textContent = c.hourly.toFixed(1);
+      drawDonut(document.getElementById('s2-donut'), state.rentPct, 'small');
+    }
+
+    function updateS3() {
+      document.getElementById('s3-num').textContent = state.commuteMin;
+      const c = calc();
+      document.getElementById('s3-hours').textContent = c.yearlyCommuteHours;
+      document.getElementById('s3-days').textContent = c.commuteDays;
+      const pct = Math.min(100, (state.commuteMin / 120) * 100);
+      document.getElementById('s3-subway-fill').style.width = pct + '%';
+      document.getElementById('s3-subway-dot').style.left = pct + '%';
+      // update active station
+      document.querySelectorAll('.subway-stations span').forEach((el) => {
+        const station = parseInt(el.dataset.station || 0, 10);
+        el.classList.toggle('active', station <= state.commuteMin);
+      });
+    }
+
+    function updateS4() {
+      document.getElementById('s4-num').textContent = fmt(state.monthlySave);
+      const c = calc();
+      document.getElementById('s4-tickets').textContent = c.tickets;
+      drawCoins(document.getElementById('s4-coins'), state.monthlySave);
+    }
+
+    function updateS5() {
+      const c = calc();
+      document.getElementById('f-salary').innerHTML = fmt(c.salary) + '<small>元</small>';
+      document.getElementById('f-rent-pct').innerHTML = c.rentPct + '<small>%</small>';
+      document.getElementById('f-commute').innerHTML = c.commuteMin + '<small>min</small>';
+      document.getElementById('f-save').innerHTML = fmt(c.monthlySave) + '<small>元</small>';
+
+      document.getElementById('f-days').textContent = '够活 ' + c.daysCanLive + ' 天';
+      document.getElementById('f-hourly').textContent = '时薪 ' + c.hourly.toFixed(1) + ' 元';
+      document.getElementById('f-commute-days').textContent = '相当于 ' + c.commuteDays + ' 天';
+      document.getElementById('f-tickets').textContent = '≈ ' + c.tickets + ' 张机票';
+
+      // summary
+      document.getElementById('sum-hourly').textContent = c.hourly.toFixed(1) + ' 元';
+      document.getElementById('sum-commute').textContent = c.yearlyCommuteHours + ' 小时';
+      document.getElementById('sum-save').textContent = fmt(c.yearlySave) + ' 元';
+      document.getElementById('sum-ratio').textContent = c.ownRatio + '%';
+
+      // subtitle
+      document.getElementById('final-subtitle').innerHTML =
+        '你的生活还有 <strong>' + c.ownRatio + '%</strong> 属于你自己';
+
+      // mini charts
+      drawFinalBar(document.getElementById('f-bar'), c.daysCanLive);
+      drawDonut(document.getElementById('f-donut'), c.rentPct, 'big');
+      drawFinalSubway(document.getElementById('f-subway'), c.commuteMin);
+      drawFinalCoins(document.getElementById('f-coins'), c.monthlySave);
+    }
+
+    /* =========================================================
+       NAVIGATION
+       ========================================================= */
+    const screens = ['intro', 1, 2, 3, 4, 5];
+
+    function showScreen(target) {
+      // hide all
+      document.querySelectorAll('.screen').forEach((s) => (s.style.display = 'none'));
+      const id = target === 0 ? 'screen-intro' : 'screen-' + target;
+      const el = document.getElementById(id);
+      el.style.display = 'block';
+
+      // restart any step animations
+      const stepEl = el.querySelector('.step');
+      if (stepEl) {
+        stepEl.classList.remove('active');
+        // force reflow
+        void stepEl.offsetWidth;
+        stepEl.classList.add('active');
+      }
+
+      // nav row
+      const navRow = document.getElementById('nav-row');
+      if (target === 0 || target === 5) {
+        navRow.style.display = 'none';
+      } else {
+        navRow.style.display = 'block';
+        document.getElementById('btn-back').style.visibility = target === 1 ? 'hidden' : 'visible';
+        document.getElementById('btn-next').textContent = target === 4 ? '查看地图' : '下一题';
+      }
+
+      state.step = target;
+
+      // refresh data on final screen
+      if (target === 5) {
+        setTimeout(updateS5, 50);
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function next() {
+      if (state.step < 5) showScreen(state.step + 1);
+    }
+
+    function back() {
+      if (state.step > 1) showScreen(state.step - 1);
+    }
+
+    /* =========================================================
+       SAVE IMAGE
+       ========================================================= */
+    function saveImage() {
+      const zone = document.getElementById('capture-zone');
+      const btn = document.getElementById('btn-save');
+      const toast = document.getElementById('toast');
+      btn.textContent = '生成中…';
+      btn.disabled = true;
+      if (typeof html2canvas !== 'function') {
+        alert('保存组件未加载，请检查网络');
+        btn.textContent = '保存图片';
+        btn.disabled = false;
+        return;
+      }
+      html2canvas(zone, {
+        backgroundColor: '#f5f0e8',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      })
+        .then((canvas) => {
+          const link = document.createElement('a');
+          const ts = new Date();
+          const fname =
+            '我25岁-' +
+            ts.getFullYear() +
+            String(ts.getMonth() + 1).padStart(2, '0') +
+            String(ts.getDate()).padStart(2, '0') +
+            '.png';
+          link.download = fname;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          toast.classList.add('show');
+          setTimeout(() => toast.classList.remove('show'), 1800);
+        })
+        .catch((err) => {
+          console.error(err);
+          alert('保存失败：' + err.message);
+        })
+        .finally(() => {
+          btn.textContent = '保存图片';
+          btn.disabled = false;
+        });
+    }
+
+    /* =========================================================
+       RESTART
+       ========================================================= */
+    function restart() {
+      state.salary = 8000;
+      state.rentPct = 30;
+      state.commuteMin = 30;
+      state.monthlySave = 1000;
+      // reset sliders
+      document.getElementById('s1-slider').value = 8000;
+      document.getElementById('s2-slider').value = 30;
+      document.getElementById('s3-slider').value = 30;
+      document.getElementById('s4-slider').value = 1000;
+      updateS1();
+      updateS2();
+      updateS3();
+      updateS4();
+      showScreen(0);
+    }
+
+    /* =========================================================
+       BIND
+       ========================================================= */
+    function bind() {
+      document.getElementById('btn-start').addEventListener('click', () => showScreen(1));
+      document.getElementById('btn-next').addEventListener('click', next);
+      document.getElementById('btn-back').addEventListener('click', back);
+      document.getElementById('btn-restart').addEventListener('click', restart);
+      document.getElementById('btn-save').addEventListener('click', saveImage);
+
+      document.getElementById('s1-slider').addEventListener('input', (e) => {
+        state.salary = parseInt(e.target.value, 10);
+        updateS1();
+      });
+      document.getElementById('s2-slider').addEventListener('input', (e) => {
+        state.rentPct = parseInt(e.target.value, 10);
+        updateS2();
+      });
+      document.getElementById('s3-slider').addEventListener('input', (e) => {
+        state.commuteMin = parseInt(e.target.value, 10);
+        updateS3();
+      });
+      document.getElementById('s4-slider').addEventListener('input', (e) => {
+        state.monthlySave = parseInt(e.target.value, 10);
+        updateS4();
+      });
+    }
+
+    /* =========================================================
+       INIT
+       ========================================================= */
+    function init() {
+      bind();
+      updateS1();
+      updateS2();
+      updateS3();
+      updateS4();
+      showScreen(0);
+    }
+
+    // roundRect polyfill for older browsers
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+        if (typeof r === 'number') r = [r, r, r, r];
+        this.beginPath();
+        this.moveTo(x + r[0], y);
+        this.lineTo(x + w - r[1], y);
+        this.quadraticCurveTo(x + w, y, x + w, y + r[1]);
+        this.lineTo(x + w, y + h - r[2]);
+        this.quadraticCurveTo(x + w, y + h, x + w - r[2], y + h);
+        this.lineTo(x + r[3], y + h);
+        this.quadraticCurveTo(x, y + h, x, y + h - r[3]);
+        this.lineTo(x, y + r[0]);
+        this.quadraticCurveTo(x, y, x + r[0], y);
+        this.closePath();
+        return this;
+      };
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>

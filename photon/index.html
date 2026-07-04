@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000">
+<title>光子</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;width:100%;overflow:hidden;background:#000;color:#a8a8b0;
+  font-family:"Noto Serif SC",serif;font-weight:300;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+  touch-action:none;user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#photon{position:absolute;left:50%;top:50%;width:3px;height:3px;background:#fff;border-radius:50%;
+  transform:translate(-50%,-50%);will-change:transform,opacity;opacity:0;box-shadow:0 0 4px rgba(255,255,255,.6)}
+#field{position:absolute;inset:0;pointer-events:none}
+.star{position:absolute;width:1px;height:1px;background:#a8a8b0;border-radius:50%;opacity:0}
+#line,#count,#msg,#end{position:absolute;left:0;right:0;text-align:center;
+  font-size:clamp(14px,2.2vw,18px);line-height:1.9;letter-spacing:.02em;
+  opacity:0;transition:opacity 1.6s ease;padding:0 24px;pointer-events:none}
+#line{top:18%}
+#count{bottom:14%;font-family:"Space Mono",monospace;font-size:clamp(12px,1.8vw,14px);
+  letter-spacing:.08em;opacity:0;color:#7a7a82}
+#msg{bottom:8%;font-size:clamp(13px,1.9vw,15px);color:#888890}
+#end{bottom:10%}
+#replay{position:fixed;left:50%;bottom:18%;transform:translateX(-50%);
+  background:transparent;color:#a8a8b0;border:1px solid #2a2a2e;
+  font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.3em;
+  padding:10px 22px;cursor:pointer;opacity:0;transition:opacity 2s ease;
+  display:none;touch-action:manipulation}
+#replay.show{display:inline-block}
+.fade-in{opacity:1!important}
+.hint{opacity:.55}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="field"></div>
+  <div id="photon"></div>
+  <div id="line"></div>
+  <div id="msg"></div>
+  <div id="count"></div>
+  <div id="end"></div>
+</div>
+<button id="replay" aria-label="replay">REPLAY</button>
+<script>
+(function(){
+  'use strict';
+  var $line=document.getElementById('line'),
+      $msg=document.getElementById('msg'),
+      $count=document.getElementById('count'),
+      $end=document.getElementById('end'),
+      $photon=document.getElementById('photon'),
+      $field=document.getElementById('field'),
+      $replay=document.getElementById('replay'),
+      $stage=document.getElementById('stage');
+  var W=0,H=0,CX=0,CY=0;
+  function size(){W=$stage.clientWidth;H=$stage.clientHeight;CX=W/2;CY=H/2}
+  window.addEventListener('resize',size);size();
+
+  // line changer
+  var lineTimer=null,lineClearTimer=null;
+  function _cancelLineTimers(){
+    if(lineTimer){clearTimeout(lineTimer);lineTimer=null}
+    if(lineClearTimer){clearTimeout(lineClearTimer);lineClearTimer=null}
+  }
+  function setLine(txt,hold,fadeIn,fadeOut){
+    _cancelLineTimers();
+    var fi=fadeIn||1.6,fo=fadeOut||1.6;
+    $line.style.transition='opacity '+fi+'s ease';
+    $line.textContent=txt;
+    void $line.offsetWidth;
+    $line.classList.add('fade-in');
+    lineTimer=setTimeout(function(){
+      $line.style.transition='opacity '+fo+'s ease';
+      $line.classList.remove('fade-in');
+      lineClearTimer=setTimeout(function(){$line.textContent='';lineClearTimer=null},(fo*1000)+100);
+      lineTimer=null;
+    },(hold||5500)+(fi*1000));
+  }
+  function clearLine(){
+    _cancelLineTimers();
+    $line.style.transition='opacity 1.2s ease';
+    $line.classList.remove('fade-in');
+    lineClearTimer=setTimeout(function(){$line.textContent='';lineClearTimer=null},1300);
+  }
+  function showLine(txt,hold,fadeIn,fadeOut){setLine(txt,hold,fadeIn,fadeOut)}
+
+  // count display
+  var countClearTimer=null;
+  function setCount(label,val){
+    if(countClearTimer){clearTimeout(countClearTimer);countClearTimer=null}
+    $count.textContent=label+': '+val;
+    $count.classList.add('fade-in');
+  }
+  function clearCount(){
+    if(countClearTimer){clearTimeout(countClearTimer);countClearTimer=null}
+    $count.classList.remove('fade-in');
+    countClearTimer=setTimeout(function(){$count.textContent='';countClearTimer=null},1600);
+  }
+
+  // message (subtle hint)
+  var msgClearTimer=null;
+  function setMsg(txt){
+    if(msgClearTimer){clearTimeout(msgClearTimer);msgClearTimer=null}
+    $msg.textContent=txt;$msg.classList.add('fade-in');
+  }
+  function clearMsg(){
+    if(msgClearTimer){clearTimeout(msgClearTimer);msgClearTimer=null}
+    $msg.classList.remove('fade-in');
+    msgClearTimer=setTimeout(function(){$msg.textContent='';msgClearTimer=null},1600);
+  }
+
+  // end text
+  function showEnd(txt,hold,fadeIn,fadeOut){
+    var fi=fadeIn||2.0,fo=fadeOut||2.4;
+    $end.textContent=txt;
+    $end.style.transition='opacity '+fi+'s ease';
+    void $end.offsetWidth;$end.classList.add('fade-in');
+    setTimeout(function(){
+      $end.style.transition='opacity '+fo+'s ease';
+      $end.classList.remove('fade-in');
+      setTimeout(function(){$end.textContent=''},(fo*1000)+200);
+    },((hold||6000)+fi*1000));
+  }
+  function showEndStay(txt){
+    $end.textContent=txt;
+    $end.style.transition='opacity 3s ease';
+    void $end.offsetWidth;$end.classList.add('fade-in');
+  }
+  function hideEnd(){
+    $end.style.transition='opacity 2.4s ease';
+    $end.classList.remove('fade-in');
+    setTimeout(function(){$end.textContent=''},2600);
+  }
+
+  // photon position + opacity
+  var px=CX,py=CY,pOpacity=0,pScale=1;
+  function setPhoton(o,s){pOpacity=o;pScale=s}
+  function renderPhoton(){
+    var s=pScale;
+    $photon.style.width=(3*s)+'px';
+    $photon.style.height=(3*s)+'px';
+    $photon.style.transform='translate('+(px-1.5*s)+'px,'+(py-1.5*s)+'px)';
+    $photon.style.opacity=pOpacity;
+  }
+
+  // background star field (other photons)
+  var stars=[];
+  function buildStars(n){
+    $field.innerHTML='';stars=[];
+    for(var i=0;i<n;i++){
+      var s=document.createElement('div');s.className='star';
+      var x=Math.random()*W,y=Math.random()*H,
+          o=.15+Math.random()*.45,sz=.6+Math.random()*1.6;
+      s.style.left=x+'px';s.style.top=y+'px';
+      s.style.width=sz+'px';s.style.height=sz+'px';
+      s.dataset.x=x;s.dataset.y=y;s.dataset.o=o;s.dataset.sz=sz;s.dataset.s=0;
+      $field.appendChild(s);stars.push(s);
+    }
+  }
+  function fadeStarsIn(){
+    stars.forEach(function(s,i){
+      setTimeout(function(){s.style.transition='opacity 2.5s ease';s.style.opacity=s.dataset.o},i*8);
+    });
+  }
+  function driftStars(dx,dy,dt){
+    stars.forEach(function(s){
+      var x=parseFloat(s.style.left),y=parseFloat(s.style.top);
+      var nx=x+dx*dt,ny=y+dy*dt;
+      // wrap
+      if(nx<-4)nx=W+4;if(nx>W+4)nx=-4;
+      if(ny<-4)ny=H+4;if(ny>H+4)ny=-4;
+      s.style.left=nx+'px';s.style.top=ny+'px';
+    });
+  }
+  function fadeStarsOut(){
+    stars.forEach(function(s){
+      s.style.transition='opacity 3s ease';s.style.opacity=0;
+    });
+  }
+
+  // ============== ANIMATION LOOP ==============
+  var raf=null,startT=0,lastT=0,phaseT=0,phase=0;
+  // photon motion state
+  var moveActive=false,moveStart=0,moveFromX=0,moveFromY=0,
+      moveToX=0,moveToY=0,moveDur=1000,moveKind=0;
+  // count animation
+  var countAnim=null;
+  function startLoop(){if(raf)return;startT=performance.now();lastT=startT;raf=requestAnimationFrame(tick)}
+  function stopLoop(){if(raf){cancelAnimationFrame(raf);raf=null}}
+  function tick(now){
+    var dt=(now-lastT)/1000;lastT=now;phaseT+=dt;
+    // photon move easing
+    if(moveActive){
+      var t=Math.min(1,(now-moveStart)/moveDur);
+      var e=t<0.5?2*t*t:-1+(4-2*t)*t; // easeInOutQuad
+      px=moveFromX+(moveToX-moveFromX)*e;
+      py=moveFromY+(moveToY-moveFromY)*e;
+      if(t>=1)moveActive=false;
+    }
+    // star background drift during journey (moveKind 1 = travel)
+    if(moveKind===1){driftStars(0,0,dt*0.6)}
+    renderPhoton();
+    // count animation
+    if(countAnim){
+      var a=countAnim;
+      var ta=Math.min(1,(now-a.s)/a.d);
+      var te=ta<0.5?2*ta*ta:1-Math.pow(-2*ta+2,2)/2;
+      var cur=a.from+(a.to-a.from)*te;
+      var lbl=a.label;
+      $count.textContent=lbl+': '+formatCount(cur);
+    }
+    raf=requestAnimationFrame(tick);
+  }
+  function startMove(toX,toY,dur,kind){
+    moveFromX=px;moveFromY=py;moveToX=toX;moveToY=toY;
+    moveDur=dur;moveStart=performance.now();moveActive=true;moveKind=kind||0;
+  }
+  function animateCount(label,from,to,dur){
+    countAnim={label:label,from:from,to:to,d:dur*1000,s:performance.now()};
+    setTimeout(function(){countAnim=null},dur*1000);
+  }
+  function formatCount(years){
+    // years is a number; show in scientific friendly form
+    if(years<1) return years.toFixed(2)+' 年';
+    if(years<1000) return years.toFixed(1)+' 年';
+    if(years<1e6) return Math.round(years).toLocaleString('en')+' 年';
+    if(years<1e9) return (years/1e4).toFixed(1)+' 万年';
+    if(years<1e10) return (years/1e8).toFixed(2)+' 亿年';
+    return (years/1e8).toFixed(1)+' 亿年';
+  }
+
+  // ============== TIMELINE ==============
+  // phase durations (s): 1:5, 2:10, 3:90, 4:15, 5:20, 6:10
+  var timers=[];
+  function at(t,fn){var h=setTimeout(fn,t*1000);timers.push(h);return h}
+  function resetTimers(){timers.forEach(function(h){clearTimeout(h)});timers=[]}
+
+  function runTimeline(){
+    resetTimers();
+    phaseT=0;phase=1;
+    // ============ Phase 1: 醒来 (0–5s) ============
+    buildStars(0);
+    at(0.0,function(){showLine('你醒了。',800,0.8,0.8)});
+    at(1.0,function(){showLine('但你不是人。',800,0.8,0.8)});
+    at(2.0,function(){showLine('你是一个光子。',800,0.8,0.8)});
+    at(3.0,function(){showLine('一颗没有记忆的光子。',800,0.8,0.8)});
+    at(4.0,function(){showLine('你不知道从哪里来。',900,0.8,0.8)});
+    at(5.0,function(){showLine('你只知道一件事：',1400,0.8,0.8)});
+    at(6.0,function(){
+      clearLine();
+      $photon.style.transition='opacity 1.4s ease';
+      setPhoton(1,1);renderPhoton();
+    });
+    at(7.0,function(){showLine('你要继续前进。',3500,1.0,1.0)});
+
+    // ============ Phase 2: 出发 (5–15s) ============
+    at(11.0,function(){
+      buildStars(80);fadeStarsIn();
+    });
+    at(11.5,function(){showLine('太阳，2026 年 7 月 4 日。',3500,1.0,1.0)});
+    at(14.5,function(){showLine('你刚刚离开了它的核心。',4000,1.0,1.0)});
+    at(15.0,function(){
+      // dot drifts left, into the journey
+      setPhoton(1,1.2);renderPhoton();
+      startMove(CX-W*0.32,CY,10000,1);
+    });
+
+    // ============ Phase 3: 旅程 (15–105s, 90s) ============
+    at(15.0,function(){
+      $count.textContent='t = 0 年';
+      $count.classList.add('fade-in');
+    });
+    // segments — each animates the counter over 9s, then line holds 5–7s.
+    var segs=[
+      {at:18, from:0,            to:8/60/24/365,  line:'你离开了太阳系。',           hold:6000},
+      {at:27, from:8/60/24/365,  to:4.3,          line:'你到达了比邻星。它不知道你经过。', hold:6500},
+      {at:36, from:4.3,          to:100,          line:'人类文明换了 5 代。',         hold:6000},
+      {at:45, from:100,          to:1000,         line:'你身后那束光，肉眼已经看不见了。', hold:6500},
+      {at:54, from:1000,         to:1e5,          line:'你穿过了银河系的一角。',     hold:6500},
+      {at:63, from:1e5,          to:1e6,          line:'地球上，「你出生那年」这个概念已经没有任何记录。', hold:7000},
+      {at:72, from:1e6,          to:1e8,          line:'太阳变成了红巨星。比邻星还在原处。', hold:7000},
+      {at:81, from:1e8,          to:1e9,          line:'银河系旋转了一点点。',       hold:6000},
+      {at:90, from:1e9,          to:1e10,         line:'你接近可观测宇宙的边缘。',   hold:6500},
+      {at:99, from:1e10,         to:1.38e10,      line:'你即将到达宇宙视界。',       hold:6500}
+    ];
+    segs.forEach(function(s){
+      at(s.at,function(){
+        animateCount('t',s.from,s.to,9);
+        showLine(s.line,s.hold,1.4,1.4);
+      });
+    });
+    at(15.5,function(){setMsg('正在加速……')});
+    at(35.0,function(){clearMsg()});
+    at(70.0,function(){setMsg('时间在压缩……')});
+    at(85.0,function(){clearMsg()});
+    // subtle background tint
+    at(15.0,function(){document.body.style.transition='background-color 90s linear';document.body.style.backgroundColor='#040408'});
+
+    // ============ Phase 4: 视界 (105–120s, 15s) ============
+    at(105.0,function(){
+      countAnim=null;
+      setCount('t',formatCount(1.38e10));
+      clearLine();clearMsg();
+      moveKind=0;
+      document.body.style.transition='background-color 6s linear';document.body.style.backgroundColor='#000';
+    });
+    at(106.0,function(){showLine('你即将到达视界。',5000,1.4,1.4)});
+    at(110.5,function(){showLine('但你不会到。',4500,1.4,1.4)});
+    at(113.5,function(){showLine('不是被阻止——是视界本身在远离你。',5500,1.4,1.4)});
+    at(117.0,function(){showLine('宇宙在加速膨胀。',3500,1.4,1.4)});
+
+    // ============ Phase 5: 消散 (120–140s, 20s) ============
+    at(120.0,function(){
+      clearLine();
+      setPhoton(0.85,1);renderPhoton();
+      $photon.style.transition='opacity 18s ease, width 18s ease, height 18s ease';
+      fadeStarsOut();
+      clearCount();
+    });
+    at(121.0,function(){showLine('你到达的任何「远方」，都在你到达之前就退得更远。',5000,1.6,1.6)});
+    at(125.5,function(){showLine('你永远在接近。',3500,1.6,1.6)});
+    at(128.5,function(){showLine('但永远到不了。',4000,1.6,1.6)});
+    at(132.0,function(){showLine('138 亿年后——',3000,1.6,1.6)});
+    at(135.0,function(){showLine('你被一颗红矮星的外壳吸收。',4500,1.6,1.6)});
+    at(139.0,function(){
+      $photon.style.transition='opacity 6s ease';
+      setPhoton(0,0.5);renderPhoton();
+    });
+    at(140.0,function(){
+      clearLine();
+    });
+    at(141.0,function(){showLine('你的能量变成了一点点热。',4000,1.6,1.6)});
+    at(145.0,function(){showLine('你不再是光子。',3500,1.6,1.6)});
+    at(148.5,function(){showLine('你的方向、你的速度、你的「曾经去过哪里」，都被抹掉了。',6000,1.6,1.6)});
+    at(155.0,function(){showLine('你体验过的时间：0。',3500,1.6,1.6)});
+    at(158.5,function(){showLine('按你自己的钟，',2800,1.6,1.6)});
+    at(161.0,function(){showLine('你从未存在过。',5000,2.0,2.0)});
+
+    // ============ Phase 6: 余韵 (140–150s, 10s) — actually overlaps Phase 5 ending
+    // to keep ending crisp, sequence the closing lines after the fade.
+    at(166.0,function(){
+      clearLine();
+    });
+    at(168.0,function(){showEnd('如果宇宙里所有的「存在」都像光子一样——',5000,2.4,2.4)});
+    at(173.5,function(){hideEnd()});
+    at(175.0,function(){showEnd('在无限的尺度上各奔东西——',4500,2.4,2.4)});
+    at(180.0,function(){hideEnd()});
+    at(181.5,function(){showEnd('我们怎么可能相遇？',4500,2.4,2.4)});
+    at(186.5,function(){hideEnd()});
+    at(188.0,function(){showEnd('不是寂静在问。',3500,2.4,2.4)});
+    at(191.5,function(){hideEnd()});
+    at(193.0,function(){showEnd('是距离在问。',3500,2.4,2.4)});
+    at(197.0,function(){
+      hideEnd();
+      $replay.classList.add('show');
+    });
+  }
+
+  function reset(){
+    stopLoop();resetTimers();
+    $line.classList.remove('fade-in');$line.textContent='';
+    $msg.classList.remove('fade-in');$msg.textContent='';
+    $count.classList.remove('fade-in');$count.textContent='';
+    $end.classList.remove('fade-in');$end.textContent='';
+    $replay.classList.remove('show');
+    $field.innerHTML='';stars=[];
+    $photon.style.transition='none';
+    px=CX;py=CY;setPhoton(0,1);renderPhoton();
+    document.body.style.transition='none';document.body.style.backgroundColor='#000';
+    void $photon.offsetWidth;
+  }
+
+  function play(){
+    reset();
+    // small delay so transitions don't fight
+    setTimeout(function(){
+      $photon.style.transition='';
+      runTimeline();
+      startLoop();
+    },80);
+  }
+
+  $replay.addEventListener('click',function(e){e.preventDefault();play()});
+  $replay.addEventListener('touchend',function(e){e.preventDefault();play()},{passive:false});
+  // allow tap anywhere after end to replay
+  document.addEventListener('click',function(e){
+    if($replay.classList.contains('show')&&e.target!==$replay){
+      // ignore — keep button-only
+    }
+  });
+
+  window._photonRestart=play;
+  play();
+})();
+</script>
+</body>
+</html>

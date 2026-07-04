@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#faf6f0" />
+  <title>时间都去哪儿了</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    :root {
+      /* Paper / hand-account aesthetic */
+      --bg: #faf6f0;
+      --bg-deep: #f3ece0;
+      --paper-line: rgba(180, 160, 130, 0.06);
+
+      --ink: #4a4136;
+      --ink-soft: #7a6e5f;
+      --ink-faint: #b3a796;
+
+      --card: #ffffff;
+      --card-shadow: 0 2px 16px rgba(120, 100, 70, 0.08), 0 1px 3px rgba(120, 100, 70, 0.05);
+      --card-shadow-soft: 0 1px 8px rgba(120, 100, 70, 0.05);
+
+      /* Activity palette — soft, dusty, warm */
+      --c-feeding: #e8b4b8;        /* dusty pink */
+      --c-soothing: #c8b8d8;       /* light lavender */
+      --c-diaper: #e8d4a8;         /* soft yellow */
+      --c-eating: #b8c8a8;         /* sage green */
+      --c-sleep: #a8b8c8;          /* muted blue */
+      --c-play: #e8c4a0;           /* warm peach */
+      --c-other: #d8d0c0;          /* cream */
+
+      --accent: #c98a8a;           /* rose accent for buttons */
+      --accent-hover: #b87575;
+      --accent-soft: #e8c4c4;
+
+      --font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+      --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-weight: 400;
+      line-height: 1.6;
+      letter-spacing: 0.02em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    body {
+      position: relative;
+      min-height: 100vh;
+      /* Slight paper texture — layered very subtle noise gradients */
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(200, 180, 150, 0.04) 0, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(200, 180, 150, 0.04) 0, transparent 40%),
+        repeating-linear-gradient(
+          0deg,
+          transparent 0,
+          transparent 28px,
+          var(--paper-line) 28px,
+          var(--paper-line) 29px
+        );
+    }
+
+    /* Main container */
+    .page {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+      position: relative;
+    }
+
+    /* ────────── Top header ────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .header h1 {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 26px;
+      color: var(--ink);
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .header .subtitle {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--ink-faint);
+      font-weight: 300;
+      letter-spacing: 0.15em;
+    }
+
+    /* ────────── Time-for-me card ────────── */
+    .time-for-me {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 22px 18px 20px;
+      box-shadow: var(--card-shadow);
+      text-align: center;
+      margin-bottom: 22px;
+      position: relative;
+      border: 1px solid rgba(200, 180, 150, 0.15);
+    }
+
+    .time-for-me::before {
+      /* tiny corner ornament — like a washi tape */
+      content: '';
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%) rotate(-1deg);
+      width: 60px;
+      height: 14px;
+      background: var(--accent-soft);
+      border-radius: 2px;
+      opacity: 0.7;
+    }
+
+    .time-for-me .label {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--ink-soft);
+      letter-spacing: 0.12em;
+      margin-bottom: 10px;
+    }
+
+    .time-for-me .big-number {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 30px;
+      color: var(--ink);
+      letter-spacing: 0.05em;
+      line-height: 1.3;
+      min-height: 40px;
+      transition: color 0.4s ease;
+    }
+
+    .time-for-me .big-number .unit {
+      font-size: 16px;
+      color: var(--ink-soft);
+      margin: 0 4px;
+      font-weight: 400;
+    }
+
+    .time-for-me .reassurance {
+      font-family: var(--font-serif);
+      font-size: 13px;
+      color: var(--accent);
+      margin-top: 12px;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+      min-height: 18px;
+    }
+
+    .time-for-me .reassurance.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* When she has zero time for herself, the number goes gentle red-rose */
+    .time-for-me.is-empty .big-number {
+      color: var(--accent);
+    }
+
+    /* ────────── Clock card ────────── */
+    .clock-card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: 22px 16px 18px;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 22px;
+      border: 1px solid rgba(200, 180, 150, 0.15);
+      position: relative;
+    }
+
+    .clock-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto;
+      aspect-ratio: 1 / 1;
+    }
+
+    #clockCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .clock-hint {
+      text-align: center;
+      font-family: var(--font-serif);
+      font-size: 12px;
+      color: var(--ink-faint);
+      margin-top: 10px;
+      letter-spacing: 0.1em;
+    }
+
+    /* ────────── Sliders ────────── */
+    .sliders {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .slider-row {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: var(--card-shadow-soft);
+      border: 1px solid rgba(200, 180, 150, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .slider-row .swatch {
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8);
+    }
+
+    .slider-row .label-block {
+      flex-shrink: 0;
+      width: 78px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .slider-row .label-block .name {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--ink);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+
+    .slider-row .label-block .hours {
+      font-family: var(--font-serif);
+      font-size: 11px;
+      color: var(--ink-faint);
+      letter-spacing: 0.05em;
+    }
+
+    .slider-row .slider-control {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Custom slider */
+    input[type="range"].time-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--track-bg, #ece4d6);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    input[type="range"].time-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid var(--track-color, var(--accent));
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(120, 100, 70, 0.15);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="range"].time-slider::-webkit-slider-thumb:hover,
+    input[type="range"].time-slider::-webkit-slider-thumb:active {
+      transform: scale(1.15);
+      box-shadow: 0 2px 8px rgba(120, 100, 70, 0.25);
+    }
+
+    input[type="range"].time-slider::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid var(--track-color, var(--accent));
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(120, 100, 70, 0.15);
+    }
+
+    .slider-row .value {
+      flex-shrink: 0;
+      width: 56px;
+      text-align: right;
+      font-family: var(--font-serif);
+      font-size: 15px;
+      color: var(--ink);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .slider-row .value .h {
+      font-size: 11px;
+      color: var(--ink-faint);
+      margin-left: 1px;
+    }
+
+    /* ────────── Sum bar ────────── */
+    .sum-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px 18px;
+      margin-bottom: 18px;
+      box-shadow: var(--card-shadow-soft);
+      border: 1px solid rgba(200, 180, 150, 0.1);
+      font-family: var(--font-serif);
+    }
+
+    .sum-bar .sum-label {
+      font-size: 13px;
+      color: var(--ink-soft);
+      letter-spacing: 0.08em;
+    }
+
+    .sum-bar .sum-value {
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--ink);
+      letter-spacing: 0.04em;
+    }
+
+    .sum-bar.is-full .sum-value {
+      color: var(--accent);
+    }
+
+    .sum-bar.is-over .sum-value {
+      color: #c66;
+    }
+
+    /* ────────── Action row ────────── */
+    .action-row {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .reset-btn {
+      background: transparent;
+      border: none;
+      color: var(--ink-faint);
+      font-family: var(--font-serif);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 6px 12px;
+      letter-spacing: 0.08em;
+      transition: color 0.2s ease;
+    }
+
+    .reset-btn:hover,
+    .reset-btn:active {
+      color: var(--ink-soft);
+    }
+
+    .save-btn {
+      width: 100%;
+      max-width: 320px;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font-serif);
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(201, 138, 138, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+    }
+
+    .save-btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+      box-shadow: 0 6px 16px rgba(201, 138, 138, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .save-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .save-btn:disabled {
+      background: #d8cfbe;
+      color: #faf6f0;
+      cursor: not-allowed;
+      box-shadow: none;
+      opacity: 0.85;
+    }
+
+    /* ────────── Toast ────────── */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 32px;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(74, 65, 54, 0.92);
+      color: #faf6f0;
+      font-family: var(--font-serif);
+      font-size: 14px;
+      letter-spacing: 0.1em;
+      padding: 10px 22px;
+      border-radius: 999px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ────────── Footer note ────────── */
+    .footer-note {
+      text-align: center;
+      font-family: var(--font-serif);
+      font-size: 11px;
+      color: var(--ink-faint);
+      margin-top: 28px;
+      letter-spacing: 0.15em;
+      line-height: 1.8;
+    }
+
+    /* ────────── Responsive ────────── */
+    @media (max-width: 360px) {
+      .header h1 { font-size: 22px; }
+      .time-for-me .big-number { font-size: 26px; }
+      .slider-row { padding: 12px 14px; gap: 10px; }
+      .slider-row .label-block { width: 64px; }
+      .slider-row .value { width: 48px; font-size: 14px; }
+    }
+
+    @media (min-width: 600px) {
+      .page { padding: 40px 24px 60px; }
+    }
+
+    /* Gentle entrance animation for cards */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .time-for-me, .clock-card, .sliders, .sum-bar, .action-row {
+      animation: fadeUp 0.7s ease both;
+    }
+    .sliders { animation-delay: 0.05s; }
+    .sum-bar { animation-delay: 0.1s; }
+    .action-row { animation-delay: 0.15s; }
+  </style>
+</head>
+<body>
+
+  <div class="page" id="captureRoot">
+
+    <!-- Header -->
+    <header class="header">
+      <h1>「时间都去哪儿了」</h1>
+      <div class="subtitle">一份温柔的时间清单</div>
+    </header>
+
+    <!-- Time-for-me card -->
+    <section class="time-for-me" id="timeForMe">
+      <div class="label">留给你的时间</div>
+      <div class="big-number" id="bigNumber">
+        <span id="hoursVal">7</span><span class="unit">小时</span><span id="minsVal">0</span><span class="unit">分钟</span>
+      </div>
+      <div class="reassurance" id="reassurance">不是你不够努力，是生活需要你这么多</div>
+    </section>
+
+    <!-- Clock card -->
+    <section class="clock-card">
+      <div class="clock-wrap">
+        <canvas id="clockCanvas" width="680" height="680" aria-label="24小时时间分配圆环"></canvas>
+      </div>
+      <div class="clock-hint">拖动下方滑块，看看你的 24 小时是怎样度过的</div>
+    </section>
+
+    <!-- Sliders -->
+    <section class="sliders" id="sliders">
+      <!-- generated by JS -->
+    </section>
+
+    <!-- Sum bar -->
+    <div class="sum-bar" id="sumBar">
+      <span class="sum-label">已分配</span>
+      <span class="sum-value"><span id="sumVal">24</span> / 24 小时</span>
+    </div>
+
+    <!-- Action row -->
+    <div class="action-row">
+      <button class="save-btn" id="saveBtn" disabled>保存这张图</button>
+      <button class="reset-btn" id="resetBtn">恢复默认</button>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer-note">
+      这不是一份考卷 · 也没有标准答案<br/>
+      你可以如实填写，也可以重新调整
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast">已保存 ✓</div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ─────────────────────────────────────────────────────────
+    // Activity definitions
+    // ─────────────────────────────────────────────────────────
+    // "demanding" flag marks time the mother spends on/for the baby.
+    // Time-for-self = 24 - sum(demanding)
+    // Specifically: 喂奶 + 哄睡 + 换尿布 = the pure "for baby" hours
+    // (睡眠 belongs to her but is rarely "me-time", so we don't subtract it)
+    const ACTIVITIES = [
+      { key: 'feeding',  name: '喂奶',     color: '#e8b4b8', demanding: true,  default: 4, max: 12 },
+      { key: 'soothing', name: '哄睡',     color: '#c8b8d8', demanding: true,  default: 3, max: 12 },
+      { key: 'diaper',   name: '换尿布',   color: '#e8d4a8', demanding: true,  default: 2, max: 12 },
+      { key: 'eating',   name: '自己吃饭', color: '#b8c8a8', demanding: false, default: 1, max: 12 },
+      { key: 'sleep',    name: '睡眠',     color: '#a8b8c8', demanding: false, default: 5, max: 12 },
+      { key: 'play',     name: '宝宝互动', color: '#e8c4a0', demanding: false, default: 2, max: 12 },
+      { key: 'other',    name: '其他',     color: '#d8d0c0', demanding: false, default: 7, max: 12 },
+    ];
+
+    const STATE = {
+      // current hour values keyed by activity.key
+      values: {},
+      interacted: false,
+    };
+
+    // Initialize with defaults
+    ACTIVITIES.forEach(a => { STATE.values[a.key] = a.default; });
+
+    // ─────────────────────────────────────────────────────────
+    // DOM references
+    // ─────────────────────────────────────────────────────────
+    const $ = (id) => document.getElementById(id);
+    const slidersEl    = $('sliders');
+    const sumBarEl     = $('sumBar');
+    const sumValEl     = $('sumVal');
+    const bigNumberEl  = $('bigNumber');
+    const hoursValEl   = $('hoursVal');
+    const minsValEl    = $('minsVal');
+    const timeForMeEl  = $('timeForMe');
+    const reassuranceEl = $('reassurance');
+    const saveBtn      = $('saveBtn');
+    const resetBtn     = $('resetBtn');
+    const toast        = $('toast');
+    const canvas       = $('clockCanvas');
+    const ctx          = canvas.getContext('2d');
+
+    // ─────────────────────────────────────────────────────────
+    // Build slider rows
+    // ─────────────────────────────────────────────────────────
+    function buildSliders() {
+      slidersEl.innerHTML = '';
+      ACTIVITIES.forEach(a => {
+        const row = document.createElement('div');
+        row.className = 'slider-row';
+        row.style.setProperty('--track-color', a.color);
+        row.innerHTML = `
+          <div class="swatch" style="background:${a.color}"></div>
+          <div class="label-block">
+            <span class="name">${a.name}</span>
+            <span class="hours">0 ~ ${a.max} 小时</span>
+          </div>
+          <div class="slider-control">
+            <input type="range"
+                   class="time-slider"
+                   data-key="${a.key}"
+                   min="0" max="${a.max}" step="0.5"
+                   value="${STATE.values[a.key]}"
+                   style="--track-color:${a.color}; --track-bg:${a.color}22;" />
+          </div>
+          <div class="value" id="val-${a.key}">
+            ${formatHours(STATE.values[a.key])}<span class="h">h</span>
+          </div>
+        `;
+        slidersEl.appendChild(row);
+      });
+
+      // Bind input events
+      slidersEl.querySelectorAll('input.time-slider').forEach(input => {
+        input.addEventListener('input', onSliderInput);
+        input.addEventListener('change', onSliderChange);
+      });
+    }
+
+    function formatHours(h) {
+      // Show integer if whole, else one decimal
+      if (Math.abs(h - Math.round(h)) < 0.001) return String(Math.round(h));
+      return h.toFixed(1);
+    }
+
+    function onSliderInput(e) {
+      const key = e.target.dataset.key;
+      const val = parseFloat(e.target.value);
+      STATE.values[key] = val;
+      STATE.interacted = true;
+      updateAll();
+    }
+
+    function onSliderChange() {
+      // No special handling — just trigger redraw in case CSS needed
+      drawClock();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Compute current state
+    // ─────────────────────────────────────────────────────────
+    function getSum() {
+      let s = 0;
+      ACTIVITIES.forEach(a => { s += STATE.values[a.key] || 0; });
+      return s;
+    }
+
+    function getForBabyHours() {
+      // demanding hours
+      let s = 0;
+      ACTIVITIES.forEach(a => { if (a.demanding) s += STATE.values[a.key] || 0; });
+      return s;
+    }
+
+    function getFreeHours() {
+      // 24 - sum of demanding activities
+      return Math.max(0, 24 - getForBabyHours());
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Update UI
+    // ─────────────────────────────────────────────────────────
+    function updateAll() {
+      // Update each slider's value label
+      ACTIVITIES.forEach(a => {
+        const el = document.getElementById('val-' + a.key);
+        if (el) {
+          el.innerHTML = `${formatHours(STATE.values[a.key])}<span class="h">h</span>`;
+        }
+      });
+
+      // Sum bar
+      const sum = getSum();
+      sumValEl.textContent = formatHours(sum);
+      sumBarEl.classList.remove('is-full', 'is-over');
+      if (Math.abs(sum - 24) < 0.001) {
+        sumBarEl.classList.add('is-full');
+      } else if (sum > 24) {
+        sumBarEl.classList.add('is-over');
+      }
+
+      // Save button enabled state
+      const isFull = Math.abs(sum - 24) < 0.001;
+      saveBtn.disabled = !isFull;
+
+      // Time-for-me big number
+      const freeHours = getFreeHours();
+      const wholeH = Math.floor(freeHours);
+      const mins = Math.round((freeHours - wholeH) * 60);
+      hoursValEl.textContent = wholeH;
+      minsValEl.textContent = mins;
+
+      if (freeHours < 0.5) {
+        timeForMeEl.classList.add('is-empty');
+      } else {
+        timeForMeEl.classList.remove('is-empty');
+      }
+
+      // Reassurance subtitle only after first interaction
+      if (STATE.interacted) {
+        reassuranceEl.classList.add('show');
+      }
+
+      // Redraw the clock
+      drawClock();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Clock drawing
+    // ─────────────────────────────────────────────────────────
+    function drawClock() {
+      // Use the canvas's CSS size for crisp HiDPI rendering
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 320;
+      const cssH = canvas.clientHeight || 320;
+
+      // Internal pixel buffer (sharp)
+      const targetW = Math.round(cssW * dpr);
+      const targetH = Math.round(cssH * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, cssH);
+
+      const cx = cssW / 2;
+      const cy = cssH / 2;
+      const radius = Math.min(cx, cy) - 14;
+      const innerR = radius * 0.62;
+
+      // Draw hour ticks (0..23) at the outer edge
+      drawTicks(ctx, cx, cy, radius);
+
+      // Draw the 7 activity arcs.
+      // Each activity takes a slice of the 24-hour circle proportional to its hours.
+      // We start at 12 o'clock and go clockwise.
+      let cursor = -Math.PI / 2; // 12 o'clock
+      const total = 24;
+      ACTIVITIES.forEach(a => {
+        const h = STATE.values[a.key] || 0;
+        if (h <= 0) return;
+        const sweep = (h / total) * Math.PI * 2;
+        const end = cursor + sweep;
+
+        // Outer arc
+        drawArc(ctx, cx, cy, radius, radius - 18, cursor, end, a.color);
+        cursor = end;
+      });
+
+      // Inner white circle (the clock "face")
+      ctx.beginPath();
+      ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      // Soft inner ring shadow
+      ctx.beginPath();
+      ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(180, 160, 130, 0.18)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Center text — "24h"
+      ctx.fillStyle = '#7a6e5f';
+      ctx.font = `500 ${Math.round(innerR * 0.22)}px ${"'Noto Serif SC', serif"}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('一天', cx, cy - innerR * 0.22);
+      ctx.fillStyle = '#4a4136';
+      ctx.font = `600 ${Math.round(innerR * 0.36)}px ${"'Noto Serif SC', serif"}`;
+      ctx.fillText('24h', cx, cy + innerR * 0.12);
+    }
+
+    function drawTicks(ctx, cx, cy, radius) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      // 24 ticks; every 6 (00, 06, 12, 18) is stronger
+      for (let i = 0; i < 24; i++) {
+        const angle = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        const isMajor = (i % 6 === 0);
+        const inner = radius + 4;
+        const outer = radius + (isMajor ? 12 : 8);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+        ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+        ctx.strokeStyle = isMajor ? 'rgba(74, 65, 54, 0.5)' : 'rgba(74, 65, 54, 0.22)';
+        ctx.lineWidth = isMajor ? 1.5 : 1;
+        ctx.stroke();
+
+        if (isMajor) {
+          // Label "00", "06", "12", "18"
+          const labelR = outer + 12;
+          ctx.fillStyle = 'rgba(74, 65, 54, 0.55)';
+          ctx.font = `500 11px ${"'Noto Sans SC', sans-serif"}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const lbl = (i === 0 ? '00' : String(i).padStart(2, '0'));
+          ctx.fillText(lbl, Math.cos(angle) * labelR, Math.sin(angle) * labelR);
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawArc(ctx, cx, cy, rOuter, rInner, startAngle, endAngle, color) {
+      // Draws a donut slice from startAngle to endAngle
+      // Make sure the sweep is positive
+      if (endAngle <= startAngle) return;
+
+      ctx.save();
+      ctx.beginPath();
+      // Outer arc (clockwise)
+      ctx.arc(cx, cy, rOuter, startAngle, endAngle, false);
+      // Right edge inward
+      ctx.lineTo(cx + Math.cos(endAngle) * rInner, cy + Math.sin(endAngle) * rInner);
+      // Inner arc (counter-clockwise)
+      ctx.arc(cx, cy, rInner, endAngle, startAngle, true);
+      // Left edge outward
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Toast
+    // ─────────────────────────────────────────────────────────
+    let toastTimer = null;
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 1800);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Save (html2canvas)
+    // ─────────────────────────────────────────────────────────
+    function handleSave() {
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      const originalText = saveBtn.textContent;
+      saveBtn.textContent = '正在保存...';
+
+      const target = document.getElementById('captureRoot');
+
+      // html2canvas
+      if (typeof html2canvas !== 'function') {
+        showToast('保存失败：脚本未加载');
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
+        return;
+      }
+
+      html2canvas(target, {
+        backgroundColor: '#faf6f0',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      }).then(canvasOut => {
+        try {
+          const dataUrl = canvasOut.toDataURL('image/png');
+          // Try download
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = `时间都去哪儿了_${formatDateForFile()}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          showToast('已保存 ✓');
+        } catch (err) {
+          // Fallback: open in new tab
+          try {
+            const w = window.open();
+            if (w) {
+              w.document.write(`<title>时间都去哪儿了</title><img src="${canvasOut.toDataURL('image/png')}" style="max-width:100%;display:block;margin:auto;">`);
+            }
+            showToast('已生成，请长按图片保存');
+          } catch (e2) {
+            showToast('保存失败，请重试');
+          }
+        }
+        saveBtn.textContent = originalText;
+        // Re-evaluate enabled state
+        const sum = getSum();
+        saveBtn.disabled = Math.abs(sum - 24) >= 0.001;
+      }).catch(err => {
+        console.error('html2canvas error:', err);
+        showToast('保存失败，请重试');
+        saveBtn.textContent = originalText;
+        const sum = getSum();
+        saveBtn.disabled = Math.abs(sum - 24) >= 0.001;
+      });
+    }
+
+    function formatDateForFile() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Reset
+    // ─────────────────────────────────────────────────────────
+    function handleReset() {
+      ACTIVITIES.forEach(a => { STATE.values[a.key] = a.default; });
+      // Also reset slider DOM values
+      ACTIVITIES.forEach(a => {
+        const input = slidersEl.querySelector(`input[data-key="${a.key}"]`);
+        if (input) input.value = a.default;
+      });
+      STATE.interacted = true; // keep reassurance shown
+      updateAll();
+      showToast('已恢复默认');
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Resize — redraw clock on viewport change
+    // ─────────────────────────────────────────────────────────
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(drawClock, 120);
+    });
+
+    // ─────────────────────────────────────────────────────────
+    // Init
+    // ─────────────────────────────────────────────────────────
+    function init() {
+      buildSliders();
+      saveBtn.addEventListener('click', handleSave);
+      resetBtn.addEventListener('click', handleReset);
+      updateAll();
+    }
+
+    // Wait for fonts to settle so the canvas text renders correctly
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(init);
+    } else {
+      window.addEventListener('load', init);
+    }
+  })();
+  </script>
+</body>
+</html>

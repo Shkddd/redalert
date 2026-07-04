@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#0a0805" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>一炷香</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;300;400&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    /* ------------------------------------------------------------------
+       「一炷香」— single-file meditation visual
+       Pure visual silence. No buttons. No interaction. Just watching.
+       ------------------------------------------------------------------ */
+
+    :root {
+      --bg-warm-top: #2a1f15;
+      --bg-warm-bot: #0a0805;
+      --ember: #ff6633;
+      --ember-soft: rgba(255, 102, 51, 0.55);
+      --cream: #d4c4a8;
+      --bronze-hi: #8a6a44;
+      --bronze-mid: #5a3f25;
+      --bronze-low: #2a1d10;
+      --font-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0805;
+      color: var(--cream);
+      font-family: var(--font-serif);
+      font-weight: 300;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      overscroll-behavior: none;
+      cursor: default;
+    }
+
+    /* The stage holds everything. It is the experience. */
+    #stage {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(
+          ellipse 70% 50% at 50% 85%,
+          rgba(80, 50, 25, 0.35) 0%,
+          rgba(40, 25, 15, 0) 60%
+        ),
+        linear-gradient(
+          180deg,
+          var(--bg-warm-top) 0%,
+          #1a1208 45%,
+          var(--bg-warm-bot) 100%
+        );
+      display: block;
+    }
+
+    /* Smoke particle canvas — covers the full stage */
+    #smoke {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Incense burner SVG layer */
+    #burner {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: clamp(180px, 28vw, 320px);
+      height: auto;
+      pointer-events: none;
+    }
+
+    /* Bottom text — the one line that appears */
+    #phrase {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 11vh;
+      text-align: center;
+      font-family: var(--font-serif);
+      font-weight: 300;
+      font-size: clamp(20px, 4vw, 36px);
+      color: var(--cream);
+      letter-spacing: 0.35em;
+      opacity: 0;
+      transition: opacity 4s ease;
+      pointer-events: none;
+      text-shadow: 0 0 24px rgba(212, 196, 168, 0.18);
+      padding: 0 6vw;
+    }
+
+    #phrase.show {
+      opacity: 0.82;
+    }
+
+    /* Final fade to black overlay */
+    #finale {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      transition: opacity 6s ease;
+      pointer-events: none;
+    }
+
+    #finale.dim {
+      opacity: 1;
+    }
+
+    /* Respect users who prefer reduced motion — still functional, even slower */
+    @media (prefers-reduced-motion: reduce) {
+      #phrase {
+        transition: opacity 6s ease;
+      }
+      #finale {
+        transition: opacity 9s ease;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="smoke"></canvas>
+
+    <!-- Three-legged bronze incense burner (香炉) with a vertical incense stick
+         and a glowing ember at the tip. Drawn with SVG so it scales crisply. -->
+    <svg
+      id="burner"
+      viewBox="0 0 200 280"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <!-- Bronze body gradient -->
+        <linearGradient id="bronzeBody" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#8a6a44" />
+          <stop offset="50%" stop-color="#5a3f25" />
+          <stop offset="100%" stop-color="#2a1d10" />
+        </linearGradient>
+
+        <!-- Top rim highlight -->
+        <linearGradient id="rimGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#a07f54" />
+          <stop offset="100%" stop-color="#3a2615" />
+        </linearGradient>
+
+        <!-- Inner ash bed gradient -->
+        <radialGradient id="ashGrad" cx="0.5" cy="0.4" r="0.6">
+          <stop offset="0%" stop-color="#c8b08a" />
+          <stop offset="60%" stop-color="#6a5238" />
+          <stop offset="100%" stop-color="#2a1d10" />
+        </radialGradient>
+
+        <!-- Ember glow -->
+        <radialGradient id="emberGlow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stop-color="#ffaa66" stop-opacity="0.95" />
+          <stop offset="40%" stop-color="#ff6633" stop-opacity="0.7" />
+          <stop offset="100%" stop-color="#ff6633" stop-opacity="0" />
+        </radialGradient>
+
+        <!-- Soft drop shadow under the burner -->
+        <radialGradient id="floorShadow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stop-color="#000" stop-opacity="0.55" />
+          <stop offset="100%" stop-color="#000" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+
+      <!-- Floor shadow -->
+      <ellipse cx="100" cy="268" rx="80" ry="6" fill="url(#floorShadow)" />
+
+      <!-- Three legs (鼎足) -->
+      <path
+        d="M 55 215 L 42 268 L 56 268 L 66 220 Z"
+        fill="url(#bronzeBody)"
+        stroke="#1a0f06"
+        stroke-width="0.6"
+      />
+      <path
+        d="M 145 215 L 158 268 L 144 268 L 134 220 Z"
+        fill="url(#bronzeBody)"
+        stroke="#1a0f06"
+        stroke-width="0.6"
+      />
+      <path
+        d="M 100 218 L 92 270 L 108 270 L 100 218 Z"
+        fill="#4a3220"
+        stroke="#1a0f06"
+        stroke-width="0.6"
+        opacity="0.85"
+      />
+
+      <!-- Body of the burner (slightly stylized, with subtle hourglass curve) -->
+      <path
+        d="M 45 130
+           Q 48 175 55 210
+           Q 60 218 100 218
+           Q 140 218 145 210
+           Q 152 175 155 130
+           Z"
+        fill="url(#bronzeBody)"
+        stroke="#1a0f06"
+        stroke-width="0.7"
+      />
+
+      <!-- Subtle decorative band around the middle (faint line) -->
+      <path
+        d="M 48 170 Q 100 178 152 170"
+        stroke="#3a2615"
+        stroke-width="0.8"
+        fill="none"
+        opacity="0.6"
+      />
+      <path
+        d="M 48 173 Q 100 181 152 173"
+        stroke="#a07f54"
+        stroke-width="0.4"
+        fill="none"
+        opacity="0.25"
+      />
+
+      <!-- Top rim of the burner -->
+      <ellipse
+        cx="100"
+        cy="130"
+        rx="55"
+        ry="9"
+        fill="url(#rimGrad)"
+        stroke="#1a0f06"
+        stroke-width="0.6"
+      />
+
+      <!-- Inner opening — the ash bed where the incense stands -->
+      <ellipse cx="100" cy="128" rx="44" ry="6" fill="url(#ashGrad)" />
+
+      <!-- Small ash texture dots -->
+      <circle cx="88" cy="128" r="0.8" fill="#3a2615" opacity="0.6" />
+      <circle cx="108" cy="129" r="0.6" fill="#3a2615" opacity="0.5" />
+      <circle cx="115" cy="127" r="0.5" fill="#3a2615" opacity="0.4" />
+      <circle cx="82" cy="129" r="0.5" fill="#3a2615" opacity="0.5" />
+
+      <!-- Incense stick — thin vertical line from ash bed upward -->
+      <line
+        x1="100"
+        y1="128"
+        x2="100"
+        y2="40"
+        stroke="#3a2818"
+        stroke-width="1.4"
+        stroke-linecap="round"
+      />
+      <!-- Slight lighter highlight along the stick -->
+      <line
+        x1="100"
+        y1="128"
+        x2="100"
+        y2="40"
+        stroke="#6a4a2a"
+        stroke-width="0.4"
+        stroke-linecap="round"
+        opacity="0.6"
+      />
+
+      <!-- Ember glow halo -->
+      <circle
+        id="ember-halo"
+        cx="100"
+        cy="40"
+        r="14"
+        fill="url(#emberGlow)"
+      />
+      <!-- Ember tip -->
+      <circle
+        id="ember-tip"
+        cx="100"
+        cy="40"
+        r="2.2"
+        fill="#ffaa66"
+      />
+      <circle
+        cx="100"
+        cy="40"
+        r="1.0"
+        fill="#ffe0c0"
+        opacity="0.9"
+      />
+    </svg>
+
+    <div id="phrase">此刻，什么也不想</div>
+    <div id="finale"></div>
+  </div>
+
+  <script>
+    /* ==================================================================
+       一炷香 — particle system
+       ----------------------------------------------------------------
+       A single incense stick burns at the bottom center. Smoke particles
+       slowly rise from the ember, drift on a slow sinusoidal current,
+       grow softer and larger as they age, and dissolve into the dark.
+       The experience is a single uninterrupted breath.
+       ================================================================== */
+
+    (function () {
+      "use strict";
+
+      // ---- Stage references ------------------------------------------------
+
+      var canvas = document.getElementById("smoke");
+      var phraseEl = document.getElementById("phrase");
+      var finaleEl = document.getElementById("finale");
+      var emberTipEl = document.getElementById("ember-tip");
+      var emberHaloEl = document.getElementById("ember-halo");
+
+      var ctx = canvas.getContext("2d");
+
+      // ---- Sizing ----------------------------------------------------------
+      // High-DPI aware. Recomputed on resize.
+
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var W = 0; // CSS pixels
+      var H = 0;
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Recompute incense tip position from the burner SVG.
+        // Burner sits bottom-center with width = clamp(180, 28vw, 320).
+        var burner = document.getElementById("burner");
+        var burnerRect = burner.getBoundingClientRect();
+        // SVG viewBox is 200x280; ember is at (100, 40) in SVG coordinates.
+        var svgX = 100;
+        var svgY = 40;
+        var emberScreenX = burnerRect.left + (svgX / 200) * burnerRect.width;
+        var emberScreenY = burnerRect.top + (svgY / 280) * burnerRect.height;
+
+        EMBER_X = emberScreenX;
+        EMBER_Y = emberScreenY;
+      }
+
+      // ---- Ember position (updated by resize) ------------------------------
+
+      var EMBER_X = 0;
+      var EMBER_Y = 0;
+
+      // ---- Particle system -------------------------------------------------
+
+      /**
+       * Each particle:
+       *   x, y      current position (CSS pixels)
+       *   vx, vy    velocity (slow upward; vx is small sinusoidal phase drift)
+       *   age       seconds since spawn
+       *   life      total lifetime in seconds (8..15)
+       *   size0     initial radius (small)
+       *   size1     final radius (larger, dispersing)
+       *   baseAlpha 0..1, peak opacity (0.1..0.3 — very faint)
+       *   phase     random phase offset for sinusoidal drift
+       *   freq      random frequency for sinusoidal drift
+       */
+      var particles = [];
+      var MAX_PARTICLES = 25; // soft ceiling — we keep 15–25 alive
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function spawnParticle() {
+        if (particles.length >= MAX_PARTICLES) return;
+
+        var p = {
+          x: EMBER_X + rand(-0.8, 0.8),
+          y: EMBER_Y + rand(-1.5, 0.5),
+          vx: rand(-1.5, 1.5), // px/s, very small lateral drift
+          vy: rand(-9, -6),    // px/s, slow upward
+          age: 0,
+          life: rand(9, 14),
+          size0: rand(2.0, 3.5),
+          size1: rand(14, 24),
+          baseAlpha: rand(0.14, 0.28),
+          phase: rand(0, Math.PI * 2),
+          freq: rand(0.25, 0.55), // Hz, slow sway
+        };
+        particles.push(p);
+      }
+
+      // ---- Timing ----------------------------------------------------------
+
+      var startTime = performance.now();
+      var lastSpawn = 0;
+      var nextSpawnDelay = 1200; // ms; we'll randomize 1000..2000 each spawn
+
+      // The smoke rate gradually reduces after 30 seconds.
+      function currentSpawnInterval(nowMs) {
+        var t = (nowMs - startTime) / 1000; // seconds since start
+        if (t < 30) {
+          return rand(1000, 2000); // every 1–2s early on
+        } else if (t < 50) {
+          return rand(2200, 4200); // slow down
+        } else {
+          return rand(4500, 8000); // very few near the end
+        }
+      }
+
+      // ---- Drawing ---------------------------------------------------------
+
+      function draw(nowMs) {
+        var dt = Math.min((nowMs - lastFrame) / 1000, 0.05); // clamp dt
+        lastFrame = nowMs;
+        var t = (nowMs - startTime) / 1000;
+
+        // Soft trail: don't fully clear. This leaves a faint breath of
+        // previous frames so motion reads as continuous smoke, not dots.
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+        ctx.fillRect(0, 0, W, H);
+
+        // Switch to lighter blending for the smoke itself.
+        ctx.globalCompositeOperation = "lighter";
+
+        // Spawn new particle?
+        if (nowMs - lastSpawn >= nextSpawnDelay) {
+          spawnParticle();
+          lastSpawn = nowMs;
+          nextSpawnDelay = currentSpawnInterval(nowMs);
+        }
+
+        // Update + draw particles.
+        for (var i = particles.length - 1; i >= 0; i--) {
+          var p = particles[i];
+
+          // Age
+          p.age += dt;
+          var lifeT = p.age / p.life; // 0..1
+
+          // Sinusoidal lateral drift (slow sway)
+          var sway = Math.sin(t * p.freq * Math.PI * 2 + p.phase) * 4;
+          p.x += (p.vx + sway * 0.3) * dt;
+          p.y += p.vy * dt;
+
+          // Slight upward acceleration as it warms and lifts
+          p.vy *= 1 - 0.05 * dt; // gentle decay — actually a tiny slowdown
+          // (We want particles to keep rising. The above makes them slightly
+          //  slower over time, mimicking air resistance. vy stays negative.)
+
+          // Slight outward spread as the particle rises
+          p.vx += (Math.random() - 0.5) * 0.08;
+
+          // Compute current visual properties
+          var size = p.size0 + (p.size1 - p.size0) * lifeT;
+
+          // Opacity envelope:
+          //   - quick fade-in over the first ~15% of life
+          //   - hold near peak for the middle
+          //   - long, gentle ease-out over the last ~55%
+          var alpha;
+          if (lifeT < 0.15) {
+            // ease-in
+            var k = lifeT / 0.15;
+            alpha = p.baseAlpha * (k * k * (3 - 2 * k));
+          } else if (lifeT > 0.45) {
+            // ease-out from peak to zero
+            var k2 = (1 - lifeT) / 0.55;
+            alpha = p.baseAlpha * Math.max(0, k2 * k2);
+          } else {
+            // gentle peak hold, very slight breathing
+            var breathe = 1 + Math.sin(t * 0.8 + p.phase) * 0.06;
+            alpha = p.baseAlpha * breathe;
+          }
+
+          // Draw as a soft radial gradient circle (built once per draw).
+          var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size);
+          // Color: warm white-grey, slightly tinted from the ember below.
+          grad.addColorStop(0, "rgba(232, 222, 208, " + alpha + ")");
+          grad.addColorStop(0.4, "rgba(210, 200, 188, " + alpha * 0.6 + ")");
+          grad.addColorStop(1, "rgba(180, 170, 158, 0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Retire the particle once its life is done.
+          if (lifeT >= 1) {
+            particles.splice(i, 1);
+          }
+        }
+
+        // ---- Ember breathing (very subtle) -----------------------------
+        // A barely-perceptible pulse, plus the ember fades over the full
+        // 60 seconds, parallel to the visual experience.
+        var emberBreath = 1 + Math.sin(t * 0.9) * 0.08;
+        emberHaloEl.setAttribute(
+          "r",
+          (14 * emberBreath * (1 - t / 75)).toFixed(2)
+        );
+        emberHaloEl.setAttribute(
+          "opacity",
+          (0.9 * Math.max(0.15, 1 - t / 75)).toFixed(3)
+        );
+        emberTipEl.setAttribute(
+          "r",
+          (2.2 * (0.7 + 0.3 * Math.max(0, 1 - t / 80))).toFixed(2)
+        );
+      }
+
+      // ---- Phase transitions ----------------------------------------------
+
+      // After 5s: fade in the bottom phrase
+      setTimeout(function () {
+        phraseEl.classList.add("show");
+      }, 5000);
+
+      // After 30s: begin fading the phrase out (slow)
+      setTimeout(function () {
+        phraseEl.classList.remove("show");
+      }, 30000);
+
+      // After 60s: begin the slow fade to black
+      setTimeout(function () {
+        finaleEl.classList.add("dim");
+      }, 60000);
+
+      // ---- Main loop -------------------------------------------------------
+
+      var lastFrame = performance.now();
+
+      function loop(now) {
+        draw(now);
+        requestAnimationFrame(loop);
+      }
+
+      // ---- Bootstrap -------------------------------------------------------
+
+      // Initial sizing + start the loop after layout is settled.
+      resize();
+      window.addEventListener("resize", resize, { passive: true });
+      window.addEventListener("orientationchange", resize, { passive: true });
+
+      // Pre-spawn one particle so the screen isn't empty for the first second.
+      spawnParticle();
+      lastSpawn = performance.now();
+      nextSpawnDelay = 600; // first new particle arrives soon
+
+      requestAnimationFrame(loop);
+
+      // -------------------------------------------------------------------
+      // Deliberate no-op for any user gesture. The page is the experience;
+      // there is nothing to interact with, by design.
+      // -------------------------------------------------------------------
+      ["click", "touchstart", "touchend", "pointerdown", "keydown"].forEach(
+        function (evt) {
+          window.addEventListener(
+            evt,
+            function (e) {
+              // Prevent any default browser behaviors (text selection,
+              // context menu, image drag ghost, focus shifts).
+              if (e && e.cancelable) e.preventDefault();
+            },
+            { passive: false }
+          );
+        }
+      );
+
+      // Suppress context menu so long-press on mobile doesn't break the spell.
+      window.addEventListener("contextmenu", function (e) {
+        if (e && e.cancelable) e.preventDefault();
+      });
+    })();
+  </script>
+</body>
+</html>

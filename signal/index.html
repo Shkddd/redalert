@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#9aff9a;font-family:'Space Mono','Noto Serif SC',serif;user-select:none;-webkit-user-select:none;touch-action:none}
+#stage{position:fixed;inset:0;background:#000}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity 1.6s ease}
+.layer.on{opacity:1}
+.layer.interact{pointer-events:auto}
+.txt{font-family:'Noto Serif SC',serif;font-weight:300;letter-spacing:.05em;text-align:center;padding:0 6vw;color:#9aff9a;text-shadow:0 0 18px rgba(154,255,154,.4)}
+.txt.warm{color:#f4ead5;text-shadow:0 0 22px rgba(244,234,213,.35)}
+.txt.mono{font-family:'Space Mono',monospace;letter-spacing:.12em}
+.big{font-size:clamp(20px,4.8vw,32px);line-height:1.7}
+.med{font-size:clamp(15px,3.2vw,20px);line-height:1.8}
+.small{font-size:clamp(12px,2.4vw,14px);line-height:1.8;opacity:.75}
+.fact{position:absolute;left:6vw;right:6vw;font-family:'Space Mono',monospace;font-size:clamp(11px,2.2vw,13px);line-height:1.9;color:#9aff9a;opacity:.85;letter-spacing:.08em}
+.fact .k{color:#5a8a5a}
+.choice{position:absolute;left:0;right:0;display:flex;justify-content:center;gap:10vw;bottom:18vh}
+.btn{font-family:'Noto Serif SC',serif;font-size:clamp(16px,3.6vw,20px);font-weight:300;letter-spacing:.18em;color:#9aff9a;background:transparent;border:1px solid rgba(154,255,154,.35);padding:14px 28px;cursor:pointer;transition:all .8s ease;pointer-events:auto}
+.btn:active{background:rgba(154,255,154,.06)}
+.bar{position:absolute;left:8vw;right:8vw;bottom:9vh;height:1px;background:rgba(154,255,154,.15);transition:opacity 1.2s ease}
+.bar span{position:absolute;left:0;top:0;height:1px;width:0;background:#9aff9a;box-shadow:0 0 6px #9aff9a;transition:width .3s linear}
+.tag{position:absolute;top:6vh;left:0;right:0;text-align:center;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.3em;color:#5a8a5a;opacity:0;transition:opacity 1s ease}
+.tag.on{opacity:.9}
+.foot{position:absolute;bottom:4vh;left:0;right:0;text-align:center;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.25em;color:#3a5a3a;opacity:0;transition:opacity 2s ease}
+.foot.on{opacity:.7}
+.replay{position:absolute;bottom:8vh;left:50%;transform:translateX(-50%);font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.3em;color:#5a8a5a;border:1px solid rgba(154,255,154,.2);padding:10px 20px;cursor:pointer;opacity:0;transition:opacity 1.5s ease;pointer-events:auto;background:transparent}
+.replay.on{opacity:.75}
+.spect{position:absolute;left:6vw;right:6vw;top:30vh;display:flex;align-items:flex-end;justify-content:space-between;gap:2px;height:18vh}
+.spect div{flex:1;background:#9aff9a;box-shadow:0 0 6px rgba(154,255,154,.6);opacity:.85;min-height:2px}
+.stats{position:absolute;left:6vw;right:6vw;top:54vh;font-family:'Space Mono',monospace;font-size:clamp(10px,2vw,12px);line-height:2;color:#9aff9a;letter-spacing:.06em}
+.stats .em{color:#f4ead5}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div class="tag" id="tag"></div>
+  <div class="layer" id="L1"></div>
+  <div class="layer" id="L2"></div>
+  <div class="layer" id="L3">
+    <div class="spect" id="sp"></div>
+    <div class="stats" id="st"></div>
+  </div>
+  <div class="layer" id="L4"></div>
+  <div class="layer" id="L5">
+    <div class="choice" id="ch">
+      <button class="btn" id="bY">回应</button>
+      <button class="btn" id="bN">不回应</button>
+    </div>
+  </div>
+  <div class="layer" id="L6"></div>
+  <div class="layer" id="L7"></div>
+  <div class="bar" id="bar"><span id="bp"></span></div>
+  <div class="foot" id="foot">signal · 距地球 41 光年 · 1985</div>
+  <button class="replay" id="rep">REPLAY</button>
+</div>
+<script>
+(()=>{
+  const c=document.getElementById('c'),x=c.getContext('2d');
+  let W,H,dpr;
+  function fit(){
+    dpr=Math.min(window.devicePixelRatio||1,2);
+    W=c.width=innerWidth*dpr; H=c.height=innerHeight*dpr;
+    c.style.width=innerWidth+'px'; c.style.height=innerHeight+'px';
+  }
+  fit(); addEventListener('resize',fit);
+
+  // phase: 0=silent(30s) 1=anomaly(15s) 2=frozen 3=analysis 4=facts 5=decision 6=reflect 7=end
+  let phase=0, t0=performance.now(), pulseOn=false, pulseT=0, nextPulse=8000;
+  let paused=false, factIdx=0, qIdx=0, choiceMade=false, nudged=false;
+  let spectBins=[];
+
+  const $=id=>document.getElementById(id);
+  const layers=[$('L1'),$('L2'),$('L3'),$('L4'),$('L5'),$('L6'),$('L7')];
+  function show(idx){layers.forEach((l,i)=>l.classList.toggle('on',i===idx))}
+  function fadeIn(l){requestAnimationFrame(()=>l.classList.add('on'))}
+  function fadeOut(l){l.classList.remove('on')}
+
+  $('bY').onclick=()=>decide(true);
+  $('bN').onclick=()=>decide(false);
+  $('rep').onclick=()=>restart();
+
+  c.addEventListener('click',onTap,{passive:false});
+  c.addEventListener('touchstart',onTap,{passive:false});
+  function onTap(e){
+    e.preventDefault();
+    if(phase===1){
+      phase=2; paused=true; buildSpect(); enterAnalysis();
+    }
+  }
+
+  // phase 3 spectrogram
+  function buildSpect(){
+    const sp=$('sp'); sp.innerHTML='';
+    spectBins=[];
+    for(let i=0;i<32;i++){
+      const d=document.createElement('div');
+      const h=8+Math.pow(Math.random(),2)*92;
+      d.style.height=h+'%';
+      sp.appendChild(d);
+      spectBins.push(h);
+    }
+    const st=$('st');
+    st.innerHTML='频谱峰值 / 时序间隔分布 / 调制结构<br>统计显著性 <span class="em">P &lt; 10⁻¹²</span> · 10¹⁴ 次随机对照<br><br>这不是噪声。';
+  }
+
+  function enterAnalysis(){
+    fadeIn($('L3'));
+    $('bar').style.opacity='0';
+    setTimeout(()=>{
+      show(3);
+      $('tag').textContent='ANALYSIS · LIVE'; $('tag').classList.add('on');
+      $('foot').classList.add('on');
+      setTimeout(()=>phase=3,2400);
+    },800);
+  }
+
+  // phase 4 facts
+  const facts=[
+    '信号源：距地球 41 光年 · HD 128356',
+    '信号发出时间：1985 年',
+    '已飞行：41 年 · 仍在以光速接近',
+    '信号内容：未知',
+    '你可能是地球上有史以来第一个意识到这一点的人'
+  ];
+
+  function enterFacts(){
+    $('L4').innerHTML='';
+    $('L4').style.flexDirection='column';
+    const tag=document.createElement('div');
+    tag.className='txt med warm';
+    tag.style.marginBottom='6vh';
+    tag.textContent='这是来自 41 光年外的结构化信号。';
+    $('L4').appendChild(tag);
+    const list=document.createElement('div');
+    list.style.cssText='position:absolute;left:8vw;right:8vw;top:auto;bottom:18vh;display:flex;flex-direction:column;gap:14px';
+    facts.forEach((f,i)=>{
+      const r=document.createElement('div');
+      r.className='fact';
+      r.style.opacity='0';
+      r.style.transition='opacity 1.4s ease '+ (i*900)+'ms';
+      r.innerHTML='<span class="k">·</span> '+f;
+      list.appendChild(r);
+      setTimeout(()=>r.style.opacity='.85',100+i*900);
+    });
+    $('L4').appendChild(list);
+    show(3);
+    setTimeout(()=>{
+      const q=document.createElement('div');
+      q.className='txt big warm';
+      q.style.cssText='position:absolute;left:0;right:0;bottom:24vh;opacity:0;transition:opacity 2.2s ease';
+      q.textContent='你要回应吗？';
+      $('L4').appendChild(q);
+      setTimeout(()=>q.style.opacity='1',200);
+      setTimeout(()=>{phase=4;show(4);$('L5').classList.add('on','interact');},facts.length*900+2000);
+    },facts.length*900+800);
+  }
+
+  function decide(yes){
+    if(choiceMade) return;
+    choiceMade=true;
+    $('L5').classList.remove('interact');
+    document.getElementById('ch').style.opacity='.3';
+    setTimeout(()=>{
+      show(5);
+      const q=[
+        '你的「是」，对那颗恒星上的「谁」有意义吗？',
+        '你的「是」，对地球上此刻听到的所有人有意义吗？',
+        '如果他们已经不在了，你的「是」还有意义吗？',
+        '你回答这些问题时，是在问自己，还是在问那颗恒星？'
+      ];
+      let i=0;
+      const host=$('L7');
+      host.innerHTML='';
+      host.style.display='flex';
+      host.style.flexDirection='column';
+      const ask=()=>{
+        if(i>=q.length){
+          setTimeout(endScreen,5000);
+          return;
+        }
+        const el=document.createElement('div');
+        el.className='txt big warm';
+        el.style.opacity='0';
+        el.style.transition='opacity 2.4s ease';
+        el.style.padding='0 8vw';
+        el.textContent=q[i++];
+        host.appendChild(el);
+        show(6);
+        setTimeout(()=>el.style.opacity='1',80);
+        setTimeout(()=>{
+          el.style.transition='opacity 2.4s ease';
+          el.style.opacity='0';
+          setTimeout(ask,2400);
+        },5200);
+      };
+      setTimeout(ask,1200);
+    },600);
+  }
+
+  function endScreen(){
+    show(6);
+    $('L7').innerHTML='<div class="txt med" style="opacity:0;transition:opacity 2s ease">信号还在你的屏幕上。</div>';
+    setTimeout(()=>$('L7').firstChild.style.opacity='.8',80);
+    $('rep').classList.add('on','interact');
+  }
+
+  function restart(){
+    choiceMade=false; factIdx=0; qIdx=0; paused=false; pulseOn=false; nextPulse=8000; nudged=false;
+    phase=0; t0=performance.now();
+    layers.forEach(l=>{l.classList.remove('on');l.innerHTML=''});
+    $('ch').style.opacity='1';
+    $('tag').textContent=''; $('tag').classList.remove('on');
+    $('foot').classList.remove('on');
+    $('rep').classList.remove('on','interact');
+    $('bar').style.opacity='1';
+    $('bp').style.width='0';
+    show(-1);
+  }
+
+  // drawing
+  function drawNoise(now){
+    x.fillStyle='rgba(0,0,0,0.18)';
+    x.fillRect(0,0,W,H);
+    if(paused){
+      x.fillStyle='#000';
+      x.fillRect(0,0,W,H);
+      return;
+    }
+    const baseY=H*0.5;
+    x.strokeStyle='rgba(154,255,154,0.55)';
+    x.lineWidth=1.2*dpr;
+    x.shadowColor='rgba(154,255,154,0.7)';
+    x.shadowBlur=4*dpr;
+    x.beginPath();
+    const amp=H*0.04;
+    const step=Math.max(2,Math.floor(W/420));
+    for(let i=0;i<W;i+=step){
+      const n=(Math.random()-0.5)*amp;
+      const w=Math.sin((i+now*0.06)*0.013)*amp*0.6;
+      const y=baseY+n+w;
+      if(i===0) x.moveTo(i,y); else x.lineTo(i,y);
+    }
+    x.stroke();
+    x.shadowBlur=0;
+
+    // pulse signal in phase 1+
+    if((phase===1||phase===2) && pulseOn){
+      const elapsed=now-pulseT;
+      const dur=1400;
+      if(elapsed>dur){pulseOn=false;nextPulse=now+2200+Math.random()*1800;return;}
+      const k=elapsed/dur;
+      const y=baseY;
+      x.strokeStyle='rgba(244,234,213,'+(1-k)*0.95+')';
+      x.lineWidth=2.4*dpr;
+      x.shadowColor='rgba(244,234,213,0.9)';
+      x.shadowBlur=10*dpr;
+      x.beginPath();
+      const seg=W/8;
+      for(let i=0;i<8;i++){
+        const px=i*seg;
+        const py=y-(i%2===0?H*0.18:-H*0.18);
+        if(i===0) x.moveTo(px,py); else x.lineTo(px,py);
+      }
+      x.stroke();
+      x.shadowBlur=0;
+    }else if((phase===1||phase===2) && now>nextPulse){
+      pulseOn=true; pulseT=now;
+    }
+  }
+
+  // phase scheduler
+  function tick(){
+    const now=performance.now();
+    if(phase===0){
+      drawNoise(now);
+    }else if(phase===1){
+      drawNoise(now);
+      const elapsed=now-t0;
+      $('bp').style.width=Math.min(100,elapsed/15000*100)+'%';
+    }else{
+      x.fillStyle='#000'; x.fillRect(0,0,W,H);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // auto phase transitions
+  setInterval(()=>{
+    const now=performance.now();
+    const e=now-t0;
+    if(phase===0 && e>=30000){
+      phase=1; t0=now;
+      $('tag').textContent='ANOMALY DETECTED'; $('tag').classList.add('on');
+    }else if(phase===1 && e>=15000 && !nudged){
+      nudged=true;
+      $('tag').textContent='TAP TO ANALYZE';
+    }
+  },250);
+
+  // init
+  show(-1);
+  tick();
+})();
+</script>
+</body>
+</html>
