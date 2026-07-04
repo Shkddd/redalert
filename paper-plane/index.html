@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#87CEEB">
-<title>纸飞机大冒险 · Paper Plane Adventure</title>
+<title>纸飞机大冒险</title>
 <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Baloo+2:wght@600;800&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -59,12 +59,15 @@
     font-size: clamp(38px, 9vw, 56px);
     font-weight: 800;
     font-family: 'Baloo 2', 'ZCOOL KuaiLe', sans-serif;
+    white-space: nowrap;
+    line-height: 1;
   }
   .hud .unit {
-    font-size: 18px;
+    font-size: clamp(18px, 4vw, 26px);
+    font-weight: 600;
     letter-spacing: 2px;
     opacity: 0.9;
-    margin-top: 2px;
+    margin-left: 4px;
   }
   .hud .lives {
     display: flex;
@@ -270,9 +273,8 @@
 <!-- Top HUD: score (left) + lives (right) -->
 <div class="hud" id="hud" style="display:none;">
   <div class="score-block">
-    <div class="label">距离 / DISTANCE</div>
-    <div class="score" id="score">0</div>
-    <div class="unit">米</div>
+    <div class="label">距离</div>
+    <div class="score"><span id="score">0</span> <span class="unit">米</span></div>
   </div>
   <div class="lives">
     <span class="lives-label">生命</span>
@@ -284,20 +286,20 @@
 
 <!-- Title screen -->
 <div class="overlay" id="titleScreen">
-  <!-- SVG paper-plane preview, pointy nose on the +x side (RIGHT), two wings clearly visible -->
+  <!-- SVG paper-plane preview: same shape as in-game (single right-pointing triangle) -->
   <svg class="plane-preview" viewBox="0 0 160 110" xmlns="http://www.w3.org/2000/svg">
-    <!-- Upper wing -->
-    <polygon points="20,55 150,18 130,40" fill="#ffffff" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round"/>
-    <!-- Lower wing (slightly darker = fold shadow) -->
-    <polygon points="20,55 130,80 150,55" fill="#E0E6EC" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round"/>
-    <!-- Right-side sharp nose triangle extending past the wing base -->
-    <polygon points="120,30 156,55 120,80" fill="#FFFFFF" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Main triangle: flat back on the LEFT (-x), sharp nose on the RIGHT (+x) -->
+    <polygon points="20,18 152,55 20,92" fill="#FFFFFF" stroke="#2c3e50" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- Under-fold shadow (lower half) showing the folded paper -->
+    <polygon points="20,92 86,55 152,55" fill="#D5DDE4" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round"/>
     <!-- Body crease line down the middle -->
-    <line x1="20" y1="55" x2="156" y2="55" stroke="#2c3e50" stroke-width="2"/>
-    <!-- Tail notch (left side) -->
-    <polygon points="20,55 30,45 35,55 30,65" fill="#E0E6EC" stroke="#2c3e50" stroke-width="1.5" stroke-linejoin="round"/>
-    <!-- Tiny tip detail -->
-    <circle cx="155" cy="55" r="2.2" fill="#2c3e50"/>
+    <line x1="20" y1="55" x2="152" y2="55" stroke="#2c3e50" stroke-width="2"/>
+    <!-- Wing detail line: back-top to nose (subtle) -->
+    <line x1="22" y1="20" x2="148" y2="55" stroke="rgba(44,62,80,0.55)" stroke-width="1.5"/>
+    <!-- Tail notch (small inverted-V cut into the back) -->
+    <polygon points="20,40 32,55 20,70 24,55" fill="#B8C2CC" stroke="#2c3e50" stroke-width="1.5" stroke-linejoin="round"/>
+    <!-- Tiny dark dot AT THE NOSE for "pointy" readability -->
+    <circle cx="150" cy="55" r="2.5" fill="#2c3e50"/>
   </svg>
   <div class="title">纸飞机大冒险</div>
   <div class="subtitle">点击屏幕让纸飞机飞起来<br>躲避小鸟、云、热气球、风筝<br>收集星星和爱心，飞得更远!</div>
@@ -319,11 +321,11 @@
 
 <script>
 /* =====================================================================
- *  纸飞机大冒险 · Paper Plane Adventure v2
+ *  纸飞机大冒险
  *  - Single-file Canvas 2D game, vanilla JS, no frameworks
  *  - Mobile-first; touch / click / Space / ArrowUp all flap
  *  - State machine: TITLE / PLAYING / GAMEOVER
- *  - Plane silhouette: SHARP NOSE on +x (right) · two wings · crease · tail notch
+ *  - Plane silhouette: single right-pointing triangle with crease + tail notch
  * ===================================================================== */
 (function() {
   'use strict';
@@ -485,8 +487,7 @@
   let obstacles = [];   // 4 types: bird, cloud, balloon, kite
   let pickups = [];     // 2 types: star, heart
   let popups = [];      // floating score text
-  let trails = [];      // 8-segment dashed trail behind plane
-  let trailsHistory = []; // ring buffer of plane positions for trail
+  let trails = [];      // fading dots behind the plane (world-space tail positions)
   let particles = [];   // explosion / sparkle particles
   let clouds = [];      // background ambient clouds
   let bgBirds = [];     // far background silhouette birds (no collision)
@@ -516,13 +517,12 @@
   let nextPickupSpawn = 0.8;
   let lastTs = 0;
   let groundY = 0;
-  // Trail ring buffer (headless array)
-  const TRAIL_MAX = 8;
+  // Trail emit tick (per-plane, decoupled from frame rate)
   // Per-run obstacle spawn frequency gets faster each retry (+10% per run)
   let runIndex = 0;
 
-  // Sun
-  const sun = { x: 0, y: 0, r: 50, smile: 0, rayT: 0 };
+  // Sun (small decorative sun, tucked into top-left corner behind the HUD score block)
+  const sun = { x: 0, y: 0, r: 22, smile: 0, rayT: 0 };
 
   /* ===================== Helpers ===================== */
   function rand(a, b) { return a + Math.random() * (b - a); }
@@ -695,7 +695,6 @@
     pickups = [];
     popups = [];
     trails = [];
-    trailsHistory.length = 0;
     particles = [];
     windLines = [];
     score = 0;
@@ -750,12 +749,17 @@
 
   /* ===================== Drawing: Sun (with smile + rays) ===================== */
   function drawSun(t) {
-    const x = W - 90;
-    const y = 90;
+    // Top-left corner of the playfield, behind the HUD score. Small + out of the
+    // heart-pickup area (which spawns at skyCeil+60 ≈ 140px+ from top, screen center).
+    const x = sun.r + 12;
+    const y = sun.r + 12;
     sun.x = x; sun.y = y;
     sun.rayT = t * 0.0003;
     const r = sun.r;
-    // Rotating rays
+    // Rotating rays (scaled to current sun radius)
+    const rayInner = r + 3;
+    const rayOuter = r + Math.max(8, r * 0.5);
+    const rayHalfW = Math.max(3, r * 0.10);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(sun.rayT);
@@ -763,16 +767,16 @@
       ctx.rotate(Math.PI / 4);
       ctx.fillStyle = 'rgba(255, 215, 80, 0.5)';
       ctx.beginPath();
-      ctx.moveTo(0, -r - 4);
-      ctx.lineTo(6, -r - 26);
-      ctx.lineTo(-6, -r - 26);
+      ctx.moveTo(0, -rayInner);
+      ctx.lineTo(rayHalfW, -rayOuter);
+      ctx.lineTo(-rayHalfW, -rayOuter);
       ctx.closePath();
       ctx.fill();
     }
     ctx.restore();
 
     // Body
-    const sg = ctx.createRadialGradient(x - 14, y - 14, 6, x, y, r);
+    const sg = ctx.createRadialGradient(x - r * 0.30, y - r * 0.30, r * 0.12, x, y, r);
     sg.addColorStop(0, '#FFF59D');
     sg.addColorStop(1, '#FFC107');
     ctx.fillStyle = sg;
@@ -780,30 +784,32 @@
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
+    // Face features (scaled to current sun radius for readability at small size)
+    const eyeOffX = r * 0.28, eyeOffY = r * 0.12, eyeR = r * 0.08;
     // Eyes
     ctx.fillStyle = '#2c3e50';
     ctx.beginPath();
-    ctx.arc(x - 14, y - 6, 4, 0, Math.PI * 2);
-    ctx.arc(x + 14, y - 6, 4, 0, Math.PI * 2);
+    ctx.arc(x - eyeOffX, y - eyeOffY, eyeR, 0, Math.PI * 2);
+    ctx.arc(x + eyeOffX, y - eyeOffY, eyeR, 0, Math.PI * 2);
     ctx.fill();
     // Eye shine
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.arc(x - 12, y - 8, 1.4, 0, Math.PI * 2);
-    ctx.arc(x + 16, y - 8, 1.4, 0, Math.PI * 2);
+    ctx.arc(x - eyeOffX + r * 0.04, y - eyeOffY - r * 0.04, eyeR * 0.35, 0, Math.PI * 2);
+    ctx.arc(x + eyeOffX + r * 0.04, y - eyeOffY - r * 0.04, eyeR * 0.35, 0, Math.PI * 2);
     ctx.fill();
     // Cheeks
     ctx.fillStyle = 'rgba(255, 138, 138, 0.55)';
     ctx.beginPath();
-    ctx.arc(x - 22, y + 7, 6, 0, Math.PI * 2);
-    ctx.arc(x + 22, y + 7, 6, 0, Math.PI * 2);
+    ctx.arc(x - r * 0.44, y + r * 0.14, r * 0.12, 0, Math.PI * 2);
+    ctx.arc(x + r * 0.44, y + r * 0.14, r * 0.12, 0, Math.PI * 2);
     ctx.fill();
     // Smile
     ctx.strokeStyle = '#2c3e50';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(2, r * 0.06);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(x, y + 8, 12, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.arc(x, y + r * 0.16, r * 0.24, 0.15 * Math.PI, 0.85 * Math.PI);
     ctx.stroke();
   }
 
@@ -1011,7 +1017,7 @@
       ctx.restore();
     }
 
-    // ---- Plane silhouette ----
+    // ---- Plane silhouette (unambiguously a paper plane pointing RIGHT) ----
     ctx.globalAlpha = flashing ? 0.45 : 1;
 
     // Outline style — apply to every shape
@@ -1020,60 +1026,60 @@
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    // Upper wing (top-left to right tip) — lighter white
+    // 1) MAIN TRIANGLE: single filled shape, sharp nose on the +x (RIGHT) side.
+    //    Vertices: (-w/2, +h/2) back-bottom, (-w/2, -h/2) back-top, (+w/2, 0) NOSE TIP.
+    //    Mental check at rot=0: tail is the FLAT LEFT edge, nose is the single point on the RIGHT. ✓
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.moveTo(-w / 2 + 8, 0);              // tail center (left/back)
-    ctx.lineTo(w / 2 - 6, -h / 2 + 5);     // upper wing top-right
-    ctx.lineTo(w / 4, 0);                  // back to crease mid
+    ctx.moveTo(-w / 2, -h / 2);   // back-top (left)
+    ctx.lineTo( w / 2,  0     );  // SHARP NOSE TIP (rightmost point)
+    ctx.lineTo(-w / 2,  h / 2);   // back-bottom (left)
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Lower wing (bottom-left to right tip) — slightly darker (shadow)
-    ctx.fillStyle = '#E0E6EC';
+    // 2) UNDER-FOLD SHADOW: darker triangle in the lower half showing the folded paper.
+    //    Spans from back-bottom corner up to the crease midpoint then to the nose.
+    ctx.fillStyle = '#D5DDE4';
     ctx.beginPath();
-    ctx.moveTo(-w / 2 + 8, 0);
-    ctx.lineTo(w / 4, 0);
-    ctx.lineTo(w / 2 - 6, h / 2 - 5);
+    ctx.moveTo(-w / 2,  h / 2);   // back-bottom (left)
+    ctx.lineTo( 0,     0     );   // crease midpoint
+    ctx.lineTo( w / 2,  0     );   // nose tip
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // SHARP NOSE triangle on the +x (right) side: clearly points right!
-    // Nose tip is at (w/2 - 2, 0) extending past the wing base
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.moveTo(w / 4 - 4, -h / 2 + 5);     // matches upper wing corner
-    ctx.lineTo(w / 2 - 2, 0);              // SHARP NOSE TIP (rightmost point)
-    ctx.lineTo(w / 4 - 4, h / 2 - 5);      // matches lower wing corner
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Body crease line down the middle
+    // 3) BODY CREASE LINE: from back center to nose tip — the fold down the middle.
     ctx.strokeStyle = '#2c3e50';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(-w / 2 + 8, 0);
-    ctx.lineTo(w / 2 - 2, 0);              // crease stops just before nose tip
+    ctx.moveTo(-w / 2, 0);
+    ctx.lineTo( w / 2, 0);
     ctx.stroke();
 
-    // Tail notch (small V cut on the left/back)
-    ctx.fillStyle = '#E0E6EC';
+    // 4) TAIL NOTCH: a small inverted-V cut into the back (-x) edge, showing the rear fold.
+    ctx.fillStyle = '#B8C2CC';
     ctx.beginPath();
-    ctx.moveTo(-w / 2 + 8, 0);
-    ctx.lineTo(-w / 2 + 18, -6);
-    ctx.lineTo(-w / 2 + 22, 0);
-    ctx.lineTo(-w / 2 + 18, 6);
+    ctx.moveTo(-w / 2,        -h / 3);   // back-top inner
+    ctx.lineTo(-w / 2 + 12,   0);        // notch tip (rightward into the plane)
+    ctx.lineTo(-w / 2,        h / 3);    // back-bottom inner
+    ctx.lineTo(-w / 2 + 4,    0);        // notch back (close to the trailing edge)
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Tiny dark dot for nose tip detail (extra read)
+    // 5) WING DETAIL LINE: a subtle stroke from back-top to nose, hinting the top wing edge.
+    ctx.strokeStyle = 'rgba(44, 62, 80, 0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 + 2, -h / 2 + 2);
+    ctx.lineTo( w / 2 - 3,  0     );
+    ctx.stroke();
+
+    // 6) Tiny dark dot AT THE NOSE for extra "pointy" readability.
     ctx.fillStyle = '#2c3e50';
     ctx.beginPath();
-    ctx.arc(w / 2 - 4, 0, 1.8, 0, Math.PI * 2);
+    ctx.arc(w / 2 - 2, 0, 1.8, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -1450,11 +1456,14 @@
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
   }
 
-  // Plane hitbox — sit inside the silhouette
+  // Plane hitbox — sit inside the silhouette (sharp right-pointing triangle).
+  // Bounding box of the silhouette is (-w/2, -h/2) to (+w/2, +h/2); the triangle's
+  // mass is centered around the crease (left half is taller, right half tapers to a point),
+  // so tighten the box and bias slightly toward the visual centroid (left of center).
   function planeBounds() {
     const p = plane;
-    const pw = p.w * 0.62, ph = p.h * 0.45;
-    return { x: p.x - pw / 2 + p.w * 0.10, y: p.y - ph / 2, w: pw, h: ph };
+    const pw = p.w * 0.78, ph = p.h * 0.55;
+    return { x: p.x - pw / 2 - p.w * 0.06, y: p.y - ph / 2, w: pw, h: ph };
   }
 
   function obstacleBounds(o) {
@@ -1594,16 +1603,19 @@
       nearOffset += dt * speed * 0.90;
       groundDecorOffset += dt * speed * 0.90;
 
-      // Trails: capture plane tail positions into ring buffer
-      trailsHistory.push({ x: p.x - p.w * 0.45, y: p.y });
-      if (trailsHistory.length > TRAIL_MAX) trailsHistory.shift();
-      // emit visible trail dots every other history slot
-      for (let i = trailsHistory.length - 2; i >= 0; i -= 2) {
-        const h = trailsHistory[i];
-        // each trail is a fading dot
-        trails.push({ x: h.x, y: h.y, life: 0, max: 0.55 });
+      // ---- TRAIL ----
+      // The plane is fixed in world-x; obstacles/obstacles scroll right-to-left.
+      // Trail dots should appear BEHIND the plane (on -x side) and stay where
+      // the plane WAS in y. Draw in world coords, NOT rotated with plane.
+      //   tail world-coords = (p.x - p.w/2, p.y)   // because nose is at +w/2
+      // Emit ONE fading dot every ~45ms at the plane's CURRENT tail position.
+      // This produces a clean horizontal streak that curves up/down with the plane.
+      p._trailTick = (p._trailTick || 0) + dt;
+      if (p._trailTick >= 0.045) {
+        p._trailTick = 0;
+        trails.push({ x: p.x - p.w / 2, y: p.y, life: 0, max: 0.55 });
       }
-      // decay & cleanup old trails (cap visible count)
+      // decay & cleanup old trails
       for (let i = trails.length - 1; i >= 0; i--) {
         trails[i].life += dt;
         if (trails[i].life >= trails[i].max) trails.splice(i, 1);
