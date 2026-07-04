@@ -89,8 +89,9 @@
     transition: transform .15s;
   }
   .hud .heart.empty {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 21s-7-4.5-9.5-9.2C.7 8.4 2.6 4 6.5 4c2 0 3.7 1 5.5 3 1.8-2 3.5-3 5.5-3 3.9 0 5.8 4.4 4 7.8C19 16.5 12 21 12 21z' fill='%23dfe6ea' stroke='%239aa6ad' stroke-width='1.5' stroke-linejoin='round'/></svg>");
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 21s-7-4.5-9.5-9.2C.7 8.4 2.6 4 6.5 4c2 0 3.7 1 5.5 3 1.8-2 3.5-3 5.5-3 3.9 0 5.8 4.4 4 7.8C19 16.5 12 21 12 21z' fill='none' stroke='%239aa6ad' stroke-width='2.5' stroke-linejoin='round' stroke-dasharray='3 2'/></svg>");
     transform: scale(0.85);
+    opacity: 0.55;
   }
   .hud .lives-label {
     font-size: 14px;
@@ -511,6 +512,9 @@
   let lives = 3;
   let combo = 0;             // dodged obstacles in a row
   let invincibleT = 0;       // time remaining of invincibility
+  let shakeAmt = 0;          // screen-shake amplitude (px)
+  let shakeT = 0;            // screen-shake remaining (s)
+  let flashRedT = 0;         // red overlay remaining (s)
   let spawnObsTimer = 0;
   let nextObsSpawn = 1.5;
   let spawnPickupTimer = 0;
@@ -1497,6 +1501,32 @@
     invincibleT = 1.5;
     combo = 0;
     playHit();
+    // SCREEN SHAKE on hit (the biggest feedback signal for kids)
+    shakeAmt = reason === 'ground' ? 14 : 10;
+    shakeT = 0.4;
+    // RED FLASH overlay for 250ms
+    flashRedT = 0.25;
+    // "FLOATING DAMAGE" text near plane
+    popups.push({
+      x: plane.x, y: plane.y - 30,
+      vx: 0, vy: -90,
+      text: reason === 'ground' ? '撞地了!' : '碰到 ' + (reason || '障碍') + '!',
+      color: '#FF4D6D', size: 28, life: 1.0, max: 1.0
+    });
+    // Dust burst if hit ground (looks like the plane smacked the dirt)
+    if (reason === 'ground') {
+      for (let i = 0; i < 24; i++) {
+        const ang = -Math.PI + Math.random() * Math.PI; // upward half-circle
+        const sp = rand(120, 260);
+        particles.push({
+          x: plane.x, y: plane.y + 8,
+          vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp * 0.7,
+          r: rand(4, 8),
+          life: rand(0.5, 1.0),
+          color: ['#A07A4F', '#8B6F47', '#C9A878'][randInt(0, 2)]
+        });
+      }
+    }
     // small hit-spark
     for (let i = 0; i < 14; i++) {
       particles.push({
@@ -1556,6 +1586,8 @@
       p.y += p.vy * dt;
       if (p.flapTimer > 0) p.flapTimer -= dt;
       if (p.invincibleT > 0) p.invincibleT -= dt;
+      if (shakeT > 0) shakeT -= dt;
+      if (flashRedT > 0) flashRedT -= dt;
 
       // Cap within playfield
       const minY = 60;
@@ -1729,6 +1761,16 @@
 
   /* ===================== Render ===================== */
   function render(ts) {
+    // ---- screen shake: translate the entire frame by a random offset ----
+    let shakeX = 0, shakeY = 0;
+    if (shakeT > 0) {
+      const k = shakeT / 0.4;  // normalized (0..1)
+      shakeX = (Math.random() * 2 - 1) * shakeAmt * k;
+      shakeY = (Math.random() * 2 - 1) * shakeAmt * k;
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+    }
+
     drawSky();
     drawSun(ts);
     drawFarMountains();   // 2nd layer
@@ -1758,6 +1800,14 @@
     // popups above plane
     if (plane && state !== STATE.TITLE) drawPlane(plane);
     for (const pop of popups) drawPopup(pop);
+
+    // ---- red flash overlay (drawn LAST so it sits on top) ----
+    if (flashRedT > 0) {
+      ctx.fillStyle = `rgba(255, 77, 109, ${(flashRedT / 0.25) * 0.35})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    if (shakeT > 0) ctx.restore();
   }
 
   /* ===================== Game flow ===================== */
