@@ -16,6 +16,10 @@
   #fade .sub{font-size:18px;color:#a07340;margin-bottom:36px;}
   #fade button{font-family:inherit;font-size:22px;padding:14px 48px;background:linear-gradient(180deg,#ffd87a,#f0a040);border:3px solid #c87020;border-radius:24px;color:#5a2a00;cursor:pointer;box-shadow:0 4px 0 #8a4a10,0 6px 12px rgba(0,0,0,.15);transition:transform .1s;}
   #fade button:active{transform:translateY(2px);box-shadow:0 2px 0 #8a4a10;}
+  #fade button.secondary{font-size:16px;padding:10px 28px;background:linear-gradient(180deg,#d8d8d8,#a8a8a8);border:3px solid #666;border-radius:22px;color:#222;cursor:pointer;box-shadow:0 4px 0 #444,0 6px 12px rgba(0,0,0,.15);transition:transform .1s;margin-top:10px;}
+  #fade button.secondary:active{transform:translateY(2px);box-shadow:0 2px 0 #444;}
+  #fade button.secondary.confirm{background:linear-gradient(180deg,#ff9090,#e85050);border:3px solid #a02020;box-shadow:0 4px 0 #800,0 6px 12px rgba(0,0,0,.15);color:#fff;}
+  #fade .menu-tip{font-size:13px;color:#a07340;margin-top:12px;opacity:0.85;max-width:280px;text-align:center;line-height:1.4;}
   #fade.hidden{opacity:0;pointer-events:none;}
 </style>
 </head>
@@ -25,7 +29,9 @@
 <div id="fade">
   <h1>🌱 种子到花朵</h1>
   <div class="sub">种一颗种子，浇水，看它长大开花</div>
-  <button id="startBtn">开始</button>
+  <button id="startBtn" class="primary">开始</button>
+  <button id="resetBtn" class="secondary">🔄 新开始 (双击确认)</button>
+  <div class="menu-tip" id="menuTip">再次点击"新开始"在 1.8 秒内确认清空存档</div>
 </div>
 
 <script>
@@ -757,6 +763,8 @@ function layoutScene(){
   SCENE.shopBtn = { x: W - 80, y: 16, w: 72, h: 36 };
   // Round 6：季节倒计时卡（紧贴 coinHud+shopBtn 下方右对齐）
   SCENE.seasonCard = { x: W - 168, y: 58, w: 160, h: 38 };
+  // Round 8：💾 存档按钮（右侧，seasonCard 下方）
+  SCENE.saveBtn = { x: W - 80, y: 100, w: 72, h: 28 };
   // 订单面板：种子袋下方（顶部左下区域）—— Round 3：种子袋变高 → 下移
   const ow = Math.min(280, W * 0.42);
   SCENE.orderBox = { x: 16, y: 106, w: ow, h: 110 };
@@ -828,6 +836,11 @@ function handleClick(p){
       // 点 backdrop 区域也关闭
       STATE.npcModal = null;
     }
+    return;
+  }
+  // Round 8：💾 存档按钮（点击立即存档 + 提示）
+  if(SCENE.saveBtn && pointInBox(p.x, p.y, SCENE.saveBtn)){
+    if(saveGame()) showHint('💾 存档成功！', 2000);
     return;
   }
   // 0. 商店按钮
@@ -1119,6 +1132,7 @@ function findBedAt(x,y){
 function plantSeed(bed, def){
   const plant = {
     id: Math.random(),
+    bedId: SCENE.beds.indexOf(bed),  // Round 8：存档用 stable index
     bed, def,
     age: 0,           // 生长进度 0..1
     moisture: 0,      // 0..1 当前水量
@@ -3119,6 +3133,21 @@ function drawShopButton(){
   X.fillText('🏪 商店', b.x + b.w/2, b.y + b.h/2);
 }
 
+/* Round 8：💾 存档按钮（圆角胶囊样式，绿底白字） */
+function drawSaveBtn(){
+  const b = SCENE.saveBtn;
+  if(!b) return;
+  X.fillStyle = 'rgba(140,210,140,0.92)';
+  roundRect(b.x, b.y, b.w, b.h, 14);
+  X.fill();
+  X.strokeStyle = '#4a8030'; X.lineWidth = 2;
+  X.stroke();
+  X.fillStyle = '#fff';
+  X.font = 'bold 13px sans-serif';
+  X.textAlign = 'center'; X.textBaseline = 'middle';
+  X.fillText('💾 存档', b.x + b.w/2, b.y + b.h/2);
+}
+
 function drawShop(){
   if(!STATE.shopOpen) return;
   X.fillStyle = 'rgba(0,0,0,0.4)';
@@ -3306,6 +3335,7 @@ function render(){
   drawWateringPot();
   drawTimeIndicator();
   drawShopButton();
+  drawSaveBtn();        // Round 8：💾 存档按钮
   drawCoinHUD();
   drawSeasonCard();         // Round 6：季节倒计时卡
   drawDragSeed();
@@ -3349,11 +3379,136 @@ function drawRainbowRing(){
 }
 
 /* ============================================================
- *  启动
+ *  Round 8：存档系统（localStorage）
+ *  - 每 5s 自动存档 + 💾 按钮手动存档
+ *  - 启动时自动读档（有存档 → 直接进游戏 + welcome 提示）
+ *  - "新开始" 双击确认 → 清空 localStorage 重新加载
+ *  - STATE 大量字段被序列化（除 transient UI 外）
+ *  - bedId / defId / npcId / plantId 用于 JSON 反序列化后重建引用
  * ============================================================ */
-document.getElementById('startBtn').addEventListener('click', () => {
-  initAudio();
-  STATE.started = true;
+const SAVE_KEY = 'little-gardener-save';
+const SAVE_VERSION = 1;
+
+// 不保存的瞬时字段（UI 状态、动画计时器、鼠标/拖动）
+const SAVE_EXCLUDE = new Set([
+  'dragSeed', 'holdingPot', 'pot', 'mouse', 'arrowTimer',
+  'hint', 'hintT', 'npcModal', 'toasts', 'floats', 'particles',
+  'seasonBanner', 'toolPanelOpen', 'rainbowT', 'warmTintT',
+  'shopOpen', 'selectedSeed', 'freeWaterNext',
+]);
+
+function saveGame(){
+  try {
+    const snapshot = { version: SAVE_VERSION, savedAt: Date.now(), state: {} };
+    for(const key of Object.keys(STATE)){
+      if(SAVE_EXCLUDE.has(key)) continue;
+      // 深拷贝（去除可能的 function / 循环引用）
+      snapshot.state[key] = JSON.parse(JSON.stringify(STATE[key]));
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot));
+    return true;
+  } catch(e){
+    console.warn('Save failed:', e);
+    return false;
+  }
+}
+
+function loadGame(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    if(!data || !data.state) return false;
+    // 版本检查：未来可加迁移逻辑
+    if(typeof data.version !== 'number' || data.version > SAVE_VERSION) return false;
+    // 浅合并：仅恢复 STATE 中已知且不在排除列表的字段
+    for(const key of Object.keys(data.state)){
+      if(SAVE_EXCLUDE.has(key)) continue;
+      if(data.state[key] !== undefined) STATE[key] = data.state[key];
+    }
+    // 重置 transient 字段到默认值
+    resetTransient();
+    // 重建对象引用（plant.bed / plant.def / order.npc / butterfly.plant）
+    rehydrateRefs();
+    return true;
+  } catch(e){
+    console.warn('Load failed:', e);
+    return false;
+  }
+}
+
+function resetTransient(){
+  STATE.dragSeed = null;
+  STATE.holdingPot = false;
+  STATE.pot = { x:0, y:0, vx:0, angle:0, swing:0, lastDir:0, swings:0, drops:0 };
+  STATE.mouse = { x:-100, y:-100, down:false };
+  STATE.arrowTimer = 0;
+  STATE.hint = ''; STATE.hintT = 0;
+  STATE.npcModal = null;
+  STATE.toasts = []; STATE.floats = []; STATE.particles = [];
+  STATE.seasonBanner = null;
+  STATE.toolPanelOpen = false; STATE.shopOpen = false;
+  STATE.rainbowT = 0; STATE.warmTintT = 0;
+  STATE.selectedSeed = null; STATE.freeWaterNext = false;
+}
+
+function rehydrateRefs(){
+  // 重建 plant.bed 引用（用 bedId 索引）
+  for(const plant of STATE.plants){
+    if(typeof plant.bedId === 'number' && SCENE.beds[plant.bedId]){
+      plant.bed = SCENE.beds[plant.bedId];
+      SCENE.beds[plant.bedId].occupied = true;
+      SCENE.beds[plant.bedId].plantId = plant.id;
+    } else if(plant.bed && typeof plant.bed.cx === 'number'){
+      // 兼容旧存档：按位置找
+      const idx = SCENE.beds.findIndex(b => Math.abs(b.cx - plant.bed.cx) < 1);
+      if(idx >= 0){
+        plant.bed = SCENE.beds[idx];
+        plant.bedId = idx;
+        SCENE.beds[idx].occupied = true;
+        SCENE.beds[idx].plantId = plant.id;
+      }
+    }
+    // 重建 plant.def 引用（用 def.id 查找 SEEDS）
+    if(plant.def && plant.def.id){
+      plant.def = SEEDS.find(s => s.id === plant.def.id) || SEEDS[0];
+    }
+  }
+  // 重建 butterfly.plant 引用
+  for(const b of STATE.butterflies){
+    if(b.plantId !== undefined){
+      b.plant = STATE.plants.find(p => p.id === b.plantId);
+      if(!b.plant) b._gone = true;
+    }
+  }
+  // 重建 order.npc 引用
+  for(const o of STATE.orders){
+    if(o.npc && o.npc.id){
+      o.npc = NPCS.find(n => n.id === o.npc.id) || NPCS[0];
+    }
+  }
+  // 重建 dragSeed.def 引用（玩家上次拖动中的种子）
+  if(STATE.dragSeed && STATE.dragSeed.def && STATE.dragSeed.def.id){
+    STATE.dragSeed.def = SEEDS.find(s => s.id === STATE.dragSeed.def.id);
+  }
+}
+
+function resetGame(){
+  try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+  location.reload();
+}
+
+// 5s 自动存档 timer（外部变量，不放入 STATE 以免污染存档）
+let saveTimer = null;
+function startAutoSave(){
+  if(saveTimer) return;
+  saveTimer = setInterval(() => {
+    if(STATE.started) saveGame();
+  }, 5000);
+}
+
+// 全新游戏初始化（无存档时调用）
+function freshInit(){
   // 初始只给 5 种基础 + 6 金币（够买 1 颗 3 金币的薰衣草）—— 不，初始金币 6，新种子 8 金币
   // 改：初始 3 金币 + 5 种基础，玩家卖花 1 朵就够买薰衣草
   STATE.seeds = { sun:1, rose:1, daisy:1, tulip:1, dand:1 }; // 初始 5 种基础各 1 颗
@@ -3387,9 +3542,73 @@ document.getElementById('startBtn').addEventListener('click', () => {
   STATE.arrowTimer = 5;
   // v1 订单系统：开张第一单
   generateOrders();
+}
+
+/* ============================================================
+ *  启动
+ * ============================================================ */
+document.getElementById('startBtn').addEventListener('click', () => {
+  initAudio();
+  STATE.started = true;
+  if(!loadGame()){
+    freshInit();
+  }
+  startAutoSave();
   FADE.classList.add('hidden');
-  showHint('从种子袋选一颗种子种到土里～', 3500);
+  // 若有存档 → loadGame 已恢复，提示欢迎回来；否则显示初始引导
+  if(!loadGame.lastLoaded){
+    showHint('从种子袋选一颗种子种到土里～', 3500);
+  }
 });
+
+// 加载成功标记（用于区分 freshInit 与 loadGame 后的提示）
+const _origLoadGame = loadGame;
+loadGame = function(){
+  const ok = _origLoadGame();
+  loadGame.lastLoaded = ok;
+  return ok;
+};
+
+// Round 8：页面加载时若已有存档 → 自动读档 + 进游戏（跳过菜单）
+(function tryAutoLoad(){
+  try {
+    if(!localStorage.getItem(SAVE_KEY)) return;
+  } catch(e){ return; }
+  initAudio();
+  STATE.started = true;
+  if(loadGame()){
+    FADE.classList.add('hidden');
+    setTimeout(() => {
+      showHint(
+        `欢迎回来~ 上次玩到：${STATE.coins}💰 + ${STATE.orderTotal} 订单 + ${STATE.plants.length} 朵花`,
+        4500
+      );
+    }, 400);
+    startAutoSave();
+  }
+})();
+
+// Round 8：新开始按钮 — 双击确认
+let resetClicks = 0;
+let resetTimer = null;
+const _resetBtn = document.getElementById('resetBtn');
+if(_resetBtn){
+  _resetBtn.addEventListener('click', () => {
+    resetClicks++;
+    if(resetClicks === 1){
+      _resetBtn.classList.add('confirm');
+      _resetBtn.textContent = '⚠ 再点 1 次确认清空';
+      resetTimer = setTimeout(() => {
+        resetClicks = 0;
+        _resetBtn.classList.remove('confirm');
+        _resetBtn.textContent = '🔄 新开始 (双击确认)';
+      }, 1800);
+    } else if(resetClicks >= 2){
+      clearTimeout(resetTimer);
+      resetGame();
+    }
+  });
+}
 
 resize();
 requestAnimationFrame(loop);
