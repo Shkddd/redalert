@@ -105,6 +105,8 @@ const SEEDS = [
   { id:'cactus',   name:'仙人掌', seedColor:'#3a6020', seedShape:'oval', growMs:25000, sellPrice:8,  buyPrice:15, flowerColor:'#5ba050', flowerCore:'#3a6020' },
   { id:'lotus',    name:'莲花',   seedColor:'#e0a0b0', seedShape:'oval', growMs:50000, sellPrice:18, buyPrice:20, flowerColor:'#ff80a0', flowerCore:'#fff0e0' },
   { id:'sunred',   name:'红葵',   seedColor:'#702010', seedShape:'oval', growMs:60000, sellPrice:25, buyPrice:25, flowerColor:'#e85030', flowerCore:'#5a2010' },
+  // Round 6：冬季限定 — 雪莲
+  { id:'winterflower', name:'雪莲', seedColor:'#a0c0e0', seedShape:'oval', growMs:50000, sellPrice:30, buyPrice:30, flowerColor:'#e0f0ff', flowerCore:'#90b8d8' },
 ];
 
 /* ---------- 种子稀有度（采花掉落概率用） ---------- */
@@ -112,7 +114,7 @@ const SEEDS = [
 const SEED_RARITY = {
   daisy: 0, dand: 0,                       // common
   rose: 1, sun: 1, tulip: 1, lavender: 1, cactus: 1,  // uncommon
-  sakura: 2, lotus: 2, sunred: 2,         // rare
+  sakura: 2, lotus: 2, sunred: 2, winterflower: 2,  // rare
 };
 
 /* ---------- 种子锁定故事（每个未解锁种子 1 句） ---------- */
@@ -122,11 +124,71 @@ const LOCK_STORIES = {
   cactus:   '耐旱的小家伙～连续 5 单不失败解锁。',
   lotus:    '只在清晨开放…夜晚种下花可解锁。',
   sunred:   '夏天最热烈的花～连续 3 天完成订单。',
+  winterflower: '雪山的奇迹～只能在冬天找到。',
 };
 const SEED_EMOJI = {
   sun:'🌻', rose:'🌹', daisy:'🌼', tulip:'🌷', dand:'🌾',
-  lavender:'💜', sakura:'🌸', cactus:'🌵', lotus:'🪷', sunred:'🔥',
+  lavender:'💜', sakura:'🌸', cactus:'🌵', lotus:'🪷', sunred:'🔥', winterflower:'❄️',
 };
+
+/* ============================================================
+ *  Round 6：四季 + 季节限定花
+ *  seasonIdx: 0=spring, 1=summer, 2=autumn, 3=winter
+ *  1 季 = 5 game-days (用 STATE.orderDay % 5 跟踪)
+ *  flowers[] = 当季正常生长 (1.0x)；其他季 0.5x（季节加成惩罚）
+ *  全 cycle = 20 天
+ * ============================================================ */
+const SEASONS = [
+  {
+    name:'春', emoji:'🌸',
+    skyDay: ['#d8e8c0', '#e8e0d0', '#f0c8d8'],     // 上 / 中 / 下
+    ground: ['#7ac050', '#4a8030'],
+    sunTint: '#ffe890', moonTint: '#dfe8f8',
+    flowers: ['sun', 'rose', 'daisy', 'tulip', 'lotus'],
+    npcId: 'deer', npcName: '小鹿', npcEmoji: '🦌',
+    npcWant: ['daisy', 'lotus', 'rose'], npcBonus: 1.4,
+    ambientKind: 'pollen', ambientColor: '#ffc0d8',
+  },
+  {
+    name:'夏', emoji:'☀️',
+    skyDay: ['#f8e8a0', '#f8c870', '#f0a060'],
+    ground: ['#c8c050', '#908030'],
+    sunTint: '#ffd040', moonTint: '#fff0c0',
+    flowers: ['sun', 'dand', 'daisy', 'cactus', 'sunred'],
+    npcId: 'firefly', npcName: '萤火虫', npcEmoji: '🔥',
+    npcWant: ['sun', 'sunred', 'dand'], npcBonus: 1.2,
+    ambientKind: 'firefly', ambientColor: '#ffe040',
+  },
+  {
+    name:'秋', emoji:'🍁',
+    skyDay: ['#f0b860', '#e8a060', '#d04030'],
+    ground: ['#d09050', '#a06030'],
+    sunTint: '#ffc060', moonTint: '#e8d0b0',
+    flowers: ['rose', 'tulip', 'sakura', 'dand', 'sun'],
+    npcId: 'squirrel', npcName: '小松鼠', npcEmoji: '🐿️',
+    npcWant: ['sakura', 'dand'], npcBonus: 1.5,
+    ambientKind: 'leaf', ambientColor: '#e07030',
+  },
+  {
+    name:'冬', emoji:'❄️',
+    skyDay: ['#c0d8f0', '#d0e0f0', '#e8f0f8'],
+    ground: ['#e8e8f0', '#c0c8d0'],
+    sunTint: '#e8eef8', moonTint: '#ffffff',
+    flowers: ['lavender', 'cactus', 'winterflower'],
+    npcId: 'penguin', npcName: '小企鹅', npcEmoji: '🐧',
+    npcWant: ['winterflower', 'lavender', 'cactus'], npcBonus: 1.3,
+    ambientKind: 'snow', ambientColor: '#ffffff',
+  },
+];
+const SEASON_LIST = ['spring', 'summer', 'autumn', 'winter'];
+
+function currentSeason(){
+  return SEASONS[STATE.seasonIdx | 0];
+}
+function seasonCanBloom(def){
+  const s = currentSeason();
+  return s.flowers.includes(def.id);
+}
 
 /* ============================================================
  *  Round 5：工具等级定义
@@ -342,7 +404,7 @@ const STATE = {
   flyingSeeds: [], // 飞散的种子（蒲公英种子飞散后的可捡种子）
   coins: 6,         // 初始 6 金币
   shopOpen: false,
-  unlocked: { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false },
+  unlocked: { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false, winterflower:true },
   hint: '',
   hintT: 0,
   // v1 订单系统
@@ -361,6 +423,10 @@ const STATE = {
   toolPanelOpen: false,                   // 升级面板是否打开
   freeWaterNext: false,                   // L3：下次喷淋免费 toggle
   rainbowT: 0,                            // L3 喷淋的彩虹光环计时器（0..1）
+  // Round 6：四季系统
+  seasonIdx: 0,                           // 0=春 1=夏 2=秋 3=冬（由 orderDay 推算）
+  dayInSeason: 1,                         // 1..5（当前季第几天）
+  seasonBanner: null,                     // 季节切换时的横幅：{emoji, title, sub, t, life}
 };
 
 /* ---------- NPC 数据 ---------- */
@@ -370,19 +436,28 @@ const NPCS = [
   { id:'fox', name:'小狐狸', color:'#e87030', want:['sakura','rose','tulip'], bonus:1.3, emoji:'🦊' },
   { id:'cat', name:'黑猫', color:'#404050', want:['lavender','lotus','cactus'], bonus:1.1, emoji:'🐱' },
   { id:'bee', name:'蜜蜂', color:'#f0d020', want:['sun','daisy','dand'], bonus:0.9, emoji:'🐝' },
+  // Round 6：四季限定 NPC —— 生成订单时按 season 过滤
+  { id:'deer',     name:'小鹿',     color:'#e0a0a0', want:['daisy', 'lotus', 'rose'],          bonus:1.4, emoji:'🦌', season:0 },
+  { id:'firefly',  name:'萤火虫',   color:'#ffe040', want:['sun', 'sunred', 'dand'],          bonus:1.2, emoji:'🔥', season:1 },
+  { id:'squirrel', name:'小松鼠',   color:'#d09050', want:['sakura', 'dand'],                 bonus:1.5, emoji:'🐿️', season:2 },
+  { id:'penguin',  name:'小企鹅',   color:'#a0c0e0', want:['winterflower','lavender','cactus'], bonus:1.3, emoji:'🐧', season:3 },
 ];
 
 /* ---------- 订单生成 ---------- */
 function generateOrders(){
   STATE.orders = [];
   const used = new Set();
-  const npcs = NPCS.slice();
+  // Round 6：按当前 season 过滤 NPC —— 季节限定 NPC 仅在当季可选
+  const curSeasonIdx = STATE.seasonIdx | 0;
+  const npcs = NPCS.filter(n => n.season === undefined || n.season === curSeasonIdx);
+  // 退化保护：万一当前季没有匹配 NPC，回退到常驻 NPC
+  const pool = npcs.length ? npcs : NPCS.filter(n => n.season === undefined);
   for(let i=0;i<3;i++){
     let npc;
-    if(used.size < npcs.length){
-      do { npc = npcs[randi(0, npcs.length)]; } while(used.has(npc.id));
+    if(used.size < pool.length){
+      do { npc = pool[randi(0, pool.length)]; } while(used.has(npc.id));
     } else {
-      npc = npcs[randi(0, npcs.length)];
+      npc = pool[randi(0, pool.length)];
     }
     used.add(npc.id);
     const wantId = npc.want[randi(0, npc.want.length)];
@@ -519,6 +594,8 @@ function layoutScene(){
   const topR_w = Math.min(160, W * 0.45);
   SCENE.coinHud = { x: W - topR_w - 8, y: 16, w: topR_w - 76, h: 36 };
   SCENE.shopBtn = { x: W - 80, y: 16, w: 72, h: 36 };
+  // Round 6：季节倒计时卡（紧贴 coinHud+shopBtn 下方右对齐）
+  SCENE.seasonCard = { x: W - 168, y: 58, w: 160, h: 38 };
   // 订单面板：种子袋下方（顶部左下区域）—— Round 3：种子袋变高 → 下移
   const ow = Math.min(280, W * 0.42);
   SCENE.orderBox = { x: 16, y: 106, w: ow, h: 110 };
@@ -1017,7 +1094,9 @@ function updatePlants(dt){
     const nightMul = isNight() ? STATE.nightSlow : 1.0;
     const moist = clamp(p.moisture, 0, 1);
     const baseRate = 1.0 / (p.def.growMs / 1000); // 每秒进度
-    p.age += baseRate * nightMul * moist * dt;
+    // Round 6：季节加成 —— 非当季花生长速度 ×0.5
+    const seasonMul = seasonCanBloom(p.def) ? 1.0 : 0.5;
+    p.age += baseRate * nightMul * moist * seasonMul * dt;
     // 水量随时间下降
     p.moisture = Math.max(0, p.moisture - dt * 0.05);
     p.bed.moisture = Math.max(0, p.bed.moisture - dt * 0.04);
@@ -1184,6 +1263,54 @@ function spawnPollenBurst(x,y,color){
     });
   }
 }
+
+/* Round 6：每季专属的环境粒子（春花粉飘 / 夏萤火虫飞 / 秋落叶飘 / 冬雪花落） */
+function spawnAmbientParticle(s){
+  if(s.ambientKind === 'pollen'){
+    // 飘散花粉 — 从顶部附近生成缓慢下落
+    STATE.particles.push({
+      kind: 'pollen', x: rand(0, W), y: rand(-20, H * 0.5),
+      vx: rand(-15, 15), vy: rand(8, 22),
+      life: rand(4, 8), max: 8,
+      r: rand(2, 3), color: s.ambientColor,
+      ph: Math.random()*TAU,
+    });
+  } else if(s.ambientKind === 'firefly'){
+    // 萤火虫 — 夜空中游离飘动
+    STATE.particles.push({
+      kind: 'firefly', x: rand(0, W), y: rand(H * 0.15, H * 0.65),
+      vx: rand(-18, 18), vy: rand(-8, 8),
+      life: rand(5, 9), max: 9,
+      r: rand(2.5, 4), color: s.ambientColor,
+      ph: Math.random()*TAU,
+    });
+  } else if(s.ambientKind === 'leaf'){
+    // 落叶 — 顶部掉落 + 左右飘
+    STATE.particles.push({
+      kind: 'leaf', x: rand(-20, W + 20), y: -10,
+      vx: rand(-25, 25), vy: rand(25, 55),
+      life: rand(6, 11), max: 11,
+      r: rand(4, 6), color: s.ambientColor,
+      ph: Math.random()*TAU,
+    });
+  } else if(s.ambientKind === 'snow'){
+    // 雪花 — 慢飘下落
+    STATE.particles.push({
+      kind: 'snow', x: rand(0, W), y: -10,
+      vx: rand(-6, 6), vy: rand(18, 42),
+      life: rand(8, 14), max: 14,
+      r: rand(2, 4), color: s.ambientColor,
+      ph: Math.random()*TAU,
+    });
+  }
+}
+function updateSeasonParticles(dt){
+  // 每秒约 1.5 颗，根据亮度（夜晚少许）调密度
+  const rate = isNight() ? 1.0 : 1.5;
+  if(Math.random() < dt * rate){
+    spawnAmbientParticle(currentSeason());
+  }
+}
 function updateParticles(dt){
   for(const p of STATE.particles){
     p.life -= dt;
@@ -1210,6 +1337,32 @@ function updateParticles(dt){
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.ph += dt * 3;
+    } else if(p.kind === 'firefly'){
+      // Round 6：萤火虫 — 自由飘移 + 越界回环
+      p.t = (p.t || 0) + dt;
+      p.x += p.vx * dt + Math.sin(p.t * 1.5 + p.ph) * 14 * dt;
+      p.y += p.vy * dt + Math.cos(p.t * 1.2 + p.ph * 0.7) * 6 * dt;
+      if(p.x < -10) p.x = W + 10;
+      if(p.x > W + 10) p.x = -10;
+      if(p.y < H * 0.1) p.vy = Math.abs(p.vy);
+      if(p.y > H * 0.7) p.vy = -Math.abs(p.vy);
+    } else if(p.kind === 'leaf'){
+      // Round 6：落叶 — 重力 + 左右飘 + 翻面角
+      p.t = (p.t || 0) + dt;
+      p.vy += 4 * dt;
+      p.vx *= 0.99;
+      p.x += p.vx * dt + Math.sin(p.t * 2 + p.ph) * 22 * dt;
+      p.y += p.vy * dt;
+      p.angle = (p.angle || 0) + p.vx * 0.04 + Math.sin(p.t*2) * 0.05;
+      if(p.y > H + 20) p.life = 0;
+    } else if(p.kind === 'snow'){
+      // Round 6：雪花 — 慢飘 + 左右摆动
+      p.t = (p.t || 0) + dt;
+      p.vy += 2 * dt;
+      p.vx *= 0.99;
+      p.x += p.vx * dt + Math.sin(p.t * 1.5 + p.ph) * 10 * dt;
+      p.y += p.vy * dt;
+      if(p.y > H + 20) p.life = 0;
     }
   }
   STATE.particles = STATE.particles.filter(p => p.life > 0);
@@ -1315,6 +1468,21 @@ function updateDay(dt){
   // 跨过 1（wrap-around）→ 新的一天
   if(prev > STATE.dayTime){
     STATE.orderDay += 1;
+    // Round 6：更新 dayInSeason + 检查季节切换
+    const prevSeasonIdx = STATE.seasonIdx | 0;
+    STATE.seasonIdx = Math.floor(STATE.orderDay / 5) % 4;
+    STATE.dayInSeason = (STATE.orderDay % 5) + 1;
+    if(prevSeasonIdx !== STATE.seasonIdx){
+      // 季节切换！显示大字幕 banner（自动 3s 淡出）
+      const s = SEASONS[STATE.seasonIdx];
+      STATE.seasonBanner = {
+        emoji: s.emoji,
+        title: `${s.emoji} ${s.name}天来了！`,
+        sub: '新的花朵和访客在等你…',
+        t: 0, life: 3.0,
+      };
+      showHint(`${s.emoji} ${s.name}天来了！共有新花朵和访客～`, 3500);
+    }
     generateOrders();
     showHint('新的一天！新订单来了～');
   }
@@ -1400,9 +1568,11 @@ function drawSky(){
     g.addColorStop(0.5, '#f0c890');
     g.addColorStop(1, '#f8e0b0');
   } else {
-    g.addColorStop(0, '#9ed8f8');
-    g.addColorStop(0.6, '#c8e8f8');
-    g.addColorStop(1, '#f0e8c8');
+    // Round 6：日间天空跟随季节调整主色
+    const s = currentSeason().skyDay;
+    g.addColorStop(0, s[0]);
+    g.addColorStop(0.6, s[1]);
+    g.addColorStop(1, s[2]);
   }
   X.fillStyle = g;
   X.fillRect(0, 0, W, SCENE.groundY);
@@ -1423,9 +1593,11 @@ function drawCloud(){
 
 function drawSunMoon(){
   const r = SCENE.sun.r;
+  // Round 6：太阳/月亮颜色随季节微调
+  const s = currentSeason();
   if(isNight()){
     // 月亮
-    X.fillStyle = '#fff8d0';
+    X.fillStyle = s.moonTint;
     X.beginPath(); X.arc(SCENE.sun.x, SCENE.sun.y, r, 0, TAU); X.fill();
     X.fillStyle = '#d8d0a8';
     X.beginPath(); X.arc(SCENE.sun.x - r*0.3, SCENE.sun.y - r*0.2, r*0.18, 0, TAU); X.fill();
@@ -1441,13 +1613,20 @@ function drawSunMoon(){
     }
     X.globalAlpha = 1;
   } else {
-    // 太阳 + 光晕
+    // 太阳 + 光晕（光晕色随季节）
     const grd = X.createRadialGradient(SCENE.sun.x, SCENE.sun.y, r*0.5, SCENE.sun.x, SCENE.sun.y, r*2);
-    grd.addColorStop(0, 'rgba(255,240,160,0.7)');
-    grd.addColorStop(1, 'rgba(255,240,160,0)');
+    // Sun-core tint
+    const sunHex = s.sunTint;
+    // 简单粗略 RGB（A=255，R/G/B 提取）
+    const m = sunHex.match(/^#([0-9a-f]{6})$/i);
+    const rr = m ? parseInt(m[1].slice(0,2),16) : 255;
+    const gg = m ? parseInt(m[1].slice(2,4),16) : 240;
+    const bb = m ? parseInt(m[1].slice(4,6),16) : 160;
+    grd.addColorStop(0, `rgba(${rr},${gg},${bb},0.7)`);
+    grd.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);
     X.fillStyle = grd;
     X.beginPath(); X.arc(SCENE.sun.x, SCENE.sun.y, r*2, 0, TAU); X.fill();
-    X.fillStyle = '#ffe060';
+    X.fillStyle = sunHex;
     X.beginPath(); X.arc(SCENE.sun.x, SCENE.sun.y, r, 0, TAU); X.fill();
     // 笑脸
     X.fillStyle = '#c87020';
@@ -1462,14 +1641,17 @@ function drawSunMoon(){
 }
 
 function drawGround(){
-  // 草地
+  // 草地：跟随季节调整主色（春绿/夏金/秋橙/冬雪）
+  const s = currentSeason();
   const gg = X.createLinearGradient(0, SCENE.groundY, 0, H);
-  gg.addColorStop(0, '#7ac050');
-  gg.addColorStop(1, '#4a8030');
+  gg.addColorStop(0, s.ground[0]);
+  gg.addColorStop(1, s.ground[1]);
   X.fillStyle = gg;
   X.fillRect(0, SCENE.groundY, W, H - SCENE.groundY);
-  // 草地纹理：小草
-  X.strokeStyle = '#5a9038';
+  // 草地纹理：小草（颜色按季节微调）
+  // 冬白/夏金 → 用稍深一档的同色系；春秋用 #5a9038
+  const seasonIdx = STATE.seasonIdx | 0;
+  X.strokeStyle = seasonIdx === 3 ? '#b0b8c8' : (seasonIdx === 1 ? '#a09040' : (seasonIdx === 2 ? '#a06040' : '#5a9038'));
   X.lineWidth = 1.5;
   for(let i=0;i<60;i++){
     const gx = (i * 47 + 13) % W;
@@ -1943,6 +2125,13 @@ function drawSeedBag(){
       X.strokeStyle = 'rgba(0,0,0,0.4)';
       X.lineWidth = 1.2;
       X.stroke();
+      // Round 6：季节标记 — 当季花的小 emoji（左侧）
+      if(seasonCanBloom(def)){
+        X.font = '10px sans-serif';
+        X.textAlign = 'center';
+        X.textBaseline = 'middle';
+        X.fillText(currentSeason().emoji, cx - 14, cy - 7);
+      }
       // 数量徽章
       X.fillStyle = '#fff';
       X.strokeStyle = '#7a4a20';
@@ -2276,6 +2465,47 @@ function drawParticles(){
       X.fill();
       X.globalAlpha = 1;
       X.restore();
+    } else if(p.kind === 'firefly'){
+      // Round 6：萤火虫 — 中心点 + 软光晕
+      const pulse = 0.6 + 0.4 * Math.sin(STATE.time * 4 + p.ph);
+      X.save();
+      X.globalAlpha = a * pulse;
+      X.fillStyle = p.color;
+      X.beginPath(); X.arc(p.x, p.y, p.r * 0.7, 0, TAU); X.fill();
+      // 软光晕
+      const grd = X.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+      grd.addColorStop(0, `rgba(255,240,160,${0.5 * pulse})`);
+      grd.addColorStop(1, 'rgba(255,240,160,0)');
+      X.fillStyle = grd;
+      X.beginPath(); X.arc(p.x, p.y, p.r * 4, 0, TAU); X.fill();
+      X.globalAlpha = 1;
+      X.restore();
+    } else if(p.kind === 'leaf'){
+      // Round 6：落叶 — 小椭圆旋转
+      X.save();
+      X.translate(p.x, p.y);
+      X.rotate(p.angle || 0);
+      X.fillStyle = p.color;
+      X.globalAlpha = a;
+      X.beginPath();
+      X.ellipse(0, 0, p.r, p.r * 0.6, 0, 0, TAU);
+      X.fill();
+      X.strokeStyle = 'rgba(120,60,20,0.4)';
+      X.lineWidth = 1;
+      X.beginPath(); X.moveTo(-p.r*0.7, 0); X.lineTo(p.r*0.7, 0); X.stroke();
+      X.globalAlpha = 1;
+      X.restore();
+    } else if(p.kind === 'snow'){
+      // Round 6：雪花 — 白色小圆 + 软边
+      X.save();
+      X.fillStyle = p.color;
+      X.globalAlpha = a;
+      X.beginPath(); X.arc(p.x, p.y, p.r * 0.9, 0, TAU); X.fill();
+      // 软光边
+      X.fillStyle = `rgba(220,230,250,${0.5 * a})`;
+      X.beginPath(); X.arc(p.x, p.y, p.r * 1.6, 0, TAU); X.fill();
+      X.globalAlpha = 1;
+      X.restore();
     } else {
       X.fillStyle = p.color;
       X.globalAlpha = a;
@@ -2342,6 +2572,97 @@ function drawCoinHUD(){
   X.font = 'bold 16px sans-serif';
   X.textAlign = 'center'; X.textBaseline = 'middle';
   X.fillText(`💰 ${STATE.coins}`, c.x + c.w/2, c.y + c.h/2);
+}
+
+/* ============================================================
+ *  Round 6：季节倒计时卡（右上） + 切换 banner（屏幕中上）
+ * ============================================================ */
+function drawSeasonCard(){
+  const b = SCENE.seasonCard;
+  const s = currentSeason();
+  const d = STATE.dayInSeason || 1;
+  // 卡片底
+  X.fillStyle = 'rgba(255,250,235,0.92)';
+  roundRect(b.x, b.y, b.w, b.h, 12);
+  X.fill();
+  // 季节主色边框
+  X.strokeStyle = s.ground[0];
+  X.lineWidth = 2.5;
+  roundRect(b.x, b.y, b.w, b.h, 12);
+  X.stroke();
+  // emoji 大图标
+  X.font = '22px sans-serif';
+  X.textAlign = 'left'; X.textBaseline = 'middle';
+  X.fillText(s.emoji, b.x + 10, b.y + b.h/2 + 1);
+  // 文字
+  X.fillStyle = '#5a3a1a';
+  X.font = 'bold 13px sans-serif';
+  X.textAlign = 'left';
+  X.fillText(`${s.name}天 第 ${d}/5 天`, b.x + 40, b.y + 12);
+  // 进度条
+  const barX = b.x + 40, barY = b.y + 24, barW = b.w - 50, barH = 7;
+  X.fillStyle = 'rgba(0,0,0,0.08)';
+  roundRect(barX, barY, barW, barH, 3);
+  X.fill();
+  const grd = X.createLinearGradient(barX, 0, barX + barW * (d / 5), 0);
+  grd.addColorStop(0, s.skyDay[0]);
+  grd.addColorStop(1, s.skyDay[1]);
+  X.fillStyle = grd;
+  roundRect(barX, barY, barW * (d / 5), barH, 3);
+  X.fill();
+  X.textAlign = 'left';
+}
+
+function updateSeasonBanner(dt){
+  if(!STATE.seasonBanner) return;
+  STATE.seasonBanner.t += dt;
+  // life 秒后清除（让 drawSeasonBanner 自行处理淡出动画）
+  if(STATE.seasonBanner.t > STATE.seasonBanner.life + 0.6){
+    STATE.seasonBanner = null;
+  }
+}
+function drawSeasonBanner(){
+  const b = STATE.seasonBanner;
+  if(!b) return;
+  const fadeIn = clamp(b.t / 0.4, 0, 1);
+  const fadeOut = clamp((b.life - b.t) / 0.6, 0, 1);
+  const alpha = Math.min(fadeIn, fadeOut);
+  if(alpha <= 0) return;
+  const w = 340, h = 90;
+  const x = (W - w) / 2;
+  const slideY = (1 - fadeIn) * -30;
+  const y = 80 + slideY;
+  X.save();
+  X.globalAlpha = alpha;
+  // 阴影
+  X.fillStyle = 'rgba(0,0,0,0.18)';
+  roundRect(x + 4, y + 5, w, h, 18);
+  X.fill();
+  // 卡片
+  X.fillStyle = 'rgba(255, 250, 235, 0.96)';
+  roundRect(x, y, w, h, 18);
+  X.fill();
+  // 季节色粗描边
+  const s = currentSeason();
+  X.strokeStyle = s.ground[0];
+  X.lineWidth = 4;
+  roundRect(x, y, w, h, 18);
+  X.stroke();
+  // emoji
+  X.font = '44px sans-serif';
+  X.textAlign = 'left'; X.textBaseline = 'middle';
+  X.fillText(b.emoji, x + 24, y + h/2);
+  // 标题
+  X.fillStyle = '#5a3a1a';
+  X.font = 'bold 24px sans-serif';
+  X.textAlign = 'left'; X.textBaseline = 'top';
+  X.fillText(b.title, x + 92, y + 16);
+  // 副标题
+  X.fillStyle = '#7a6020';
+  X.font = '14px sans-serif';
+  X.fillText(b.sub, x + 92, y + 50);
+  X.globalAlpha = 1;
+  X.restore();
 }
 
 function drawShopButton(){
@@ -2427,6 +2748,11 @@ function drawShop(){
     X.fillStyle = '#3a2010';
     X.font = 'bold 13px sans-serif';
     X.fillText(def.name, cardX + 70, cardY + 22);
+    // Round 6：当季花的小标记 — emoji 显示在名字右侧
+    if(seasonCanBloom(def)){
+      X.font = '14px sans-serif';
+      X.fillText(currentSeason().emoji, cardX + 130, cardY + 22);
+    }
     // 库存 + 卖价
     X.fillStyle = cnt > 0 ? '#5a8a20' : '#a07020';
     X.font = '11px sans-serif';
@@ -2508,10 +2834,12 @@ function loop(now){
     updateButterflies(dt);
     updateFlyingSeeds(dt);
     updateGroundSeeds(dt);
+    updateSeasonParticles(dt); // Round 6：每季环境粒子 spawner
     updateParticles(dt);
     updateFloats(dt);
     updateRainbow(dt);        // Round 5：彩虹光环推进
     updateToasts(dt);  // Round 3：解锁成就 toast 推进
+    updateSeasonBanner(dt);   // Round 6：季节切换 banner 推进
   }
   render();
   requestAnimationFrame(loop);
@@ -2538,11 +2866,13 @@ function render(){
   drawTimeIndicator();
   drawShopButton();
   drawCoinHUD();
+  drawSeasonCard();         // Round 6：季节倒计时卡
   drawDragSeed();
   drawArrow();
   drawShop();
   drawWarmTint();  // Round 4：红葵收获的屏幕 warm 滤镜
-  drawToasts();  // Round 3：解锁成就 toast（最上层）
+  drawToasts();  // Round 3：解锁成就 toast
+  drawSeasonBanner();       // Round 6：季节切换 banner（最上层）
 }
 
 /* Round 4：红葵收获时的暖色滤镜（0.6 秒淡出） */
@@ -2596,6 +2926,12 @@ document.getElementById('startBtn').addEventListener('click', () => {
   STATE.toolPanelOpen = false;
   STATE.freeWaterNext = false;
   STATE.rainbowT = 0;
+  // Round 6：四季系统初始化（春 / 第 1 天 / 无 banner）
+  STATE.seasonIdx = 0;
+  STATE.dayInSeason = 1;
+  STATE.seasonBanner = null;
+  // 默认解锁雪莲（先放进来，让玩家立刻能买到冬季限定种子）
+  STATE.unlocked.winterflower = STATE.unlocked.winterflower || true;
   STATE.arrowTimer = 5;
   // v1 订单系统：开张第一单
   generateOrders();
