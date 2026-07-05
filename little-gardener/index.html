@@ -6,7 +6,7 @@
 <title>种子到花朵 · Seed to Flower</title>
 <style>
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#f5ecd7;font-family:"Comic Sans MS","PingFang SC","Microsoft YaHei",sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
-  #game{display:block;width:100vw;height:100vh;cursor:default;}
+  #game{display:block;width:100%;height:100%;cursor:default;position:absolute;top:0;left:0;}
   #game.grab{cursor:grab;}
   #game.grabbing{cursor:grabbing;}
   #hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,250,230,.95);border:3px solid #d8a55a;border-radius:18px;padding:14px 22px;font-size:18px;color:#5a3a1a;box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;opacity:0;transition:opacity .4s;}
@@ -22,16 +22,89 @@
   #fade .menu-tip{font-size:13px;color:#a07340;margin-top:12px;opacity:0.85;max-width:280px;text-align:center;line-height:1.4;}
   #fade.hidden{opacity:0;pointer-events:none;}
 </style>
+
+<style>
+/* ---------- v3 多屏架构 ---------- */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 44px;
+  background: linear-gradient(180deg, #2a1a4a 0%, #1a0f2e 100%);
+  border-bottom: 2px solid #5a4a8a;
+  display: flex; align-items: center; justify-content: space-around;
+  z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.tab-btn {
+  flex: 1; height: 100%; border: none; background: transparent;
+  color: #c8b8e8; font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: all 0.18s;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.tab-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.tab-btn.active {
+  background: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%);
+  color: #fff5a8; border-bottom: 3px solid #ffd96b;
+}
+.screen { position: absolute; top: 44px; left: 0; right: 0; bottom: 0; }
+.screen-hidden { display: none !important; }
+#screen-menu {
+  background: linear-gradient(180deg, #fce8b8 0%, #f5c778 50%, #d99258 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 20px; text-align: center;
+}
+#screen-menu h1 { font-size: 48px; color: #5a3a1a; text-shadow: 2px 2px 0 #fff5a8; margin: 0 0 12px; }
+#screen-menu .sub { font-size: 18px; color: #6a4a2a; margin-bottom: 36px; }
+.menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 360px; width: 100%; }
+.menu-card {
+  background: rgba(255,255,255,0.85); border: 2px solid #8a6a3a;
+  border-radius: 12px; padding: 18px 12px; cursor: pointer;
+  font-size: 16px; color: #3a2a1a; font-weight: 600;
+  transition: all 0.18s; box-shadow: 0 3px 0 rgba(0,0,0,0.12);
+}
+.menu-card:hover { transform: translateY(-2px); background: #fff; box-shadow: 0 5px 0 rgba(0,0,0,0.15); }
+.menu-card .emoji { font-size: 32px; display: block; margin-bottom: 6px; }
+#enterFarmBtn {
+  background: linear-gradient(180deg, #ff9b6a 0%, #e8623a 100%);
+  color: #fff; border: 3px solid #b8421a; border-radius: 16px;
+  padding: 16px 48px; font-size: 22px; font-weight: 700;
+  cursor: pointer; margin-top: 24px; box-shadow: 0 4px 0 #b8421a;
+  transition: all 0.12s;
+}
+#enterFarmBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #b8421a; }
+#enterFarmBtn:active { transform: translateY(2px); box-shadow: 0 2px 0 #b8421a; }
+.menu-meta { margin-top: 18px; font-size: 13px; color: #6a4a2a; opacity: 0.8; }
+</style>
 </head>
 <body>
-<canvas id="game"></canvas>
-<div id="hint"></div>
 <div id="fade">
   <h1>🌱 种子到花朵</h1>
   <div class="sub">种一颗种子，浇水，看它长大开花</div>
   <button id="startBtn" class="primary">开始</button>
   <button id="resetBtn" class="secondary">🔄 新开始 (双击确认)</button>
   <div class="menu-tip" id="menuTip">再次点击"新开始"在 1.8 秒内确认清空存档</div>
+</div>
+
+<!-- v3 多屏架构 -->
+<div id="topbar" class="screen-hidden">
+  <button class="tab-btn" data-screen="menu">🏠 首页</button>
+  <button class="tab-btn active" data-screen="farm">🌾 农场</button>
+  <button class="tab-btn" data-screen="shop">🛒 商店</button>
+  <button class="tab-btn" data-screen="album">📖 收藏</button>
+  <button class="tab-btn" data-screen="friends">🐾 好友</button>
+</div>
+<div id="screen-menu" class="screen screen-hidden">
+  <h1>🌱 小园丁 v3 农场</h1>
+  <div class="sub">种一颗种子，浇水，看它长大开花</div>
+  <div class="menu-grid">
+    <div class="menu-card" onclick="switchScreen('farm')"><span class="emoji">🌾</span>进入农场</div>
+    <div class="menu-card" onclick="switchScreen('shop')"><span class="emoji">🛒</span>种子商店</div>
+    <div class="menu-card" onclick="switchScreen('album')"><span class="emoji">📖</span>收藏册</div>
+    <div class="menu-card" onclick="switchScreen('friends')"><span class="emoji">🐾</span>好友 NPC</div>
+  </div>
+  <button id="enterFarmBtn" onclick="switchScreen('farm')">🌾 进入农场</button>
+  <div class="menu-meta">v3 · 单 HTML · localStorage 存档 · 5 屏切换</div>
+</div>
+<div id="screen-farm" class="screen screen-hidden">
+  <canvas id="game"></canvas>
+  <div id="hint"></div>
 </div>
 
 <script>
@@ -50,7 +123,9 @@ const FADE = document.getElementById('fade');
 let W = 0, H = 0, DPR = 1;
 function resize(){
   DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = window.innerWidth; H = window.innerHeight;
+  // v3：canvas 尺寸 = viewport 减去 topbar 44px
+  W = window.innerWidth;
+  H = window.innerHeight - 44;
   C.width = W * DPR; C.height = H * DPR;
   C.style.width = W + 'px'; C.style.height = H + 'px';
   X.setTransform(DPR,0,0,DPR,0,0);
@@ -416,6 +491,7 @@ const STATE = {
   flyingSeeds: [], // 飞散的种子（蒲公英种子飞散后的可捡种子）
   coins: 20,        // 初始 20 金币（足够买至少 2 包种子起步）
   shopOpen: false,
+  currentScreen: 'menu', // v3: 'menu' | 'farm' | 'shop' | 'album' | 'friends'
   unlocked: { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false, winterflower:true },
   hint: '',
   hintT: 0,
@@ -3514,6 +3590,41 @@ function drawRainbowRing(){
  *  - bedId / defId / npcId / plantId 用于 JSON 反序列化后重建引用
  * ============================================================ */
 const SAVE_KEY = 'little-gardener-save';
+
+// ========== v3 多屏切换 ==========
+function switchScreen(name){
+  if(!['menu','farm','shop','album','friends'].includes(name)) return;
+  STATE.currentScreen = name;
+  // 切屏：所有 .screen 加 .screen-hidden，目标屏去掉
+  document.querySelectorAll('.screen').forEach(el => el.classList.add('screen-hidden'));
+  const target = document.getElementById('screen-' + name);
+  if(target) target.classList.remove('screen-hidden');
+  // 顶部 TAB 高亮
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.screen === name);
+  });
+  // 屏切换时不重置 STATE；农场屏切走时游戏循环仍跑（只是 canvas 不可见）
+  // 隐藏起始面板（fade），让玩家看到 v3 多屏
+  const F = document.getElementById('fade');
+  if(F) F.classList.add('hidden');
+  // 自动存档：每次切屏触发一次
+  if(typeof startAutoSave === 'function') startAutoSave();
+  // 屏专属 hook
+  if(name === 'farm' && typeof onFarmEnter === 'function') onFarmEnter();
+  if(name === 'shop' && typeof onShopEnter === 'function') onShopEnter();
+  if(name === 'album' && typeof onAlbumEnter === 'function') onAlbumEnter();
+  if(name === 'friends' && typeof onFriendsEnter === 'function') onFriendsEnter();
+}
+// 顶部 TAB 点击绑定（DOM ready 后）
+function bindTopbarTabs(){
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchScreen(btn.dataset.screen));
+  });
+}
+function showTopbar(show){
+  const tb = document.getElementById('topbar');
+  if(tb) tb.classList.toggle('screen-hidden', !show);
+}
 const SAVE_VERSION = 1;
 
 // 不保存的瞬时字段（UI 状态、动画计时器、鼠标/拖动）
@@ -3682,11 +3793,18 @@ document.getElementById('startBtn').addEventListener('click', () => {
   }
   startAutoSave();
   FADE.classList.add('hidden');
+  // v3：进入主菜单（玩家从顶部 TAB 切到农场）
+  showTopbar(true);
+  switchScreen('menu');
   // 若有存档 → loadGame 已恢复，提示欢迎回来；否则显示初始引导
   if(!loadGame.lastLoaded){
+    setTimeout(() => switchScreen('farm'), 800);
     showHint('从种子袋选一颗种子种到土里～', 3500);
   }
 });
+
+// 顶部 TAB 事件绑定
+bindTopbarTabs();
 
 // 加载成功标记（用于区分 freshInit 与 loadGame 后的提示）
 const _origLoadGame = loadGame;
@@ -3699,8 +3817,13 @@ loadGame = function(){
 // Round 8：页面加载时若已有存档 → 自动读档 + 进游戏（跳过菜单）
 (function tryAutoLoad(){
   try {
-    if(!localStorage.getItem(SAVE_KEY)) return;
-  } catch(e){ return; }
+    if(!localStorage.getItem(SAVE_KEY)) {
+      // 全新玩家 → 显示 v3 主菜单
+      showTopbar(true);
+      switchScreen('menu');
+      return;
+    }
+  } catch(e) { return; }
   initAudio();
   STATE.started = true;
   if(loadGame()){
@@ -3712,6 +3835,9 @@ loadGame = function(){
       );
     }, 400);
     startAutoSave();
+    // v3：老存档玩家直接进农场（兼容旧体验）
+    showTopbar(true);
+    switchScreen('farm');
   }
 })();
 
