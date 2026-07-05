@@ -414,7 +414,7 @@ const STATE = {
   groundSeeds: [], // 地上掉落的种子（点中后入库）
   selectedSeed: null, // 当前选中的种子 id（用于种子袋高亮）
   flyingSeeds: [], // 飞散的种子（蒲公英种子飞散后的可捡种子）
-  coins: 6,         // 初始 6 金币
+  coins: 20,        // 初始 20 金币（足够买至少 2 包种子起步）
   shopOpen: false,
   unlocked: { sun:true, rose:true, daisy:true, tulip:true, dand:true, lavender:false, sakura:false, cactus:false, lotus:false, sunred:false, winterflower:true },
   hint: '',
@@ -612,10 +612,8 @@ function grantStoryReward(npcId, rewardKey){
 function generateOrders(){
   STATE.orders = [];
   const used = new Set();
-  // Round 6：按当前 season 过滤 NPC —— 季节限定 NPC 仅在当季可选
   const curSeasonIdx = STATE.seasonIdx | 0;
   const npcs = NPCS.filter(n => n.season === undefined || n.season === curSeasonIdx);
-  // 退化保护：万一当前季没有匹配 NPC，回退到常驻 NPC
   const pool = npcs.length ? npcs : NPCS.filter(n => n.season === undefined);
   for(let i=0;i<3;i++){
     let npc;
@@ -1683,6 +1681,7 @@ function updateDay(dt){
 }
 
 function updateOrders(dt){
+  let needsRefresh = false;
   for(const o of STATE.orders){
     if(o.done) continue;
     o.timeLeft -= dt;
@@ -1691,9 +1690,62 @@ function updateOrders(dt){
       o.failed = true;
       o.timeLeft = 0;
       STATE.reputation = Math.max(0, STATE.reputation - 5);
-      showHint(`${o.npc.name} 等不及走了… 声望 -5`);
+      // 订单失败给点安慰奖：50% 概率掉 1 颗最便宜的种（daisy）给玩家重新开始
+      if(Math.random() < 0.5 && STATE.unlocked.daisy){
+        STATE.seeds.daisy = (STATE.seeds.daisy || 0) + 1;
+      }
+      showHint(`${o.npc.name} 等不及走了… 声望 -5 (1 秒后新订单)`);
+      needsRefresh = true;
     }
   }
+  // 订单失败后 1 秒补上新订单（不让玩家卡死）
+  if(needsRefresh){
+    setTimeout(() => {
+      // 移除已完成的失败订单 + 已成功订单
+      STATE.orders = STATE.orders.filter(o => !o.done);
+      // 补足到 3 个订单
+      const need = 3 - STATE.orders.length;
+      if(need > 0){
+        const existing = generateOneOrder();
+        if(existing) STATE.orders.push(existing);
+        for(let i=1;i<need;i++){
+          const o = generateOneOrder();
+          if(o) STATE.orders.push(o);
+        }
+        showHint('✨ 来了新客人！');
+      }
+    }, 1000);
+  }
+}
+
+// 拆出"生成一个订单"逻辑，方便补单
+function generateOneOrder(){
+  const curSeasonIdx = STATE.seasonIdx | 0;
+  const npcs = NPCS.filter(n => n.season === undefined || n.season === curSeasonIdx);
+  const pool = npcs.length ? npcs : NPCS.filter(n => n.season === undefined);
+  if(!pool.length) return null;
+  // 不要挑已存在的 NPC（避免重复）
+  const usedIds = new Set(STATE.orders.filter(o => !o.done).map(o => o.npc.id));
+  let npc;
+  let tries = 0;
+  do {
+    npc = pool[randi(0, pool.length)];
+    tries++;
+  } while(usedIds.has(npc.id) && tries < 8);
+  const wantId = npc.want[randi(0, npc.want.length)];
+  const flower = SEEDS.find(s => s.id === wantId);
+  if(!flower) return null;
+  return {
+    id: Math.random(),
+    npc,
+    wantId,
+    wantName: flower.name,
+    wantColor: flower.flowerColor,
+    pay: Math.max(1, Math.floor(flower.sellPrice * npc.bonus * 1.5)),
+    timeLeft: 180,
+    done: false,
+    failed: false,
+  };
 }
 
 /* ============================================================
