@@ -77,6 +77,7 @@ def chunk_page(page, doc_title: str = "") -> List[dict]:
             "image_id": None,
             "image_caption": None,
             "image_url": None,
+            "raw_meta": page.raw_meta,
         })
     return chunks
 

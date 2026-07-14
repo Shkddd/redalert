@@ -264,6 +264,13 @@ def ingest_file(file_path: Path, title: str, user_id: int,
     image_chunk_indices = {
         i for i, c in enumerate(all_chunks) if c.get("chunk_index") == -1
     }
+    # 记录哪些 chunk 有预设摘要(CSV/Excel 结构化描述)
+    preset_summaries = {}
+    for i, c in enumerate(all_chunks):
+        meta = c.get("raw_meta") or {}
+        ps = meta.get("preset_summary")
+        if ps:
+            preset_summaries[i] = ps
 
     log(trace_id, "chunk", "done",
         text_chunks=len(all_chunks) - image_total,
@@ -290,6 +297,9 @@ def ingest_file(file_path: Path, title: str, user_id: int,
             if i in image_chunk_indices:
                 # 图片 chunk:caption 已经是完整描述,直接用
                 summaries.append(t.strip())
+            elif i in preset_summaries:
+                # 结构化数据(CSV/Excel):用预设摘要,不走抽取
+                summaries.append(preset_summaries[i])
             else:
                 summaries.append(summarize(t, top_sent=2))
 
@@ -401,16 +411,24 @@ def ingest_file(file_path: Path, title: str, user_id: int,
 
 def _make_doc_summary(summaries: list, texts: list, max_len: int = 300) -> str:
     """生成文档级摘要
-
     策略:
       - 把所有 chunk 的 summary 拼接, 用 "; " 分隔
+      - 去重:分页 CSV/Excel 会产生 "xxx（第1部分）""xxx（第2部分）"，只保留一条
       - 超过 max_len 时截断 + "…"
     """
+    import re
     parts = []
+    seen_bases = set()
     # 优先有 summary 内容的(去掉空串/无内容)
     for s in summaries:
         if s and s.strip() and s.strip() != "(空)":
-            parts.append(s.strip())
+            s_clean = s.strip()
+            # 分页摘要去重:"xxx（第N部分）" → 取 base 去重
+            m = re.match(r"^(.+?)（第\d+部分）$", s_clean)
+            base = m.group(1) if m else s_clean
+            if base not in seen_bases:
+                seen_bases.add(base)
+                parts.append(base if m else s_clean)
         if sum(len(p) for p in parts) + len(parts) * 3 > max_len:
             break
     if parts:

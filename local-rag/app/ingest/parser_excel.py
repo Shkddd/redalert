@@ -75,12 +75,24 @@ def parse_excel(path: Path) -> List[Page]:
             if not md:
                 continue
             section = f"{path.stem} > {sheet_name}"
+            # 结构化摘要
+            rows_data = list(ws.iter_rows(values_only=True))
+            header_row = [_cell_to_str(c) for c in rows_data[0]] if rows_data else []
+            data_count = len([r for r in rows_data[1:] if any(_cell_to_str(c) for c in r)])
+            col_names = [h for h in header_row if h]
+            summary_parts = [f"{path.stem} > {sheet_name}"]
+            if data_count > 0:
+                summary_parts.append(f"共{data_count}条数据")
+            if col_names:
+                summary_parts.append("包含字段：" + "、".join(col_names[:8]))
+            preset_summary = "，".join(summary_parts)
             pages.append(Page(
                 page_no=idx,  # 用 sheet 序号当 page_no 方便
                 text=md,
                 images=[],
                 section_path=section,
-                raw_meta={"sheet_name": sheet_name, "format": "xlsx"},
+                raw_meta={"sheet_name": sheet_name, "format": "xlsx",
+                          "preset_summary": preset_summary},
             ))
         if not pages:
             pages.append(Page(page_no=1, text="", section_path=path.stem,

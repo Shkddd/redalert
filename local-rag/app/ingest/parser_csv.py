@@ -86,22 +86,33 @@ def parse_csv(path: Path) -> List[Page]:
     # 过滤全空行
     data_rows = [r for r in data_rows if any(r)]
 
+    # 结构化摘要: "文件名，共N行数据，包含列：A、B、C"
+    col_names = [h for h in header if h]
+    total = len(data_rows)
+    summary_parts = [f"{path.stem}"]
+    if total > 0:
+        summary_parts.append(f"共{total}条数据")
+    if col_names:
+        summary_parts.append("包含字段：" + "、".join(col_names[:8]))
+    preset_summary = "，".join(summary_parts)
+
     if not data_rows:
         md = _rows_to_markdown(header, [])
         md = _clean_text(md)
         return [Page(page_no=1, text=md, section_path=path.stem,
-                     raw_meta={"format": "csv", "total_rows": 0})]
+                     raw_meta={"format": "csv", "total_rows": 0,
+                               "preset_summary": preset_summary})]
 
     # 分页
     pages: List[Page] = []
-    total = len(data_rows)
     if total <= CHUNK_ROWS:
         md = _rows_to_markdown(header, data_rows)
         md = _clean_text(md)
         if md:
             pages.append(Page(
                 page_no=1, text=md, section_path=path.stem,
-                raw_meta={"format": "csv", "total_rows": total},
+                raw_meta={"format": "csv", "total_rows": total,
+                          "preset_summary": preset_summary},
             ))
     else:
         part = 1
@@ -111,11 +122,13 @@ def parse_csv(path: Path) -> List[Page]:
             md = _clean_text(md)
             if md:
                 suffix = f" (part {part})" if total > CHUNK_ROWS else ""
+                part_summary = f"{preset_summary}（第{part}部分）"
                 pages.append(Page(
                     page_no=part, text=md,
                     section_path=f"{path.stem}{suffix}",
                     raw_meta={"format": "csv", "total_rows": total,
-                              "part": part},
+                              "part": part,
+                              "preset_summary": part_summary},
                 ))
                 part += 1
 
