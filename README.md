@@ -1,24 +1,97 @@
-# 红色警戒 网页版 + 超级冒险家
+# RedAlert — 个人项目合集
 
-两个纯前端 HTML5 游戏，单文件无外部依赖，打开浏览器即玩。
+游戏 + AI/ML 项目，统一存放。
 
-## 文件
+---
 
-| 文件 | 说明 | 操作 |
-|------|------|------|
-| `index.html` | 红色警戒风格 RTS 游戏 | 双击打开 |
-| `mario.html` | 超级马里奥风格平台跳跃游戏 | 双击打开 |
+## 游戏
 
-## 红色警戒 🎮
+| 文件 | 说明 |
+|------|------|
+| `index.html` | 红色警戒风格 RTS 游戏 |
+| `mario.html` | 超级马里奥风格平台跳跃 |
+| `mario-mobile.html` | 手机适配版自动跑酷 |
 
-- RTS 即时战略，建造基地、采集资源、训练部队、抵御敌军
-- 建筑：发电厂、矿石精炼厂、兵营、战车工厂、炮塔
-- 单位：步兵、坦克、吉普车、矿车、修理车
-- 操作：左键选择，右键移动/攻击，侧边栏建造
+双击 HTML 文件直接开玩，无外部依赖。
 
-## 超级冒险家 🏃
+---
 
-- 横版平台跳跃闯关
-- 特色操作：二段跳、蹭墙跳、下水管进密室
-- ← → 移动，空格/↑ 跳跃，↓ 进入水管
-- 收集金币，踩敌人，到达旗杆通关
+## AI / ML 项目
+
+### local-rag — RAG 知识库
+
+FastAPI + Milvus Lite + SQLite + BGE 向量检索。支持多格式文档摄入（PDF/DOCX/XLSX/CSV/TXT/图片），混合检索（向量 + BM25），版本管理。
+
+```
+cd local-rag
+pip install -r requirements.txt
+python3 -m uvicorn app.main:app --port 8000
+```
+
+### local-agent — 多框架 Agent 对比
+
+4 种 Agent 框架实现对比：v1 手写 ReAct / v2 LangGraph / v3 AutoGen / v4 LangChain。FastAPI 服务 + 可观测性。
+
+```
+cd local-agent
+pip install -r requirements.txt
+python3 -m uvicorn app.api.server:app --port 8001
+```
+
+### chatbi — 自然语言转 SQL
+
+LLM 驱动的 ChatBI 系统，自然语言查询 → SQL → 图表。FastAPI + SQLite，前端 Chart.js 可视化。
+
+```
+cd chatbi
+cp backend/.env.example backend/.env  # 填入 LLM API Key
+pip install -r backend/requirements.txt
+cd backend && python3 -m uvicorn app.main:app --port 8000
+```
+
+### contract-review — AI 合同审查
+
+上传合同文档，AI 自动标注风险条款、生成审查报告。FastAPI + 向量知识库。
+
+```
+cd contract-review
+cp backend/.env.example backend/.env  # 填入 LLM API Key
+pip install -r backend/requirements.txt
+cd backend && python3 -m uvicorn app.main:app --port 8000
+```
+
+### nanoGPT — GPT 训练实验
+
+Karpathy nanoGPT fork，用于小规模 GPT 训练实验（莎士比亚、QA、法律文本等）。
+
+```
+cd nanoGPT
+pip install -r requirements.txt  # 或 pyproject.toml
+python train.py config/train_shakespeare_char.py
+```
+
+### SmallVIT — 轻量多模态模型
+
+轻量级 Vision-Language 模型训练，支持文生图和多模态理解。
+
+```
+cd SmallVIT
+python train_multimodal.py
+```
+
+---
+
+## 目录结构
+
+```
+redalert/
+├── index.html              # 红警 RTS
+├── mario.html              # 马里奥
+├── mario-mobile.html       # 马里奥手机版
+├── local-rag/              # RAG 知识库
+├── local-agent/            # Agent 框架对比
+├── chatbi/                 # 自然语言转 SQL
+├── contract-review/        # AI 合同审查
+├── nanoGPT/                # GPT 训练
+└── SmallVIT/               # 轻量多模态
+```
