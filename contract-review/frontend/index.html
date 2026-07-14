@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContractReview — 合同智能审核平台</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <header>
+    <div class="logo">📋 ContractReview</div>
+    <span class="subtitle">合同智能审核平台</span>
+    <span id="llmStatus" class="badge badge-warning">LLM 未配置</span>
+  </header>
+
+  <!-- Navigation -->
+  <nav>
+    <button class="tab-btn active" data-tab="documents">📄 文档管理</button>
+    <button class="tab-btn" data-tab="knowledge">📚 知识库</button>
+    <button class="tab-btn" data-tab="review">✅ 审核结果</button>
+  </nav>
+
+  <!-- Tab: Documents -->
+  <section id="tab-documents" class="tab-content active">
+    <div class="panel">
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">📁</div>
+        <p>拖拽 PDF 或 Word 合同到此处，或点击选择文件</p>
+        <p class="upload-hint">支持 .pdf .docx 格式</p>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.doc" hidden>
+      </div>
+      <div id="uploadProgress" class="hidden">
+        <div class="spinner"></div>
+        <span>正在解析文档...</span>
+      </div>
+      <div id="uploadResult" class="hidden"></div>
+    </div>
+
+    <div class="panel">
+      <h3>已上传文档</h3>
+      <div id="docList">
+        <p class="empty-state">暂无文档，请上传</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: Knowledge Base -->
+  <section id="tab-knowledge" class="tab-content">
+    <!-- Import Panel -->
+    <div class="panel">
+      <h3>📥 文档导入知识库</h3>
+      <div class="kb-import-rows">
+        <div class="kb-import-row">
+          <label>上传文件</label>
+          <div class="kb-import-inputs">
+            <input type="file" id="kbFileInput" accept=".pdf,.docx" hidden>
+            <button class="btn btn-secondary" id="kbSelectFileBtn">选择 PDF/DOCX</button>
+            <span id="kbFileName" class="kb-file-name"></span>
+            <button class="btn btn-primary" id="kbImportFileBtn">导入文件</button>
+            <span id="kbFileStatus" class="kb-status"></span>
+          </div>
+        </div>
+        <div class="kb-import-row">
+          <label>URL 导入</label>
+          <div class="kb-import-inputs">
+            <input type="url" id="kbUrlInput" placeholder="https://..." class="search-input" style="flex:1">
+            <button class="btn btn-primary" id="kbImportUrlBtn">导入链接</button>
+            <span id="kbUrlStatus" class="kb-status"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Imported Sources -->
+    <div class="panel" id="kbSourcesPanel">
+      <h3>📚 已导入文档</h3>
+      <div id="kbSourceList"><p class="empty-state">暂无导入文档</p></div>
+    </div>
+
+    <!-- Legacy KB -->
+    <div class="panel">
+      <div class="flex-row">
+        <h3>标准条款库</h3>
+        <button class="btn btn-primary" id="addKbBtn">+ 新增条款</button>
+      </div>
+      <div class="kb-filters">
+        <select id="kbCategoryFilter">
+          <option value="">全部分类</option>
+        </select>
+        <input type="text" id="kbSearch" placeholder="搜索条款..." class="search-input">
+      </div>
+      <div id="kbList"><p class="empty-state">加载中...</p></div>
+    </div>
+
+    <!-- KB Edit Modal -->
+    <div id="kbModal" class="modal hidden">
+      <div class="modal-content">
+        <span class="modal-close">&times;</span>
+        <h3 id="kbModalTitle">新增标准条款</h3>
+        <input type="hidden" id="kbEditId">
+        <div class="form-group">
+          <label>条款标题</label>
+          <input type="text" id="kbTitle" placeholder="如：保密义务条款">
+        </div>
+        <div class="form-group">
+          <label>分类</label>
+          <select id="kbCategory">
+            <option value="通用">通用</option>
+            <option value="保密协议">保密协议</option>
+            <option value="知识产权">知识产权</option>
+            <option value="采购">采购</option>
+            <option value="劳动法">劳动法</option>
+            <option value="隐私">隐私/数据保护</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>风险等级</label>
+          <select id="kbRiskLevel">
+            <option value="高">高风险</option>
+            <option value="中" selected>中风险</option>
+            <option value="低">低风险</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>标签（逗号分隔）</label>
+          <input type="text" id="kbTags" placeholder="保密,NDA,信息安全">
+        </div>
+        <div class="form-group">
+          <label>标准条款内容</label>
+          <textarea id="kbContent" rows="6" placeholder="输入标准条款全文..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" id="kbCancel">取消</button>
+          <button class="btn btn-primary" id="kbSave">保存</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: Review Results -->
+  <section id="tab-review" class="tab-content">
+    <div class="panel">
+      <h3>合同审核</h3>
+      <div class="flex-row">
+        <select id="reviewDocSelect">
+          <option value="">请选择文档...</option>
+        </select>
+        <button class="btn btn-primary" id="startReviewBtn">▶ 开始审核</button>
+      </div>
+      <div id="reviewLoading" class="hidden">
+        <div class="spinner"></div>
+        <span>正在逐条比对知识库，请稍候...</span>
+      </div>
+    </div>
+
+    <div id="reviewResult" class="hidden">
+      <!-- Summary cards -->
+      <div id="reviewSummary" class="summary-row"></div>
+      <!-- Annotations list -->
+      <div class="panel">
+        <h3>审核明细</h3>
+        <div id="annotationList"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

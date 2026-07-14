@@ -1,0 +1,123 @@
+📝 日志文件: training_log_20260710_141022.txt
+Overriding config with config/train_law.py:
+# config/train_law.py
+"""
+训练法律问答模型
+"""
+
+# ============ 初始化模式 ============
+init_from = "resume"  # 从检查点继续训练
+
+# ============ 数据集配置 ============
+dataset = "law_data"
+data_dir = "data/law_data"
+
+# ============ 模型结构 ============
+n_layer = 6          # Transformer 层数
+n_head = 6           # 注意力头数
+n_embd = 384         # 嵌入维度
+dropout = 0.2        # Dropout 比率
+bias = False         # 是否使用偏置
+block_size = 256     # 上下文长度
+
+# ============ 训练参数 ============
+batch_size = 32
+gradient_accumulation_steps = 1
+max_iters = 3000
+learning_rate = 3e-4
+decay_lr = True
+warmup_iters = 100
+lr_decay_iters = 3000
+min_lr = 1e-5
+
+# ============ 优化器参数 ============
+beta1 = 0.9
+beta2 = 0.999
+weight_decay = 0.1
+grad_clip = 1.0
+
+# ============ 评估配置 ============
+eval_interval = 100
+eval_iters = 50
+log_interval = 10
+
+# ============ 输出配置 ============
+in_dir = "out-law"
+out_dir = "out-law"
+wandb_log = False
+always_save_checkpoint = True
+
+# ============ 设备配置 ============
+device = 'mps'
+compile = False
+Overriding: device = mps
+Overriding: compile = False
+tokens per iteration will be: 8,192
+found vocab_size = 1615 (inside data/law_data/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 11.24M
+/Users/lix/PycharmProjects/nanoGPT/train.py:231: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/cuda/amp/grad_scaler.py:31: UserWarning: torch.cuda.amp.GradScaler is enabled, but CUDA is not available.  Disabling.
+  super().__init__(
+num decayed parameter tensors: 26, with 11,335,296 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: False
+step 0: train loss 7.4381, val loss 7.4345
+iter 0: loss 7.4512, time 9162.78ms, mfu -100.00%
+iter 10: loss 6.9070, time 375.04ms, mfu 0.52%
+iter 20: loss 6.3707, time 373.11ms, mfu 0.52%
+iter 30: loss 5.7193, time 380.83ms, mfu 0.52%
+iter 40: loss 5.0852, time 375.76ms, mfu 0.52%
+iter 50: loss 4.6220, time 380.34ms, mfu 0.52%
+iter 60: loss 4.2984, time 376.33ms, mfu 0.52%
+iter 70: loss 4.0497, time 400.16ms, mfu 0.52%
+iter 80: loss 3.5833, time 378.85ms, mfu 0.52%
+iter 90: loss 3.5210, time 379.44ms, mfu 0.52%
+step 100: train loss 3.1809, val loss 3.2629
+saving checkpoint to out-law
+iter 100: loss 3.2980, time 9776.31ms, mfu 0.47%
+iter 110: loss 3.3375, time 396.62ms, mfu 0.47%
+iter 120: loss 2.9972, time 498.22ms, mfu 0.46%
+iter 130: loss 3.0987, time 392.29ms, mfu 0.47%
+iter 140: loss 2.8886, time 390.96ms, mfu 0.47%
+iter 150: loss 2.9148, time 388.72ms, mfu 0.47%
+iter 160: loss 2.7581, time 453.30ms, mfu 0.47%
+iter 170: loss 2.6407, time 388.48ms, mfu 0.47%
+iter 180: loss 2.5294, time 395.50ms, mfu 0.47%
+iter 190: loss 2.4938, time 392.87ms, mfu 0.48%
+step 200: train loss 2.4122, val loss 2.7645
+saving checkpoint to out-law
+iter 200: loss 2.4753, time 10449.81ms, mfu 0.43%
+iter 210: loss 2.4412, time 411.89ms, mfu 0.44%
+iter 220: loss 2.3462, time 446.74ms, mfu 0.44%
+iter 230: loss 2.5079, time 446.90ms, mfu 0.44%
+iter 240: loss 2.2517, time 419.97ms, mfu 0.44%
+iter 250: loss 2.3085, time 419.57ms, mfu 0.44%
+iter 260: loss 2.1831, time 472.86ms, mfu 0.44%
+iter 270: loss 2.2192, time 483.19ms, mfu 0.44%
+iter 280: loss 2.1034, time 509.81ms, mfu 0.43%
+iter 290: loss 2.1031, time 488.07ms, mfu 0.43%
+step 300: train loss 1.9110, val loss 2.5601
+saving checkpoint to out-law
+iter 300: loss 2.0442, time 13767.78ms, mfu 0.39%
+iter 310: loss 1.8587, time 523.07ms, mfu 0.38%
+iter 320: loss 1.9875, time 533.34ms, mfu 0.38%
+iter 330: loss 2.0033, time 546.75ms, mfu 0.38%
+iter 340: loss 1.7663, time 590.27ms, mfu 0.38%
+iter 350: loss 1.8729, time 520.31ms, mfu 0.38%
+iter 360: loss 1.8741, time 527.90ms, mfu 0.38%
+iter 370: loss 1.7715, time 481.12ms, mfu 0.38%
+iter 380: loss 1.6874, time 510.82ms, mfu 0.38%
+iter 390: loss 1.6836, time 502.24ms, mfu 0.38%
+step 400: train loss 1.4998, val loss 2.4235
+saving checkpoint to out-law
+iter 400: loss 1.5742, time 13920.47ms, mfu 0.34%
+Traceback (most recent call last):
+  File "/Users/lix/PycharmProjects/nanoGPT/train.py", line 338, in <module>
+    X, Y = get_batch('train')
+           ^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/PycharmProjects/nanoGPT/train.py", line 162, in get_batch
+    x, y = x.to(device), y.to(device)
+           ^^^^^^^^^^^^
+KeyboardInterrupt

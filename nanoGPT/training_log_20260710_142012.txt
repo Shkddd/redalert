@@ -1,0 +1,161 @@
+📝 日志文件: training_log_20260710_142012.txt
+Overriding config with config/train_qa.py:
+# config/train_qa.py
+"""
+训练 QA 对话模型 - 基于问答数据集
+"""
+
+# ============ 数据集配置 ============
+dataset = "qa_data"
+data_dir = "data/qa_data"
+
+init_from = "resume"  # resume: 从检查点继续训练
+
+# ============ 模型结构 ============
+n_layer = 6          # Transformer 层数
+n_head = 6           # 注意力头数
+n_embd = 384         # 嵌入维度
+dropout = 0.2        # Dropout 比率
+bias = False         # 是否使用偏置
+block_size = 256     # 上下文长度 (最大 256 个字符)
+
+# ============ 训练参数 ============
+batch_size = 32              # 每批次样本数
+gradient_accumulation_steps = 1  # 梯度累积步数
+max_iters = 6000             # 最大训练步数
+learning_rate = 3e-4         # 学习率
+decay_lr = True              # 是否衰减学习率
+warmup_iters = 100           # 预热步数
+lr_decay_iters = 3000        # 学习率衰减步数
+min_lr = 1e-5                # 最小学习率
+
+# ============ 优化器参数 ============
+beta1 = 0.9                  # AdamW beta1 (动量)
+beta2 = 0.999                # AdamW beta2 (自适应)
+weight_decay = 0.1           # 权重衰减
+grad_clip = 1.0              # 梯度裁剪
+
+# ============ 评估配置 ============
+eval_interval = 100          # 每 100 步评估一次
+eval_iters = 50              # 评估时使用的迭代次数
+log_interval = 10            # 每 10 步打印一次日志
+
+# ============ 输出配置 ============
+in_dir = "out-qa"           # 模型保存目录
+out_dir = "out-qa"           # 模型保存目录
+wandb_log = False            # 不使用 wandb
+always_save_checkpoint = True  # 总是保存检查点
+
+# ============ 设备配置 ============
+device = 'mps'               # 使用 MPS (Mac GPU)
+compile = False              # 不编译 (MPS 不支持 torch.compile)
+
+Overriding: device = mps
+Overriding: compile = False
+tokens per iteration will be: 8,192
+found vocab_size = 4823 (inside data/qa_data/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 12.47M
+/Users/lix/PycharmProjects/nanoGPT/train.py:233: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/cuda/amp/grad_scaler.py:31: UserWarning: torch.cuda.amp.GradScaler is enabled, but CUDA is not available.  Disabling.
+  super().__init__(
+num decayed parameter tensors: 26, with 12,567,168 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: False
+step 0: train loss 8.5566, val loss 8.5583
+iter 0: loss 8.5545, time 10551.22ms, mfu -100.00%
+iter 10: loss 7.7875, time 409.72ms, mfu 0.52%
+iter 20: loss 7.0361, time 418.08ms, mfu 0.52%
+iter 30: loss 6.2334, time 416.64ms, mfu 0.52%
+iter 40: loss 5.7061, time 417.61ms, mfu 0.52%
+iter 50: loss 5.3407, time 416.90ms, mfu 0.52%
+iter 60: loss 4.8714, time 415.68ms, mfu 0.52%
+iter 70: loss 4.5449, time 415.97ms, mfu 0.52%
+iter 80: loss 4.1526, time 409.64ms, mfu 0.52%
+iter 90: loss 4.2494, time 409.25ms, mfu 0.52%
+step 100: train loss 3.8974, val loss 3.9493
+saving checkpoint to out-qa
+iter 100: loss 4.1083, time 10932.63ms, mfu 0.47%
+iter 110: loss 3.8823, time 415.71ms, mfu 0.48%
+iter 120: loss 3.5444, time 416.38ms, mfu 0.48%
+iter 130: loss 3.8179, time 419.15ms, mfu 0.48%
+iter 140: loss 3.6637, time 419.75ms, mfu 0.49%
+iter 150: loss 3.2861, time 419.73ms, mfu 0.49%
+iter 160: loss 3.3595, time 420.75ms, mfu 0.49%
+iter 170: loss 3.3708, time 425.84ms, mfu 0.49%
+iter 180: loss 3.2569, time 425.74ms, mfu 0.49%
+iter 190: loss 3.3154, time 424.11ms, mfu 0.50%
+step 200: train loss 3.1281, val loss 3.1923
+saving checkpoint to out-qa
+iter 200: loss 3.0668, time 11317.94ms, mfu 0.45%
+iter 210: loss 2.9549, time 436.51ms, mfu 0.45%
+iter 220: loss 3.1177, time 500.89ms, mfu 0.45%
+iter 230: loss 3.1652, time 444.60ms, mfu 0.45%
+iter 240: loss 3.1285, time 455.85ms, mfu 0.46%
+iter 250: loss 3.0622, time 478.81ms, mfu 0.45%
+iter 260: loss 3.0084, time 468.18ms, mfu 0.45%
+iter 270: loss 3.0279, time 474.69ms, mfu 0.45%
+iter 280: loss 2.8994, time 478.32ms, mfu 0.45%
+iter 290: loss 2.9490, time 501.46ms, mfu 0.45%
+step 300: train loss 2.8752, val loss 2.9507
+saving checkpoint to out-qa
+iter 300: loss 2.9116, time 13193.64ms, mfu 0.41%
+iter 310: loss 2.7977, time 508.83ms, mfu 0.41%
+iter 320: loss 2.9988, time 503.73ms, mfu 0.41%
+iter 330: loss 3.0182, time 503.63ms, mfu 0.41%
+iter 340: loss 2.8734, time 508.86ms, mfu 0.41%
+iter 350: loss 2.8136, time 501.04ms, mfu 0.42%
+iter 360: loss 2.8091, time 545.16ms, mfu 0.41%
+iter 370: loss 2.9245, time 529.77ms, mfu 0.41%
+iter 380: loss 2.8104, time 530.82ms, mfu 0.41%
+iter 390: loss 2.8404, time 539.39ms, mfu 0.41%
+step 400: train loss 2.7237, val loss 2.7785
+saving checkpoint to out-qa
+iter 400: loss 2.8975, time 13727.86ms, mfu 0.37%
+iter 410: loss 2.7928, time 511.05ms, mfu 0.38%
+iter 420: loss 2.8476, time 499.81ms, mfu 0.38%
+iter 430: loss 2.7396, time 591.83ms, mfu 0.38%
+iter 440: loss 2.6854, time 529.46ms, mfu 0.38%
+iter 450: loss 2.7868, time 564.09ms, mfu 0.38%
+iter 460: loss 2.6648, time 512.23ms, mfu 0.39%
+iter 470: loss 2.5852, time 516.78ms, mfu 0.39%
+iter 480: loss 2.7152, time 543.82ms, mfu 0.39%
+iter 490: loss 2.6309, time 567.74ms, mfu 0.39%
+step 500: train loss 2.5826, val loss 2.6584
+saving checkpoint to out-qa
+iter 500: loss 2.5435, time 14982.00ms, mfu 0.35%
+iter 510: loss 2.6828, time 690.67ms, mfu 0.35%
+iter 520: loss 2.5937, time 540.88ms, mfu 0.35%
+iter 530: loss 2.7018, time 508.35ms, mfu 0.36%
+iter 540: loss 2.5800, time 513.23ms, mfu 0.37%
+iter 550: loss 2.5554, time 548.34ms, mfu 0.37%
+iter 560: loss 2.7037, time 561.87ms, mfu 0.37%
+iter 570: loss 2.7559, time 510.21ms, mfu 0.37%
+iter 580: loss 2.6181, time 507.86ms, mfu 0.38%
+iter 590: loss 2.5368, time 512.45ms, mfu 0.38%
+step 600: train loss 2.4925, val loss 2.5574
+saving checkpoint to out-qa
+iter 600: loss 2.6207, time 13960.12ms, mfu 0.35%
+iter 610: loss 2.6729, time 523.60ms, mfu 0.35%
+iter 620: loss 2.6134, time 520.75ms, mfu 0.36%
+iter 630: loss 2.4886, time 575.53ms, mfu 0.36%
+iter 640: loss 2.5274, time 553.64ms, mfu 0.36%
+iter 650: loss 2.4992, time 543.63ms, mfu 0.37%
+iter 660: loss 2.4098, time 530.88ms, mfu 0.37%
+iter 670: loss 2.6323, time 549.34ms, mfu 0.37%
+iter 680: loss 2.6361, time 568.50ms, mfu 0.37%
+iter 690: loss 2.3540, time 510.15ms, mfu 0.38%
+step 700: train loss 2.4185, val loss 2.4745
+saving checkpoint to out-qa
+iter 700: loss 2.5063, time 13895.03ms, mfu 0.34%
+iter 710: loss 2.4776, time 530.82ms, mfu 0.35%
+iter 720: loss 2.4297, time 573.38ms, mfu 0.35%
+Traceback (most recent call last):
+  File "/Users/lix/PycharmProjects/nanoGPT/train.py", line 340, in <module>
+    X, Y = get_batch('train')
+           ^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/PycharmProjects/nanoGPT/train.py", line 162, in get_batch
+    x, y = x.to(device), y.to(device)
+           ^^^^^^^^^^^^
+KeyboardInterrupt

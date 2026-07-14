@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Agent Monitor</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", sans-serif;
+         background: #0f1117; color: #e4e6eb; margin: 0; padding: 20px; }
+  h1 { color: #58a6ff; font-size: 22px; margin-bottom: 8px; }
+  h2 { color: #8b949e; font-size: 14px; text-transform: uppercase;
+       letter-spacing: 1px; margin: 24px 0 8px; border-bottom: 1px solid #30363d; padding-bottom: 4px; }
+  .header { display: flex; justify-content: space-between; align-items: center; }
+  .refresh { color: #58a6ff; font-size: 12px; cursor: pointer; user-select: none; }
+  .refresh:hover { text-decoration: underline; }
+  .ts { color: #8b949e; font-size: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px; margin-bottom: 16px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+          padding: 12px 14px; }
+  .card .label { font-size: 11px; color: #8b949e; text-transform: uppercase;
+                 letter-spacing: 0.5px; }
+  .card .value { font-size: 22px; font-weight: 600; color: #e4e6eb; margin-top: 2px; }
+  .card .sub { font-size: 11px; color: #6e7681; margin-top: 2px; }
+  .card.success { border-left: 3px solid #3fb950; }
+  .card.fail { border-left: 3px solid #f85149; }
+  .card.warn { border-left: 3px solid #d29922; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #8b949e; font-weight: 500;
+       text-transform: uppercase; font-size: 11px; padding: 6px 8px;
+       border-bottom: 1px solid #30363d; }
+  td { padding: 6px 8px; border-bottom: 1px solid #21262d; }
+  tr:hover { background: #1c2128; }
+  .ok { color: #3fb950; }
+  .fail { color: #f85149; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 12px;
+          font-size: 11px; font-weight: 500; }
+  .pill.green { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+  .pill.red   { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+  .pill.gray  { background: rgba(139, 148, 158, 0.15); color: #8b949e; }
+
+  .lat-bar { display: inline-block; height: 8px; background: #58a6ff;
+             border-radius: 4px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📊 Agent Monitor</h1>
+  <div>
+    <span class="ts" id="ts"></span>
+    &nbsp;&nbsp;
+    <span class="refresh" onclick="load()">↻ refresh</span>
+    &nbsp;
+    <span class="refresh" onclick="setInterval(load, 5000)">⏱ auto(5s)</span>
+  </div>
+</div>
+
+<div id="root">loading...</div>
+
+<script>
+async function load() {
+  document.getElementById('ts').innerText = new Date().toLocaleTimeString();
+  const r = await fetch('/api/metrics');
+  const m = await r.json();
+  render(m);
+}
+
+function pct(num, den) {
+  if (!den) return '0%';
+  return Math.round(num / den * 100) + '%';
+}
+
+function fmtMs(s) { return (s * 1000).toFixed(0) + 'ms'; }
+
+function render(m) {
+  const root = document.getElementById('root');
+  const t = m.totals;
+  const html = [];
+
+  // Observability status row
+  const obs = m.observability || {};
+  const obsList = [
+    {name: 'LangSmith', on: !!obs.langsmith},
+    {name: 'AgentOps',  on: !!obs.agentops},
+    {name: 'OpenTelemetry', on: !!obs.otel},
+  ];
+  const obsRow = obsList.map(o => {
+    const badge = o.on
+      ? `<span style="color:#3fb950">● connected</span>`
+      : `<span style="color:#8b949e">○ off</span>`;
+    return `<span style="margin-right:24px;font-size:14px"><strong>${o.name}</strong>: ${badge}</span>`;
+  }).join('');
+  html.push(`<div style="margin-bottom:16px;padding:12px;background:#161b22;border-radius:6px;border:1px solid #30363d">📡 Observability: ${obsRow}</div>`);
+
+  // Top totals
+  html.push('<div class="grid">');
+  html.push(card('Total Runs', t.runs, pct(t.success_runs, t.runs) + ' success', t.success_runs >= t.fail_runs ? 'success' : 'fail'));
+  html.push(card('Success', t.success_runs, '', 'success'));
+  html.push(card('Failed', t.fail_runs, '', t.fail_runs > 0 ? 'fail' : ''));
+  html.push(card('LLM Calls', t.llm_calls, '', ''));
+  html.push(card('Tool Calls', t.tool_calls, '', ''));
+  html.push(card('Sub-tasks', t.subtasks, `${t.subtask_retries} retries`, t.subtask_retries > 0 ? 'warn' : ''));
+  html.push(card('Total Tokens', t.total_tokens, '', ''));
+  html.push(card('Active Runs', m.active_runs.length, '', m.active_runs.length > 0 ? 'warn' : ''));
+  html.push('</div>');
+
+  // By framework
+  const fws = Object.keys(m.by_framework);
+  if (fws.length > 0) {
+    html.push('<h2>by framework</h2>');
+    html.push('<table><tr><th>framework</th><th>runs</th><th>success rate</th><th>avg latency</th><th>p50</th><th>p95</th><th>max</th><th>avg iter</th></tr>');
+    for (const fw of fws) {
+      const d = m.by_framework[fw];
+      const r = d.runs;
+      const l = d.latency;
+      const i = d.iterations;
+      const cls = r.fail > r.success ? 'fail' : 'ok';
+      html.push(`<tr><td>${fw}</td>` +
+        `<td>${r.total}</td>` +
+        `<td class="${cls}">${pct(r.success, r.total)} (${r.success}/${r.total})</td>` +
+        `<td>${fmtMs(l.avg)}</td>` +
+        `<td>${fmtMs(l.p50)}</td>` +
+        `<td>${fmtMs(l.p95)}</td>` +
+        `<td>${fmtMs(l.max)}</td>` +
+        `<td>${i.avg.toFixed(1)}</td>` +
+        `</tr>`);
+    }
+    html.push('</table>');
+  }
+
+  // LLM
+  const llm = m.llm;
+  html.push('<h2>LLM</h2>');
+  html.push('<table><tr><th>metric</th><th>count</th><th>avg</th><th>p50</th><th>p95</th><th>max</th></tr>');
+  html.push(`<tr><td>latency</td><td>${llm.latency.count}</td><td>${fmtMs(llm.latency.avg)}</td><td>${fmtMs(llm.latency.p50)}</td><td>${fmtMs(llm.latency.p95)}</td><td>${fmtMs(llm.latency.max)}</td></tr>`);
+  html.push(`<tr><td>tokens (per call)</td><td>${llm.tokens.count}</td><td>${Math.round(llm.tokens.avg)}</td><td>${Math.round(llm.tokens.p50)}</td><td>${Math.round(llm.tokens.p95)}</td><td>${Math.round(llm.tokens.max)}</td></tr>`);
+  html.push(`<tr><td>success rate</td><td colspan="5"><span class="${llm.calls.fail > 0 ? 'fail' : 'ok'}">${pct(llm.calls.success, llm.calls.total)} (${llm.calls.success}/${llm.calls.total})</span></td></tr>`);
+  html.push('</table>');
+
+  // Tools
+  const tools = m.tools.by_name;
+  const tnames = Object.keys(tools);
+  if (tnames.length > 0) {
+    html.push('<h2>Tools</h2>');
+    html.push('<table><tr><th>name</th><th>calls</th><th>success rate</th><th>avg latency</th><th>p95</th></tr>');
+    for (const name of tnames.sort((a, b) => tools[b].calls.total - tools[a].calls.total)) {
+      const d = tools[name];
+      const l = d.latency;
+      const cls = d.calls.fail > 0 ? 'fail' : 'ok';
+      html.push(`<tr><td>${name}</td>` +
+        `<td>${d.calls.total}</td>` +
+        `<td class="${cls}">${pct(d.calls.success, d.calls.total)}</td>` +
+        `<td>${fmtMs(l.avg)}</td>` +
+        `<td>${fmtMs(l.p95)}</td>` +
+        `</tr>`);
+    }
+    html.push('</table>');
+  }
+
+  // Active runs
+  if (m.active_runs.length > 0) {
+    html.push('<h2>Active runs</h2>');
+    html.push('<table><tr><th>id</th><th>framework</th><th>started</th><th>question</th></tr>');
+    for (const r of m.active_runs) {
+      html.push(`<tr><td>${r.id.slice(-12)}</td><td>${r.framework}</td><td>${r.started_at_iso}</td><td>${r.question.slice(0, 80)}</td></tr>`);
+    }
+    html.push('</table>');
+  }
+
+  // Recent runs
+  const recent = m.recent.runs || [];
+  if (recent.length > 0) {
+    html.push('<h2>Recent runs (last 20)</h2>');
+    html.push('<table><tr><th>time</th><th>fw</th><th>ok</th><th>duration</th><th>iter</th><th>tokens</th><th>question</th></tr>');
+    for (const r of recent.slice().reverse()) {
+      const pillCls = r.ok ? 'green' : 'red';
+      const pillTxt = r.ok ? 'OK' : 'FAIL';
+      html.push(`<tr><td>${r.ts}</td>` +
+        `<td>${r.framework}</td>` +
+        `<td><span class="pill ${pillCls}">${pillTxt}</span></td>` +
+        `<td>${fmtMs(r.duration_s)}</td>` +
+        `<td>${r.iterations}</td>` +
+        `<td>${r.tokens}</td>` +
+        `<td>${r.question.slice(0, 60)}</td>` +
+        `</tr>`);
+    }
+    html.push('</table>');
+  }
+
+  // Recent LLM calls
+  const llm_r = m.recent.llm || [];
+  if (llm_r.length > 0) {
+    html.push('<h2>Recent LLM calls (last 20)</h2>');
+    html.push('<table><tr><th>time</th><th>model</th><th>ok</th><th>latency</th><th>tokens</th></tr>');
+    for (const c of llm_r.slice().reverse()) {
+      const pillCls = c.ok ? 'green' : 'red';
+      const pillTxt = c.ok ? 'OK' : 'FAIL';
+      html.push(`<tr><td>${c.ts}</td><td>${c.model}</td>` +
+        `<td><span class="pill ${pillCls}">${pillTxt}</span></td>` +
+        `<td>${fmtMs(c.latency_s)}</td>` +
+        `<td>${c.tokens}</td></tr>`);
+    }
+    html.push('</table>');
+  }
+
+  root.innerHTML = html.join('');
+}
+
+function card(label, value, sub, cls) {
+  return `<div class="card ${cls || ''}">
+    <div class="label">${label}</div>
+    <div class="value">${value}</div>
+    <div class="sub">${sub || ''}</div>
+  </div>`;
+}
+
+load();
+</script>
+</body>
+</html>

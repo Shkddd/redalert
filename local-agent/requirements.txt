@@ -1,0 +1,8 @@
+"""Local Agent - Agentic 循环框架(ReAct + Planning 混合)"""
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-dotenv==1.0.1
+openai==2.45.0
+httpx==0.28.1
+sse-starlette==3.4.4

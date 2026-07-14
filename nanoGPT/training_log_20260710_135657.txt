@@ -1,0 +1,194 @@
+📝 日志文件: training_log_20260710_135657.txt
+Overriding config with config/train_law.py:
+# config/train_law.py
+"""
+训练法律问答模型
+"""
+
+# ============ 初始化模式 ============
+init_from = "resume"  # 从检查点继续训练
+
+# ============ 数据集配置 ============
+dataset = "law_data"
+data_dir = "data/law_data"
+
+# ============ 模型结构 ============
+n_layer = 6          # Transformer 层数
+n_head = 6           # 注意力头数
+n_embd = 384         # 嵌入维度
+dropout = 0.2        # Dropout 比率
+bias = False         # 是否使用偏置
+block_size = 256     # 上下文长度
+
+# ============ 训练参数 ============
+batch_size = 32
+gradient_accumulation_steps = 1
+max_iters = 3000
+learning_rate = 3e-4
+decay_lr = True
+warmup_iters = 100
+lr_decay_iters = 3000
+min_lr = 1e-5
+
+# ============ 优化器参数 ============
+beta1 = 0.9
+beta2 = 0.999
+weight_decay = 0.1
+grad_clip = 1.0
+
+# ============ 评估配置 ============
+eval_interval = 100
+eval_iters = 50
+log_interval = 10
+
+# ============ 输出配置 ============
+in_dir = "out-law"
+out_dir = "out-law"
+wandb_log = False
+always_save_checkpoint = True
+
+# ============ 设备配置 ============
+device = 'mps'
+compile = False
+Overriding: device = mps
+Overriding: compile = False
+tokens per iteration will be: 8,192
+found vocab_size = 1615 (inside data/law_data/meta.pkl)
+Resuming training from out-law
+number of parameters: 11.24M
+/Users/lix/PycharmProjects/nanoGPT/train.py:232: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/cuda/amp/grad_scaler.py:31: UserWarning: torch.cuda.amp.GradScaler is enabled, but CUDA is not available.  Disabling.
+  super().__init__(
+num decayed parameter tensors: 26, with 11,335,296 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: False
+step 1000: train loss 0.2544, val loss 2.7044
+saving checkpoint to out-law
+iter 1000: loss 0.5022, time 11849.83ms, mfu -100.00%
+iter 1010: loss 0.4448, time 446.70ms, mfu 0.44%
+iter 1020: loss 0.4469, time 441.87ms, mfu 0.44%
+iter 1030: loss 0.3990, time 476.06ms, mfu 0.44%
+iter 1040: loss 0.4686, time 457.55ms, mfu 0.43%
+iter 1050: loss 0.5460, time 674.24ms, mfu 0.42%
+iter 1060: loss 0.4216, time 468.62ms, mfu 0.42%
+iter 1070: loss 0.4796, time 537.49ms, mfu 0.41%
+iter 1080: loss 0.3970, time 511.79ms, mfu 0.41%
+iter 1090: loss 0.3632, time 478.72ms, mfu 0.41%
+step 1100: train loss 0.2066, val loss 2.7404
+saving checkpoint to out-law
+iter 1100: loss 0.3639, time 13937.33ms, mfu 0.37%
+iter 1110: loss 0.4778, time 527.43ms, mfu 0.37%
+iter 1120: loss 0.3593, time 541.90ms, mfu 0.37%
+iter 1130: loss 0.4676, time 540.06ms, mfu 0.37%
+iter 1140: loss 0.3685, time 631.43ms, mfu 0.36%
+iter 1150: loss 0.3840, time 529.05ms, mfu 0.36%
+iter 1160: loss 0.3501, time 514.92ms, mfu 0.37%
+iter 1170: loss 0.3050, time 540.62ms, mfu 0.37%
+iter 1180: loss 0.3501, time 523.88ms, mfu 0.37%
+iter 1190: loss 0.2857, time 513.72ms, mfu 0.37%
+step 1200: train loss 0.1694, val loss 2.8155
+saving checkpoint to out-law
+iter 1200: loss 0.3329, time 13359.91ms, mfu 0.33%
+iter 1210: loss 0.3115, time 510.14ms, mfu 0.34%
+iter 1220: loss 0.2950, time 511.95ms, mfu 0.34%
+iter 1230: loss 0.3736, time 507.17ms, mfu 0.35%
+iter 1240: loss 0.3116, time 507.67ms, mfu 0.35%
+iter 1250: loss 0.3082, time 506.12ms, mfu 0.35%
+iter 1260: loss 0.2912, time 484.29ms, mfu 0.36%
+iter 1270: loss 0.2858, time 505.12ms, mfu 0.36%
+iter 1280: loss 0.2720, time 503.90ms, mfu 0.36%
+iter 1290: loss 0.2694, time 503.15ms, mfu 0.37%
+step 1300: train loss 0.1455, val loss 2.8713
+saving checkpoint to out-law
+iter 1300: loss 0.2683, time 12654.24ms, mfu 0.33%
+iter 1310: loss 0.2632, time 504.92ms, mfu 0.34%
+iter 1320: loss 0.3019, time 504.12ms, mfu 0.34%
+iter 1330: loss 0.2665, time 503.40ms, mfu 0.35%
+iter 1340: loss 0.2528, time 505.22ms, mfu 0.35%
+iter 1350: loss 0.2521, time 505.50ms, mfu 0.35%
+iter 1360: loss 0.2557, time 505.55ms, mfu 0.36%
+iter 1370: loss 0.2867, time 506.02ms, mfu 0.36%
+iter 1380: loss 0.2363, time 505.16ms, mfu 0.36%
+iter 1390: loss 0.2635, time 504.71ms, mfu 0.37%
+step 1400: train loss 0.1341, val loss 2.9208
+saving checkpoint to out-law
+iter 1400: loss 0.2318, time 12641.33ms, mfu 0.33%
+iter 1410: loss 0.2744, time 504.97ms, mfu 0.34%
+iter 1420: loss 0.2205, time 505.32ms, mfu 0.34%
+iter 1430: loss 0.2539, time 508.99ms, mfu 0.35%
+iter 1440: loss 0.2194, time 504.98ms, mfu 0.35%
+iter 1450: loss 0.2467, time 526.55ms, mfu 0.35%
+iter 1460: loss 0.2097, time 507.36ms, mfu 0.36%
+iter 1470: loss 0.2229, time 505.87ms, mfu 0.36%
+iter 1480: loss 0.2273, time 506.52ms, mfu 0.36%
+iter 1490: loss 0.2194, time 506.28ms, mfu 0.36%
+step 1500: train loss 0.1169, val loss 2.9775
+saving checkpoint to out-law
+iter 1500: loss 0.2039, time 12630.51ms, mfu 0.33%
+iter 1510: loss 0.2228, time 506.15ms, mfu 0.33%
+iter 1520: loss 0.2065, time 505.81ms, mfu 0.34%
+iter 1530: loss 0.2974, time 532.39ms, mfu 0.34%
+iter 1540: loss 0.2139, time 1128.61ms, mfu 0.33%
+iter 1550: loss 0.1911, time 524.79ms, mfu 0.33%
+iter 1560: loss 0.2810, time 607.97ms, mfu 0.33%
+iter 1570: loss 0.2187, time 532.69ms, mfu 0.33%
+iter 1580: loss 0.1942, time 502.67ms, mfu 0.34%
+iter 1590: loss 0.2039, time 529.28ms, mfu 0.34%
+step 1600: train loss 0.1174, val loss 2.9781
+saving checkpoint to out-law
+iter 1600: loss 0.1739, time 12666.91ms, mfu 0.31%
+iter 1610: loss 0.1662, time 502.83ms, mfu 0.32%
+iter 1620: loss 0.1876, time 518.29ms, mfu 0.32%
+iter 1630: loss 0.1676, time 489.11ms, mfu 0.33%
+iter 1640: loss 0.1775, time 521.09ms, mfu 0.34%
+iter 1650: loss 0.2499, time 510.58ms, mfu 0.34%
+iter 1660: loss 0.1645, time 540.13ms, mfu 0.34%
+iter 1670: loss 0.2527, time 508.52ms, mfu 0.35%
+iter 1680: loss 0.1928, time 492.50ms, mfu 0.35%
+iter 1690: loss 0.1542, time 493.08ms, mfu 0.36%
+step 1700: train loss 0.1066, val loss 3.0227
+saving checkpoint to out-law
+iter 1700: loss 0.1781, time 13217.96ms, mfu 0.32%
+iter 1710: loss 0.1488, time 510.64ms, mfu 0.33%
+iter 1720: loss 0.1618, time 518.03ms, mfu 0.33%
+iter 1730: loss 0.1766, time 513.38ms, mfu 0.34%
+iter 1740: loss 0.1740, time 525.89ms, mfu 0.34%
+iter 1750: loss 0.1509, time 534.61ms, mfu 0.34%
+iter 1760: loss 0.1522, time 520.68ms, mfu 0.35%
+iter 1770: loss 0.1566, time 494.77ms, mfu 0.35%
+iter 1780: loss 0.2279, time 489.43ms, mfu 0.36%
+iter 1790: loss 0.1405, time 531.46ms, mfu 0.36%
+step 1800: train loss 0.0908, val loss 3.0960
+saving checkpoint to out-law
+iter 1800: loss 0.1659, time 14779.58ms, mfu 0.32%
+iter 1810: loss 0.1671, time 521.73ms, mfu 0.33%
+iter 1820: loss 0.1559, time 500.44ms, mfu 0.33%
+iter 1830: loss 0.1872, time 654.73ms, mfu 0.33%
+Traceback (most recent call last):
+  File "/Users/lix/PycharmProjects/nanoGPT/train.py", line 347, in <module>
+    scaler.update()
+    ^^^^^^^^^^^^^^^^
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/amp/grad_scaler.py", line 400, in step
+    return optimizer.step(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/optim/optimizer.py", line 530, in wrapper
+    out = func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/optim/optimizer.py", line 80, in _use_grad
+    ret = func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/optim/adam.py", line 248, in step
+    adam(
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/optim/optimizer.py", line 148, in maybe_fallback
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/optim/adam.py", line 970, in adam
+    func(
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/optim/adam.py", line 528, in _single_tensor_adam
+    step = _get_value(step_t)
+           ^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/optim/optimizer.py", line 95, in _get_value
+    return x.item() if isinstance(x, torch.Tensor) else x
+           ^^^^^^^^
+KeyboardInterrupt

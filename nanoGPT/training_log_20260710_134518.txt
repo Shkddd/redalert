@@ -1,0 +1,206 @@
+📝 日志文件: training_log_20260710_134518.txt
+Overriding config with config/train_law.py:
+# config/train_law.py
+"""
+训练法律问答模型
+"""
+
+# ============ 初始化模式 ============
+init_from = "resume"  # 从检查点继续训练
+
+# ============ 数据集配置 ============
+dataset = "law_data"
+data_dir = "data/law_data"
+
+# ============ 模型结构 ============
+n_layer = 6          # Transformer 层数
+n_head = 6           # 注意力头数
+n_embd = 384         # 嵌入维度
+dropout = 0.2        # Dropout 比率
+bias = False         # 是否使用偏置
+block_size = 256     # 上下文长度
+
+# ============ 训练参数 ============
+batch_size = 32
+gradient_accumulation_steps = 1
+max_iters = 3000
+learning_rate = 3e-4
+decay_lr = True
+warmup_iters = 100
+lr_decay_iters = 3000
+min_lr = 1e-5
+
+# ============ 优化器参数 ============
+beta1 = 0.9
+beta2 = 0.999
+weight_decay = 0.1
+grad_clip = 1.0
+
+# ============ 评估配置 ============
+eval_interval = 100
+eval_iters = 50
+log_interval = 10
+
+# ============ 输出配置 ============
+out_dir = "out-law"
+wandb_log = False
+always_save_checkpoint = True
+
+# ============ 设备配置 ============
+device = 'mps'
+compile = False
+Overriding: device = mps
+Overriding: compile = False
+tokens per iteration will be: 8,192
+found vocab_size = 1615 (inside data/law_data/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 11.24M
+/Users/lix/PycharmProjects/nanoGPT/train.py:231: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/cuda/amp/grad_scaler.py:31: UserWarning: torch.cuda.amp.GradScaler is enabled, but CUDA is not available.  Disabling.
+  super().__init__(
+num decayed parameter tensors: 26, with 11,335,296 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: False
+step 0: train loss 7.4381, val loss 7.4345
+iter 0: loss 7.4512, time 9434.71ms, mfu -100.00%
+iter 10: loss 6.9070, time 373.07ms, mfu 0.52%
+iter 20: loss 6.3707, time 373.14ms, mfu 0.52%
+iter 30: loss 5.7193, time 374.34ms, mfu 0.52%
+iter 40: loss 5.0852, time 379.71ms, mfu 0.52%
+iter 50: loss 4.6220, time 375.96ms, mfu 0.52%
+iter 60: loss 4.2984, time 379.00ms, mfu 0.52%
+iter 70: loss 4.0497, time 380.32ms, mfu 0.52%
+iter 80: loss 3.5833, time 383.55ms, mfu 0.52%
+iter 90: loss 3.5210, time 382.39ms, mfu 0.52%
+step 100: train loss 3.1809, val loss 3.2629
+saving checkpoint to out-law
+iter 100: loss 3.2980, time 9763.44ms, mfu 0.47%
+iter 110: loss 3.3375, time 386.17ms, mfu 0.47%
+iter 120: loss 2.9972, time 391.86ms, mfu 0.48%
+iter 130: loss 3.0987, time 389.75ms, mfu 0.48%
+iter 140: loss 2.8886, time 395.22ms, mfu 0.48%
+iter 150: loss 2.9148, time 394.16ms, mfu 0.48%
+iter 160: loss 2.7581, time 402.95ms, mfu 0.48%
+iter 170: loss 2.6407, time 390.51ms, mfu 0.48%
+iter 180: loss 2.5294, time 412.29ms, mfu 0.48%
+iter 190: loss 2.4938, time 436.13ms, mfu 0.48%
+step 200: train loss 2.4122, val loss 2.7645
+saving checkpoint to out-law
+iter 200: loss 2.4753, time 10359.84ms, mfu 0.43%
+iter 210: loss 2.4412, time 414.07ms, mfu 0.44%
+iter 220: loss 2.3462, time 421.51ms, mfu 0.44%
+iter 230: loss 2.5079, time 445.38ms, mfu 0.44%
+iter 240: loss 2.2517, time 450.99ms, mfu 0.44%
+iter 250: loss 2.3085, time 470.42ms, mfu 0.44%
+iter 260: loss 2.1831, time 491.52ms, mfu 0.43%
+iter 270: loss 2.2192, time 462.00ms, mfu 0.43%
+iter 280: loss 2.1034, time 491.82ms, mfu 0.43%
+iter 290: loss 2.1031, time 492.66ms, mfu 0.43%
+step 300: train loss 1.9110, val loss 2.5601
+saving checkpoint to out-law
+iter 300: loss 2.0442, time 13235.50ms, mfu 0.38%
+iter 310: loss 1.8587, time 475.94ms, mfu 0.39%
+iter 320: loss 1.9875, time 556.32ms, mfu 0.38%
+iter 330: loss 2.0033, time 509.58ms, mfu 0.38%
+iter 340: loss 1.7663, time 655.95ms, mfu 0.38%
+iter 350: loss 1.8729, time 536.00ms, mfu 0.37%
+iter 360: loss 1.8741, time 488.44ms, mfu 0.38%
+iter 370: loss 1.7715, time 504.86ms, mfu 0.38%
+iter 380: loss 1.6874, time 501.96ms, mfu 0.38%
+iter 390: loss 1.6836, time 582.65ms, mfu 0.37%
+step 400: train loss 1.4998, val loss 2.4235
+saving checkpoint to out-law
+iter 400: loss 1.5742, time 12896.83ms, mfu 0.34%
+iter 410: loss 1.6253, time 499.66ms, mfu 0.34%
+iter 420: loss 1.5823, time 486.68ms, mfu 0.35%
+iter 430: loss 1.5553, time 496.16ms, mfu 0.35%
+iter 440: loss 1.5646, time 490.61ms, mfu 0.36%
+iter 450: loss 1.6056, time 468.37ms, mfu 0.36%
+iter 460: loss 1.4139, time 508.30ms, mfu 0.37%
+iter 470: loss 1.4370, time 480.21ms, mfu 0.37%
+iter 480: loss 1.4470, time 477.89ms, mfu 0.37%
+iter 490: loss 1.3595, time 477.47ms, mfu 0.38%
+step 500: train loss 1.1150, val loss 2.4400
+saving checkpoint to out-law
+iter 500: loss 1.2927, time 12171.80ms, mfu 0.34%
+iter 510: loss 1.3609, time 484.21ms, mfu 0.35%
+iter 520: loss 1.2807, time 536.98ms, mfu 0.35%
+iter 530: loss 1.3577, time 522.20ms, mfu 0.35%
+iter 540: loss 1.2840, time 505.79ms, mfu 0.36%
+iter 550: loss 1.1787, time 494.03ms, mfu 0.36%
+iter 560: loss 1.1925, time 511.53ms, mfu 0.36%
+iter 570: loss 1.2237, time 497.65ms, mfu 0.37%
+iter 580: loss 1.1975, time 486.02ms, mfu 0.37%
+iter 590: loss 1.1893, time 483.56ms, mfu 0.37%
+step 600: train loss 0.8215, val loss 2.4105
+saving checkpoint to out-law
+iter 600: loss 1.0487, time 13699.70ms, mfu 0.34%
+iter 610: loss 0.9051, time 500.32ms, mfu 0.34%
+iter 620: loss 0.9910, time 454.06ms, mfu 0.35%
+iter 630: loss 0.9848, time 503.75ms, mfu 0.35%
+iter 640: loss 1.0034, time 497.97ms, mfu 0.36%
+iter 650: loss 0.9659, time 527.17ms, mfu 0.36%
+iter 660: loss 0.9693, time 548.95ms, mfu 0.36%
+iter 670: loss 0.9908, time 531.97ms, mfu 0.36%
+iter 680: loss 0.9484, time 513.97ms, mfu 0.36%
+iter 690: loss 0.8323, time 535.11ms, mfu 0.36%
+step 700: train loss 0.6100, val loss 2.4763
+saving checkpoint to out-law
+iter 700: loss 0.8722, time 13376.02ms, mfu 0.33%
+iter 710: loss 0.8145, time 493.65ms, mfu 0.33%
+iter 720: loss 0.8087, time 500.87ms, mfu 0.34%
+iter 730: loss 0.8773, time 482.68ms, mfu 0.35%
+iter 740: loss 0.8716, time 511.59ms, mfu 0.35%
+iter 750: loss 0.7076, time 522.45ms, mfu 0.35%
+iter 760: loss 0.7362, time 518.84ms, mfu 0.36%
+iter 770: loss 0.7195, time 502.94ms, mfu 0.36%
+iter 780: loss 0.7836, time 507.65ms, mfu 0.36%
+iter 790: loss 0.6543, time 861.28ms, mfu 0.35%
+step 800: train loss 0.4282, val loss 2.5860
+saving checkpoint to out-law
+iter 800: loss 0.7030, time 13875.95ms, mfu 0.31%
+iter 810: loss 0.7177, time 498.03ms, mfu 0.32%
+iter 820: loss 0.6823, time 493.80ms, mfu 0.33%
+iter 830: loss 0.6798, time 500.17ms, mfu 0.34%
+iter 840: loss 0.5992, time 507.76ms, mfu 0.34%
+iter 850: loss 0.7500, time 500.46ms, mfu 0.35%
+iter 860: loss 0.5895, time 483.30ms, mfu 0.35%
+iter 870: loss 0.6993, time 507.26ms, mfu 0.36%
+iter 880: loss 0.5849, time 506.60ms, mfu 0.36%
+iter 890: loss 0.5983, time 534.36ms, mfu 0.36%
+step 900: train loss 0.3232, val loss 2.6597
+saving checkpoint to out-law
+iter 900: loss 0.5991, time 14326.17ms, mfu 0.32%
+iter 910: loss 0.5055, time 662.89ms, mfu 0.32%
+iter 920: loss 0.5780, time 608.03ms, mfu 0.32%
+iter 930: loss 0.5091, time 543.68ms, mfu 0.33%
+iter 940: loss 0.5568, time 496.00ms, mfu 0.33%
+iter 950: loss 0.4617, time 623.32ms, mfu 0.33%
+iter 960: loss 0.5333, time 519.99ms, mfu 0.34%
+iter 970: loss 0.5288, time 509.09ms, mfu 0.34%
+iter 980: loss 0.4926, time 507.34ms, mfu 0.34%
+iter 990: loss 0.5182, time 494.29ms, mfu 0.35%
+step 1000: train loss 0.2487, val loss 2.7033
+saving checkpoint to out-law
+iter 1000: loss 0.4480, time 14108.62ms, mfu 0.32%
+iter 1010: loss 0.4338, time 523.64ms, mfu 0.32%
+iter 1020: loss 0.4424, time 495.72ms, mfu 0.33%
+iter 1030: loss 0.4205, time 513.92ms, mfu 0.33%
+iter 1040: loss 0.4293, time 508.06ms, mfu 0.34%
+iter 1050: loss 0.3770, time 512.05ms, mfu 0.34%
+iter 1060: loss 0.4208, time 580.79ms, mfu 0.34%
+iter 1070: loss 0.4231, time 540.09ms, mfu 0.34%
+iter 1080: loss 0.4785, time 521.00ms, mfu 0.35%
+iter 1090: loss 0.4157, time 497.91ms, mfu 0.35%
+Traceback (most recent call last):
+  File "/Users/lix/PycharmProjects/nanoGPT/train.py", line 299, in <module>
+    if iter_num % eval_interval == 0 and master_process:
+                 ^^^^^^^^^^^^^^^
+  File "/Users/lix/Library/Python/3.11/lib/python/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/lix/PycharmProjects/nanoGPT/train.py", line 260, in estimate_loss
+    logits, loss = model(X, Y)
+            ^^^^^^^^^^^
+KeyboardInterrupt

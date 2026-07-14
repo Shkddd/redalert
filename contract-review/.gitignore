@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Uploads
+backend/data/uploads/*.pdf
+backend/data/uploads/*.docx
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
