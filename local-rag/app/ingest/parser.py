@@ -14,6 +14,7 @@ from app.ingest.parser_pdf import Page, parse_pdf
 
 SUPPORTED_SUFFIXES = {
     ".pdf", ".xlsx", ".xlsm", ".docx",
+    ".csv",
     ".txt", ".md",
     ".jpg", ".jpeg", ".png", ".bmp", ".webp", ".gif",
 }
@@ -34,6 +35,10 @@ def parse(path: Path) -> List[Page]:
     if suffix == ".docx":
         from app.ingest.parser_word import parse_docx
         return parse_docx(path)
+
+    if suffix == ".csv":
+        from app.ingest.parser_csv import parse_csv
+        return parse_csv(path)
 
     if suffix in (".txt", ".md"):
         from app.ingest.parser_text import parse_text
