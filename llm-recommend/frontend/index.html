@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>LLM 智能推荐</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🧠 LLM <span>智能推荐</span></h1>
+        <div class="user-select">
+            <label>用户：</label>
+            <select id="userSelect"><option value="0">匿名用户</option></select>
+            <button onclick="showProfile()" style="background:var(--card);border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px">📊 画像</button>
+        </div>
+    </header>
+
+    <div class="profile-section" id="profileSection">
+        <h3>📊 用户画像</h3>
+        <div class="profile-summary" id="profileSummary"></div>
+    </div>
+
+    <div class="search-box">
+        <input id="queryInput" placeholder="描述你想要什么，比如「送女朋友的生日礼物，预算2000以内」" />
+        <button onclick="doSearch()">推荐</button>
+    </div>
+
+    <div class="quick-tags" id="quickTags"></div>
+
+    <div id="resultArea">
+        <div class="explanation" style="text-align:center;color:var(--muted)">
+            选择用户后自动推荐，或输入需求进行搜索
+        </div>
+    </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
