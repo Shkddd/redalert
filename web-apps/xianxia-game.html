@@ -2,90 +2,323 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>青云录 · 修仙游戏</title>
+<title>青云录 · 修仙游戏 Pro</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1a2e;color:#e0d8c8;font-family:"Songti SC",serif;min-height:100vh;display:flex;justify-content:center;padding:20px}
-.app{width:600px;max-width:100%;background:#16213e;border-radius:12px;padding:30px;box-shadow:0 0 40px rgba(0,0,0,.5)}
-h1{text-align:center;color:#c9a84c;font-size:28px;margin-bottom:10px;letter-spacing:4px}
-.status{background:#0f3460;border-radius:8px;padding:15px;margin:15px 0;font-size:14px;line-height:1.8}
+body{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#e0d8c8;font-family:"Songti SC",serif;min-height:100vh;display:flex;justify-content:center;padding:20px}
+.app{width:650px;max-width:100%;background:rgba(22,33,62,.95);border-radius:15px;padding:25px;box-shadow:0 0 50px rgba(201,168,76,.2);border:1px solid rgba(201,168,76,.3)}
+h1{text-align:center;color:#c9a84c;font-size:30px;margin-bottom:5px;letter-spacing:6px;text-shadow:0 0 10px rgba(201,168,76,.5)}
+.subtitle{text-align:center;color:#888;font-size:13px;margin-bottom:15px}
+.status{background:rgba(15,52,96,.6);border-radius:10px;padding:15px;margin:10px 0;font-size:14px;line-height:1.8;display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.status .item{display:flex;justify-content:space-between}
 .status span{color:#c9a84c;font-weight:bold}
-.location{background:#1a1a2e;border-left:3px solid #c9a84c;padding:15px;margin:15px 0;border-radius:0 8px 8px 0}
-.location h3{color:#e94560;margin-bottom:8px}
-.actions{display:flex;flex-direction:column;gap:10px;margin-top:20px}
-button{background:#0f3460;color:#e0d8c8;border:1px solid #c9a84c;padding:12px 20px;border-radius:8px;cursor:pointer;font-size:15px;font-family:inherit;transition:all .2s}
-button:hover{background:#c9a84c;color:#1a1a2e;transform:translateX(5px)}
-button:disabled{opacity:.4;cursor:not-allowed}
-.log{background:#0d1b2a;border-radius:8px;padding:15px;margin-top:20px;max-height:200px;overflow-y:auto;font-size:13px;line-height:1.8;white-space:pre-wrap}
-.breakthrough{color:#ffd700;font-size:18px;text-align:center;margin:10px 0;animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.hp-bar{height:8px;background:#333;border-radius:4px;overflow:hidden;margin:5px 0}
+.hp-fill{height:100%;background:linear-gradient(90deg,#e94560,#ff6b6b);transition:width .3s}
+.spirit-bar{height:8px;background:#333;border-radius:4px;overflow:hidden;margin:5px 0}
+.spirit-fill{height:100%;background:linear-gradient(90deg,#4ecdc4,#44a3aa);transition:width .3s}
+.tabs{display:flex;gap:5px;margin:15px 0}
+.tab{flex:1;padding:10px;text-align:center;background:rgba(255,255,255,.05);border-radius:8px;cursor:pointer;font-size:13px;transition:all .2s}
+.tab.active{background:#c9a84c;color:#1a1a2e;font-weight:bold}
+.tab:hover{background:rgba(201,168,76,.3)}
+.panel{display:none}
+.panel.active{display:block;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.location-desc{background:rgba(0,0,0,.3);border-left:3px solid #c9a84c;padding:12px;margin:10px 0;border-radius:0 8px 8px 0;font-size:14px;line-height:1.6}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:15px}
+button{background:rgba(15,52,96,.8);color:#e0d8c8;border:1px solid rgba(201,168,76,.4);padding:12px;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;transition:all .2s}
+button:hover{background:#c9a84c;color:#1a1a2e;transform:translateY(-2px)}
+button:disabled{opacity:.3;cursor:not-allowed;transform:none}
+button.danger{border-color:#e94560;color:#e94560}
+button.danger:hover{background:#e94560;color:#fff}
+.inventory{background:rgba(0,0,0,.3);border-radius:8px;padding:12px;margin:10px 0;max-height:200px;overflow-y:auto}
+.inv-item{display:flex;justify-content:space-between;padding:8px;margin:5px 0;background:rgba(255,255,255,.05);border-radius:5px;font-size:13px}
+.inv-item button{padding:5px 10px;font-size:12px}
+.log{background:rgba(0,0,0,.4);border-radius:8px;padding:15px;margin-top:15px;max-height:250px;overflow-y:auto;font-size:13px;line-height:1.8}
+.log p{margin:3px 0;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.log .combat{color:#e94560}
+.log .good{color:#4ecdc4}
+.log .break{color:#ffd700;font-weight:bold}
+.enemy{background:rgba(233,69,96,.1);border:1px solid #e94560;border-radius:10px;padding:15px;margin:10px 0;text-align:center}
+.enemy h3{color:#e94560;margin-bottom:10px}
+.shop-item{display:flex;justify-content:space-between;align-items:center;padding:10px;margin:5px 0;background:rgba(255,255,255,.05);border-radius:5px}
+.shop-item button{padding:8px 15px;font-size:13px}
+.break-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,#c9a84c,#ffd700);color:#1a1a2e;padding:30px 50px;border-radius:15px;font-size:24px;font-weight:bold;z-index:100;animation:popIn .5s;text-align:center}
+@keyframes popIn{0%{transform:translate(-50%,-50%) scale(0)}100%{transform:translate(-50%,-50%) scale(1)}}
 </style>
 </head>
 <body>
 <div class="app">
 <h1>╔ 青 云 录 ╗</h1>
+<div class="subtitle">修仙文字冒险 · Pro版</div>
+
 <div class="status" id="status"></div>
-<div class="location" id="location"></div>
+
+<div class="tabs">
+<div class="tab active" onclick="showTab('game')">🏔️ 修行</div>
+<div class="tab" onclick="showTab('bag')">🎒 背包</div>
+<div class="tab" onclick="showTab('shop')">🏪 商店</div>
+<div class="tab" onclick="showTab('log')">📜 日志</div>
+</div>
+
+<div class="panel active" id="panel-game">
+<div class="location-desc" id="loc-desc"></div>
 <div class="actions" id="actions"></div>
+</div>
+
+<div class="panel" id="panel-bag">
+<div class="inventory" id="inventory"></div>
+</div>
+
+<div class="panel" id="panel-shop">
+<div id="shop-items"></div>
+</div>
+
+<div class="panel" id="panel-log">
 <div class="log" id="log"></div>
+</div>
 </div>
 
 <script>
 const CULTIVATION=["炼气一层","炼气二层","炼气三层","炼气四层","炼气五层","炼气六层","炼气七层","炼气八层","炼气九层","筑基初期","筑基中期","筑基后期","金丹初期","金丹中期","金丹后期","元婴期","化神期"];
 const LOCATIONS={
-"青云山外门":{desc:"你站在青云山外门的青石牌坊下。远处云雾缭绕，偶尔有仙鹤掠过。",actions:{"打坐修炼":()=>cultivate(5,15),"下山赶集":()=>go("山下集市"),"去后山断崖":()=>go("后山断崖"),"去藏经阁":()=>go("藏经阁")}},
-"后山断崖":{desc:"冷风呼啸，谷底是黑沉沉的老林。你怀中那枚残玉隐隐发热。",actions:{"残玉引气":()=>cultivate(20,40),"眺望谷底":()=>event("crane"),"返回外门":()=>go("青云山外门")}},
-"藏经阁":{desc:"书架上密密麻麻，落着薄灰。只有最基础的功法摆在最外层。",actions:{"翻阅基础功法":()=>cultivate(10,20),"尝试偷进内室":()=>event("steal"),"返回外门":()=>go("青云山外门")}},
-"山下集市":{desc:"人声鼎沸，摊贩吆喝着各种灵药和法器。你腰间的钱袋叮当响。",actions:{"逛地摊":()=>event("stall"),"买丹药(10两)":buyPill,"返回山门":()=>go("青云山外门")}}
+"青云山外门":{desc:"你站在青云山外门的青石牌坊下。远处云雾缭绕，仙鹤掠过。",actions:{"打坐修炼":()=>cultivate(8,20),"下山赶集":()=>go("山下集市"),"去后山断崖":()=>go("后山断崖"),"去藏经阁":()=>go("藏经阁"),"外出历练":()=>explore()}},
+"后山断崖":{desc:"冷风呼啸，谷底老林黑沉沉。怀中残玉隐隐发热。",actions:{"残玉引气":()=>cultivate(25,50),"眺望谷底":()=>randomEvent(),"返回外门":()=>go("青云山外门"),"谷底探险":()=>dungeon()}},
+"藏经阁":{desc:"书架密密麻麻，落着薄灰。只有最基础功法在外层。",actions:{"翻阅基础功法":()=>cultivate(15,30),"尝试偷进内室":()=>stealEvent(),"返回外门":()=>go("青云山外门")}},
+"山下集市":{desc:"人声鼎沸，摊贩吆喝灵药法器。钱袋叮当响。",actions:{"逛逛地摊":()=>stallEvent(),"进入商店":()=>showTab("shop"),"返回山门":()=>go("青云山外门")}},
+"幽暗密林":{desc:"古木参天，阴气森森。远处传来异兽低吼。",actions:{"小心翼翼前进":()=>startCombat(),"撤退":()=>go("青云山外门")}},
+"山洞深处":{desc:"岩壁上刻着古老符文，空气里弥漫灵气。",actions:{"参悟符文":()=>cultivate(50,100),"搜刮宝箱":()=>lootChest(),"返回":()=>go("后山断崖")}}
 };
-const EVENTS={crane:"一只雪白的老鹤从谷底飞起，唳鸣一声。你心中若有所悟。",steal:"你刚伸手碰向内室的门，一道剑气擦着耳边飞过！执事喝到：「外门弟子，不得入内。」",stall:["你在地摊发现一块灰扑扑的石头，花2两买下——正是你的残玉！","老道拉住你：「道友，《青云心法》5两。」翻了翻，是盗版。","你看到小偷偷了师姐的钱袋。"]};
+const ENEMIES=[
+{name:"野狼",hp:30,atk:5,reward:20,exp:15},
+{name:"山贼",hp:50,atk:8,reward:50,exp:25},
+{name:"灵蛇",hp:40,atk:12,reward:35,exp:30},
+{name:"妖兽",hp:80,atk:15,reward:80,exp:50},
+{name:"邪修",hp:100,atk:20,reward:120,exp:80}
+];
+const SHOP=[
+{name:"聚气丹",price:15,desc:"气血+50",effect:{hp:50}},
+{name:"回灵丹",price:25,desc:"灵气+30",effect:{spirit:30}},
+{name:"青云剑",price:100,desc:"攻击+10",effect:{atk:10}},
+{name:"护体甲",price:150,desc:"防御+5",effect:{def:5}},
+{name:"筑基丹",price:300,desc:"直接突破一小级",effect:{break:true}}
+];
 
-let state=JSON.parse(localStorage.getItem("xianxia")||"null")||{name:"林砚",location:"青云山外门",spirit:0,cult:2,gold:20,items:["残玉"],hp:100,day:1};
+let state=JSON.parse(localStorage.getItem("xianxia_pro")||"null")||{name:"林砚",location:"青云山外门",spirit:0,cult:2,gold:50,items:{},hp:100,maxhp:100,atk:10,def:0,day:1,log:[]};
 
-function save(){localStorage.setItem("xianxia",JSON.stringify(state))}
-function log(msg){document.getElementById("log").textContent+=msg+"\n"}
+function save(){localStorage.setItem("xianxia_pro",JSON.stringify(state))}
+function log(msg,type=""){state.log.push({msg,type});if(state.log.length>50)state.log.shift();renderLog()}
 
-function render(){
+function renderStatus(){
+const need=(state.cult+1)*80;
 document.getElementById("status").innerHTML=`
-【${state.name}】 <span>${CULTIVATION[state.cult]}</span><br>
-灵气: <span>${state.spirit}</span> | 气血: <span>${state.hp}</span> | 银两: <span>${state.gold}</span>两<br>
-物品: ${state.items.join(", ")} | 第${state.day}天`;
+<div class="item"><label>👤 ${state.name}</label><span>${CULTIVATION[state.cult]}</span></div>
+<div class="item"><label>📅 第 ${state.day} 天</label><span>💰 ${state.gold} 两</span></div>
+<div class="item"><label>❤️ 气血</label><span>${state.hp}/${state.maxhp}</span></div>
+<div class="item"><label>⚔️ 攻击</label><span>${state.atk}  🛡️ 防御: ${state.def}</span></div>
+<div style="grid-column:1/-1"><label>❤️ 气血</label><div class="hp-bar"><div class="hp-fill" style="width:${state.hp/state.maxhp*100}%"></div></div></div>
+<div style="grid-column:1/-1"><label>✨ 灵气 (升级需 ${need})</label><div class="spirit-bar"><div class="spirit-fill" style="width:${Math.min(state.spirit/need*100,100)}%"></div></div></div>`;
+}
+
+function renderActions(){
 const loc=LOCATIONS[state.location];
-document.getElementById("location").innerHTML=`<h3>📍 ${state.location}</h3>${loc.desc}`;
+document.getElementById("loc-desc").innerHTML=`<strong>📍 ${state.location}</strong><br>${loc.desc}`;
 const acts=document.getElementById("actions");acts.innerHTML="";
-Object.keys(loc.actions).forEach(k=>{
-const b=document.createElement("button");b.textContent=k;b.onclick=loc.actions[k];acts.appendChild(b);
+Object.entries(loc.actions).forEach(([k,v])=>{
+const b=document.createElement("button");b.textContent=k;b.onclick=v;acts.appendChild(b);
 });
-const reset=document.createElement("button");reset.textContent="🔄 重新开始";reset.onclick=()=>{if(confirm("确定重开？")){localStorage.removeItem("xianxia");location.reload()}};reset.style.marginTop="10px";acts.appendChild(reset);
+const reset=document.createElement("button");reset.textContent="🔄 重新开始";reset.className="danger";reset.style.gridColumn="1/-1";reset.onclick=()=>{if(confirm("确定重开？所有进度将丢失！")){localStorage.removeItem("xianxia_pro");location.reload()}};acts.appendChild(reset);
+}
+
+function renderInventory(){
+const inv=document.getElementById("inventory");inv.innerHTML="";
+if(Object.keys(state.items).length===0){inv.innerHTML="<p style='text-align:center;color:#888;padding:20px'>背包空空如也</p>";return}
+Object.entries(state.items).forEach(([name,qty])=>{
+const d=document.createElement("div");d.className="inv-item";
+d.innerHTML=`<span>${name} × ${qty}</span>`;
+const use=document.createElement("button");use.textContent="使用";use.onclick=()=>useItem(name);
+d.appendChild(use);inv.appendChild(d);
+});
+}
+
+function renderShop(){
+const shop=document.getElementById("shop-items");shop.innerHTML="<h3 style='text-align:center;color:#c9a84c;margin:10px'>🏪 杂货铺</h3>";
+SHOP.forEach(item=>{
+const d=document.createElement("div");d.className="shop-item";
+d.innerHTML=`<div><strong>${item.name}</strong> <span style='color:#888;font-size:12px'>- ${item.desc}</span></div>`;
+const buy=document.createElement("button");buy.textContent=`${item.price}两`;buy.onclick=()=>buyItem(item);
+d.appendChild(buy);shop.appendChild(d);
+});
+}
+
+function renderLog(){
+const logEl=document.getElementById("log");
+logEl.innerHTML=state.log.map(l=>`<p class="${l.type}">[第${state.day}天] ${l.msg}</p>`).reverse().join("");
+}
+
+function showTab(name){
+document.querySelectorAll(".tab").forEach((t,i)=>{t.classList.toggle("active",["game","bag","shop","log"][i]===name)});
+document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+document.getElementById("panel-"+name).classList.add("active");
+if(name==="bag")renderInventory();
+if(name==="shop")renderShop();
 }
 
 function cultivate(min,max){
 const g=Math.floor(Math.random()*(max-min+1))+min;
 state.spirit+=g;state.day++;
 log(`打坐修炼，灵气 +${g}`);
-const need=(state.cult+1)*50;
-if(state.spirit>=need){state.cult++;state.spirit=0;log(`✨ 突破！进入【${CULTIVATION[state.cult]}】！`)}
-save();render();
+const need=(state.cult+1)*80;
+if(state.spirit>=need){
+state.cult++;state.spirit=0;state.maxhp+=20;state.hp=state.maxhp;state.atk+=5;
+showBreak();
+log(`✨ 突破！进入【${CULTIVATION[state.cult]}】！全属性提升！`,"break");
+}
+save();renderStatus();renderActions();
 }
 
-function go(loc){state.location=loc;state.day++;log(`来到 ${loc}`);save();render()}
-
-function event(type){
-let msg;
-if(type==="crane")msg=EVENTS.crane;
-else if(type==="steal"){msg=EVENTS.steal;state.spirit+=5;log("吓出冷汗，灵气 +5")}
-else msg=EVENTS.stall[Math.floor(Math.random()*EVENTS.stall.length)];
-state.day++;log(msg);save();render();
+function showBreak(){
+const d=document.createElement("div");d.className="break-popup";
+d.textContent=`✨ 突破成功！${CULTIVATION[state.cult]} ✨`;
+document.body.appendChild(d);
+setTimeout(()=>d.remove(),2000);
 }
 
-function buyPill(){
-if(state.gold>=10){state.gold-=10;state.hp+=30;state.items.push("聚气丹");log("买了聚气丹，气血+30")}
-else log("银两不够！");
-state.day++;save();render();
+function go(loc){state.location=loc;state.day++;log(`来到 ${loc}`);save();renderStatus();renderActions();}
+
+function explore(){
+state.day++;
+const r=Math.random();
+if(r<0.4){log("你在野外遇到了敌人！","combat");startCombat();}
+else if(r<0.7){const g=Math.floor(Math.random()*30)+10;state.gold+=g;log(`你捡到了 ${g} 两银子！`,"good");}
+else{const h=Math.floor(Math.random()*20)+10;state.hp=Math.min(state.hp+h,state.maxhp);log(`你休息了一会，气血 +${h}`,"good");}
+save();renderStatus();renderActions();
 }
 
-render();
-log("欢迎来到青云录。你是外门弟子林砚。");
+let combatState=null;
+function startCombat(){
+const enemy=ENEMIES[Math.floor(Math.random()*ENEMIES.length)];
+combatState={...enemy,curhp:enemy.hp};
+log(`遭遇 ${enemy.name}！(HP:${enemy.hp} 攻击:${enemy.atk})`,"combat");
+showCombat();
+}
+
+function showCombat(){
+const acts=document.getElementById("actions");acts.innerHTML="";
+const e=combatState;
+document.getElementById("loc-desc").innerHTML=`<div class="enemy"><h3>⚔️ ${e.name}</h3><p>HP: ${e.curhp}/${e.hp} | 攻击: ${e.atk}</p></div>`;
+const attack=document.createElement("button");attack.textContent="⚔️ 攻击";attack.onclick=combatAttack;
+const skill=document.createElement("button");skill.textContent="✨ 法术攻击(耗10灵气)";skill.onclick=combatSkill;
+const defend=document.createElement("button");defend.textContent="🛡️ 防御";defend.onclick=combatDefend;
+const flee=document.createElement("button");flee.textContent="🏃 逃跑";flee.className="danger";flee.onclick=combatFlee;
+acts.append(attack,skill,defend,flee);
+}
+
+function combatAttack(){
+const dmg=state.atk+Math.floor(Math.random()*5);
+combatState.curhp-=dmg;
+log(`你攻击 ${combatState.name}，造成 ${dmg} 伤害`);
+if(combatState.curhp<=0){winCombat();return}
+enemyTurn();
+}
+
+function combatSkill(){
+if(state.spirit<10){log("灵气不足！","combat");return}
+state.spirit-=10;
+const dmg=state.atk*2+Math.floor(Math.random()*10);
+combatState.curhp-=dmg;
+log(`你施展法术，造成 ${dmg} 伤害！`,"good");
+if(combatState.curhp<=0){winCombat();return}
+enemyTurn();
+}
+
+let defending=false;
+function combatDefend(){defending=true;log("你摆出防御姿态");enemyTurn();}
+
+function enemyTurn(){
+let dmg=combatState.atk+Math.floor(Math.random()*5)-state.def;
+if(defending)dmg=Math.floor(dmg/2);
+dmg=Math.max(dmg,1);
+state.hp-=dmg;defending=false;
+log(`${combatState.name} 反击，你受到 ${dmg} 伤害！`,"combat");
+if(state.hp<=0){log("你被击败了...被抬回了外门。","combat");state.hp=Math.floor(state.maxhp*0.5);state.location="青云山外门";combatState=null;save();renderStatus();renderActions();return}
+showCombat();save();renderStatus();
+}
+
+function winCombat(){
+log(`击败 ${combatState.name}！获得 ${combatState.reward} 两银子，${combatState.exp} 经验`,"break");
+state.gold+=combatState.reward;state.spirit+=combatState.exp;
+combatState=null;
+const need=(state.cult+1)*80;
+if(state.spirit>=need){state.cult++;state.spirit=0;state.maxhp+=20;state.hp=state.maxhp;state.atk+=5;showBreak();log(`✨ 突破！进入【${CULTIVATION[state.cult]}】！`,"break");}
+save();renderStatus();renderActions();
+}
+
+function combatFlee(){
+if(Math.random()<0.6){log("你成功逃跑了","good");combatState=null;save();renderStatus();renderActions();}
+else{log("逃跑失败！","combat");enemyTurn();}
+}
+
+function randomEvent(){
+const r=Math.random();
+if(r<0.3){state.gold+=15;log("你在草丛里发现15两银子！","good");}
+else if(r<0.6){state.hp=Math.min(state.hp+10,state.maxhp);log("你吸了一口山谷灵气，气血+10","good");}
+else{log("一只老鹤飞过，唳鸣一声。你若有所悟。","good");state.spirit+=10;}
+state.day++;save();renderStatus();renderActions();
+}
+
+function stealEvent(){
+if(Math.random()<0.5){log("你被执事发现，被罚面壁一天！","combat");state.day+=2;}
+else{state.spirit+=40;log("你偷看到一本秘籍，灵气+40！","break");}
+state.day++;save();renderStatus();renderActions();
+}
+
+function stallEvent(){
+const items=["聚气丹","回灵丹","青云剑"];
+const item=items[Math.floor(Math.random()*items.length)];
+state.items[item]=(state.items[item]||0)+1;
+log(`地摊淘宝，获得【${item}】！`,"good");
+state.day++;save();renderStatus();renderActions();
+}
+
+function dungeon(){
+if(Math.random()<0.5){state.location="幽暗密林";log("你进入了幽暗密林...","combat");startCombat();}
+else{state.location="山洞深处";log("你发现了一个古老山洞...","good");}
+save();renderStatus();renderActions();
+}
+
+function lootChest(){
+const g=Math.floor(Math.random()*50)+30;
+state.gold+=g;
+log(`打开宝箱，获得 ${g} 两银子！`,"break");
+state.items["聚气丹"]=(state.items["聚气丹"]||0)+1;
+log("额外获得【聚气丹】×1","good");
+save();renderStatus();renderActions();
+}
+
+function buyItem(item){
+if(state.gold<item.price){log("银子不够！","combat");return}
+state.gold-=item.price;
+if(item.effect.hp){state.hp=Math.min(state.hp+item.effect.hp,state.maxhp);}
+if(item.effect.spirit){state.spirit+=item.effect.spirit;}
+if(item.effect.atk){state.atk+=item.effect.atk;}
+if(item.effect.def){state.def+=item.effect.def;}
+if(item.effect.break){state.cult=Math.min(state.cult+1,CULTIVATION.length-1);state.maxhp+=20;state.atk+=5;showBreak();}
+state.items[item.name]=(state.items[item.name]||0)+1;
+log(`购买【${item.name}】！`,"good");
+save();renderStatus();renderShop();
+}
+
+function useItem(name){
+if(!state.items[name]||state.items[name]<=0)return;
+state.items[name]--;if(state.items[name]<=0)delete state.items[name];
+if(name==="聚气丹"){state.hp=Math.min(state.hp+50,state.maxhp);log("服用聚气丹，气血+50","good");}
+if(name==="回灵丹"){state.spirit+=30;log("服用回灵丹，灵气+30","good");}
+save();renderStatus();renderInventory();
+}
+
+// init
+renderStatus();renderActions();renderLog();
+log("欢迎来到青云录 Pro。你是外门弟子林砚，炼气三层。");
 </script>
 </body>
 </html>
