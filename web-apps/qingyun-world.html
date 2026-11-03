@@ -181,6 +181,8 @@ return t===T_WATER||t===T_TREE||t===T_ROCK||t===T_BUILDING;
 }
 
 // ===== 更新 =====
+var interactCd=0, dialogOpen=false, dialogText="", toastMsg="";
+
 function update(){
 // 移动
 var mvx=0, mvy=0;
@@ -332,6 +334,65 @@ camY=Math.max(0, Math.min(WORLD_H-H, camY));
 // 灵气缓慢恢复
 if(Math.floor(Date.now()/500)%2===0&&player.spirit<player.spiritNeed){
 // 不自动回，靠收集和打怪
+}
+
+// ===== E键交互 =====
+if(keys["e"]&&!interactCd){
+interactCd=15;
+// 先关对话框
+if(dialogOpen){dialogOpen=false;return}
+var interacted=false;
+// 检测NPC
+for(var npc of npcs){
+var dx=player.x-npc.x, dy=(player.y-player.h/2)-npc.y;
+var dist=Math.sqrt(dx*dx+dy*dy);
+if(dist<50){
+dialogOpen=true;
+dialogText=npc.name+"：「"+npc.text+"」";
+interacted=true;
+break;
+}
+}
+// 检测建筑
+if(!interacted){
+for(var b of buildings){
+var cx=b.x+b.w/2, cy=b.y+b.h/2;
+var dx=player.x-cx, dy=player.y-cy;
+var dist=Math.sqrt(dx*dx+dy*dy);
+if(dist<80){
+enterBuilding(b);
+interacted=true;
+break;
+}
+}
+}
+if(!interacted)toastMsg="附近没有可交互的对象";
+}
+if(interactCd>0)interactCd--;
+if(keys["e"]===false)interactCd=0;
+}
+
+function enterBuilding(b){
+if(b.type==="sect"){
+dialogOpen=true;
+dialogText="你走进青云门大殿。掌门端坐上方。<br>（按E退出，点NPC对话）";
+}
+else if(b.type==="alchemy"){
+dialogOpen=true;
+dialogText="丹房里药香扑鼻。丹师正在炼丹。<br>（按E退出）";
+}
+else if(b.type==="shop"){
+// 商店：给点钱回血
+var cost=20;
+if(player.gold>=cost){
+player.gold-=cost;
+player.hp=player.maxHp;
+dialogOpen=true;
+dialogText="你在集市买了丹药，气血全满。-"+cost+"两";
+}else{
+dialogOpen=true;
+dialogText="集市老板：「银两不够啊少侠」";
+}
 }
 }
 
@@ -534,6 +595,43 @@ ctx.fillText(popMsg, W/2, 132);
 popTimer--;
 if(popTimer<=0)popMsg=null;
 }
+
+// 对话框
+if(dialogOpen){
+ctx.fillStyle="rgba(0,0,0,0.85)";
+ctx.fillRect(40, H-130, W-80, 100);
+ctx.strokeStyle="#c9a84c";
+ctx.lineWidth=2;
+ctx.strokeRect(40, H-130, W-80, 100);
+ctx.fillStyle="#e0d8c8";
+ctx.font="16px 'Songti SC'";
+ctx.textAlign="left";
+// 简单换行
+var lines=dialogText.split("<br>");
+lines.forEach(function(line,i){
+ctx.fillText(line, 60, H-100+i*25);
+});
+ctx.fillStyle="#c9a84c";
+ctx.font="12px 'Songti SC'";
+ctx.fillText("按 E 关闭", W-120, H-45);
+}
+
+// 提示
+if(toastMsg){
+ctx.fillStyle="rgba(233,69,96,0.9)";
+ctx.fillRect(W/2-150, 60, 300, 30);
+ctx.fillStyle="#fff";
+ctx.font="14px 'Songti SC'";
+ctx.textAlign="center";
+ctx.fillText(toastMsg, W/2, 80);
+setTimeout(function(){toastMsg=""},2000);
+}
+
+// 操作提示（靠近时）
+ctx.fillStyle="rgba(255,255,255,0.7)";
+ctx.font="12px 'Songti SC'";
+ctx.textAlign="center";
+ctx.fillText("E 交互", player.x, player.y-player.h-10);
 }
 
 // ===== 主循环 =====
