@@ -16,8 +16,8 @@ h1{color:#c9a84c;margin-bottom:8px;letter-spacing:5px;text-shadow:0 0 10px rgba(
 <h1>⛰️ 青 云 界 · 修 仙 传 奇 ⛰️</h1>
 <canvas id="game" width="800" height="600"></canvas>
 <div class="controls">
-<b>WASD/方向键</b> 移动 &nbsp; <b>J</b> 攻击 &nbsp; <b>K</b> 法术 &nbsp; <b>E</b> 交互 &nbsp; <b>L</b> 炼丹 &nbsp; <b>G</b> 技能
-<br>日夜交替，夜晚妖兽更强。打怪升级，学技能，炼丹，挑战Boss，飞升仙界。
+<b>WASD/方向键</b> 移动 &nbsp; <b>J</b> 攻击 &nbsp; <b>K</b> 法术 &nbsp; <b>E</b> 交互 &nbsp; <b>L</b> 炼丹 &nbsp; <b>G</b> 技能 &nbsp; <b>F</b> 御剑飞行 &nbsp; <b>O</b> 存档 &nbsp; <b>I</b> 读档
+<br>主线任务、装备掉落、飞剑坐骑、天气变化、传送阵、成就系统。
 </div>
 
 <script>
@@ -41,8 +41,12 @@ facing:1, attackCd:0, hurtCd:0,
 realm:0, spirit:0, spiritNeed:100,
 hp:100, maxHp:100, atk:10, def:0,
 gold:50, items:{}, skills:[], skillPoints:0,
-day:1, time:0, // 0-1 表示一天进度
-herbs:{}, alive:true
+day:1, time:0, herbs:{}, alive:true,
+// 新增装备/任务/飞行/天气/成就
+equipment:{weapon:null,armor:null},
+quests:[], killCount:{}, collectCount:{},
+flying:false, achievements:[], weather:"晴", weatherTimer:0,
+teleports:[] // 已激活的传送点
 };
 
 var REALMS=["炼气一层","炼气三层","炼气五层","炼气七层","炼气九层","筑基初期","筑基中期","筑基后期","金丹期","元婴期","化神期","炼虚期","合体期","大乘期","渡劫期","真仙","金仙","大罗金仙","仙帝"];
@@ -66,6 +70,30 @@ var PILLS={
 "筑基丹":{herbs:{"灵芝":2,"百年参":1},effect:function(){player.spirit+=player.spiritNeed*0.5}},
 "狂暴丹":{herbs:{"百年参":1,"雪莲":1},effect:function(){player.atk+=5;player.maxHp+=20;player.hp=player.maxHp}}
 };
+
+// 装备掉落
+var EQUIP={
+"青云剑":{type:"weapon",atk:+15,price:200},
+"青钢剑":{type:"weapon",atk:+8,price:80},
+"护卫甲":{type:"armor",def:+10,price:150},
+"皮甲":{type:"armor",def:+5,price:60},
+"飞剑":{type:"weapon",atk:+25,price:500,flying:true},
+"天蚕衣":{type:"armor",def:+20,price:800}
+};
+
+// 主线任务
+var QUESTS=[
+{id:1,desc:"杀5只野狼",type:"kill",target:"野狼",count:5,reward:{gold:50,spirit:30,skillPoint:1}},
+{id:2,desc:"采集3株灵草",type:"collect",target:"灵草",count:3,reward:{gold:80,spirit:50,item:"青钢剑"}},
+{id:3,desc:"击败3名山贼",type:"kill",target:"山贼",count:3,reward:{gold:120,spirit:80,item:"皮甲"}},
+{id:4,desc:"采集2朵红花",type:"collect",target:"红花",count:2,reward:{gold:100,spirit:60}},
+{id:5,desc:"击败5条灵蛇",type:"kill",target:"灵蛇",count:5,reward:{gold:200,spirit:120,item:"青云剑"}},
+{id:6,desc:"击败魔教主",type:"kill",target:"魔教主",count:1,reward:{gold:1000,spirit:500,title:"修仙第一人"}}
+];
+
+// 天气类型
+var WEATHERS=["晴","多云","雨","雪","雾"];
+var WEATHER_COLOR={"晴":null,"多云":"rgba(100,100,120,0.1)","雨":"rgba(50,50,100,0.2)","雪":"rgba(200,200,255,0.1)","雾":"rgba(150,150,150,0.3)"};
 
 // ===== 输入 =====
 var keys={};
@@ -180,6 +208,17 @@ hurtCd:0,anim:Math.random()*10, isBoss:false
 
 // Boss
 enemies.push({x:WORLD_W-200,y:WORLD_H-200,w:50,h:50,name:"魔教主",hp:500,maxhp:500,atk:40,def:15,reward:1000,spirit:500,color:"#8b0000",dirX:0,dirY:0,hurtCd:0,anim:0,isBoss:true});
+
+// 传送阵（固定几个点）
+player.teleports=[
+{x:20*TILE,y:10*TILE,name:"青云门"},
+{x:10*TILE,y:30*TILE,name:"集市"},
+{x:35*TILE,y:15*TILE,name:"藏经阁"},
+{x:5*TILE,y:5*TILE,name:"灵药园"}
+];
+
+// 初始任务
+player.quests=[{id:1,done:false}];
 }
 
 // ===== 碰撞 =====
@@ -209,11 +248,18 @@ if(!player.alive)return;
 
 // 时间流逝
 player.time+=0.002;
+player.weatherTimer++;
+if(player.weatherTimer>600){
+player.weatherTimer=0;
+player.weather=WEATHERS[Math.floor(Math.random()*WEATHERS.length)];
+showPop("🌤️ 天气变为："+player.weather);
+}
 if(player.time>=1){player.time=0;player.day++;showPop("☀️ 第"+player.day+"天");}
 var isNight=player.time>0.5&&player.time<0.85; // 夜晚时段
 
 // 移动速度（有技能加成）
 var spd=player.speed+(player.skills.indexOf("teleport")>=0?1:0);
+if(player.flying)spd*=2.5; // 飞行加速
 
 var mvx=0,mvy=0;
 if(keys["w"]||keys["arrowup"])mvy=-1;
@@ -274,6 +320,39 @@ player.attackCd=40;
 if(keys["g"]&&!skillPanelOpen){skillPanelOpen=true}
 // 炼丹面板
 if(keys["l"]&&!alchemyPanelOpen){alchemyPanelOpen=true}
+// F 御剑飞行（需要装备飞剑）
+if(keys["f"]&&!player._fCd){
+player._fCd=20;
+if(player.equipment.weapon&&EQUIP[player.equipment.weapon].flying){
+player.flying=!player.flying;
+showPop(player.flying?"🧘 御剑飞行中":"落地");
+}else{
+toastMsg="需要装备飞剑才能飞行";
+}
+}
+if(player._fCd>0)player._fCd--;
+// O 存档
+if(keys["o"]&&!player._oCd){
+player._oCd=30;
+try{
+localStorage.setItem("qingyun_save",JSON.stringify(player));
+showPop("💾 已存档");
+}catch(e){showPop("存档失败");}
+}
+if(player._oCd>0)player._oCd--;
+// I 读档
+if(keys["i"]&&!player._iCd){
+player._iCd=30;
+try{
+var d=localStorage.getItem("qingyun_save");
+if(d){
+var saved=JSON.parse(d);
+for(var k in saved)player[k]=saved[k];
+showPop("📂 已读档");
+}
+}catch(e){showPop("读档失败");}
+}
+if(player._iCd>0)player._iCd--;
 
 // E键交互
 if(keys["e"]&&!interactCd){
@@ -297,9 +376,11 @@ if(h.respawn>0)continue;
 var dx=player.x-h.x,dy=player.y-h.y;
 if(Math.sqrt(dx*dx+dy*dy)<30){
 player.herbs[h.type]=(player.herbs[h.type]||0)+1;
+player.collectCount[h.type]=(player.collectCount[h.type]||0)+1;
 h.respawn=300;
 spawnParticles(h.x,h.y,8,"#8bc34a");
 floatTexts.push({x:h.x,y:h.y-10,text:"+1 "+h.type,color:"#8bc34a",life:40});
+checkQuests();
 interacted=true;break;
 }
 }
@@ -376,8 +457,18 @@ en.dead=true;
 player.gold+=en.reward;
 var spiritGain=Math.floor(en.spirit*spiritMult);
 player.spirit+=spiritGain;
+// 击杀计数（任务用）
+player.killCount[en.name]=(player.killCount[en.name]||0)+1;
+checkQuests();
 spawnParticles(en.x,en.y,20,"#ffd700");
 floatTexts.push({x:en.x,y:en.y-30,text:"+"+spiritGain+"灵气",color:"#4ecdc4",life:60});
+// 装备掉落（10%概率）
+if(Math.random()<0.1){
+var eqKeys=Object.keys(EQUIP);
+var drop=eqKeys[Math.floor(Math.random()*eqKeys.length)];
+player.items[drop]=(player.items[drop]||0)+1;
+floatTexts.push({x:en.x,y:en.y-50,text:"🎁 掉落:"+drop,color:"#ffd700",life:60});
+}
 if(en.isBoss){showPop("👑 击败魔教主！你已是修仙第一人！");player.gold+=500;}
 checkBreak();
 }
@@ -391,6 +482,32 @@ player.skillPoints++;
 spawnParticles(player.x,player.y,30,"#ffd700");
 showPop("✨ 突破！"+REALMS[player.realm]+" ✨ 获得1技能点");
 }
+}
+
+// 任务检查
+function checkQuests(){
+QUESTS.forEach(function(q){
+var existing=player.quests.find(function(x){return x.id===q.id});
+if(existing&&existing.done)return;
+var prog=0;
+if(q.type==="kill")prog=player.killCount[q.target]||0;
+else if(q.type==="collect")prog=player.collectCount[q.target]||0;
+if(prog>=q.count){
+if(!existing)player.quests.push({id:q.id,done:true});
+else existing.done=true;
+// 发奖励
+if(q.reward.gold)player.gold+=q.reward.gold;
+if(q.reward.spirit)player.spirit+=q.reward.spirit;
+if(q.reward.skillPoint)player.skillPoints+=q.reward.skillPoint;
+if(q.reward.item)player.items[q.reward.item]=(player.items[q.reward.item]||0)+1;
+showPop("📜 任务完成: "+q.desc+"！奖励已发");
+// 接下一个
+var next=QUESTS.find(function(x){return x.id===q.id+1});
+if(next&&!player.quests.find(function(x){return x.id===next.id})){
+player.quests.push({id:next.id,done:false});
+}
+}
+});
 }
 
 function enterBuilding(b){
@@ -515,7 +632,18 @@ ctx.fillText("❤️ "+player.hp+"/"+player.maxHp,20,50);
 ctx.fillText("✨ "+player.spirit+"/"+(REALM_BONUS[player.realm+1]||999),20,68);
 ctx.fillText("⚔️"+player.atk+" 🛡️"+player.def+" 💰"+player.gold,20,86);
 ctx.fillText("📅 第"+player.day+"天 "+(player.time>0.5&&player.time<0.85?"🌙夜晚":"☀️白天"),20,104);
-ctx.fillText("技能点:"+player.skillPoints+" | 药材种类:"+Object.keys(player.herbs).length,20,120);
+ctx.fillText("🌤️ "+player.weather+" | 技能点:"+player.skillPoints,20,120);
+// 当前任务
+var activeQ=player.quests.find(function(q){return !q.done});
+if(activeQ){
+var q=QUESTS.find(function(x){return x.id===activeQ.id});
+var prog=q.type==="kill"?(player.killCount[q.target]||0):(player.collectCount[q.target]||0);
+ctx.fillStyle="#4ecdc4";
+ctx.fillText("📜 "+q.desc+" ("+Math.min(prog,q.count)+"/"+q.count+")",20,138);
+}
+// 装备
+if(player.equipment.weapon)ctx.fillText("🗡️ "+player.equipment.weapon,20,156);
+if(player.equipment.armor)ctx.fillText("🛡️ "+player.equipment.armor,20,174);
 
 // 弹窗
 if(popMsg){
