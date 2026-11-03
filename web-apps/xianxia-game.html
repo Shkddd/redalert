@@ -39,6 +39,9 @@ h1{text-align:center;color:#c9a84c;font-size:28px;letter-spacing:5px;text-shadow
 .quest h4{color:#4ecdc4;margin-bottom:4px}
 .break-pop{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,#c9a84c,#ffd700);color:#1a1a2e;padding:25px 40px;border-radius:12px;font-size:20px;font-weight:bold;z-index:100;text-align:center;animation:pop .5s}
 @keyframes pop{0%{transform:translate(-50%,-50%) scale(0)}100%{transform:translate(-50%,-50%) scale(1)}}
+.float-num{position:fixed;pointer-events:none;font-size:22px;font-weight:bold;z-index:200;animation:floatUp 1.2s ease-out forwards}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-60px)}}
+.task-pop{position:fixed;top:20%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#4ecdc4,#44a3aa);color:#1a1a2e;padding:20px 35px;border-radius:10px;font-size:16px;font-weight:bold;z-index:100;text-align:center;box-shadow:0 5px 30px rgba(78,205,196,.5)}
 .rarity-common{color:#aaa}.rarity-rare{color:#4ecdc4}.rarity-epic{color:#c9a84c}.rarity-legend{color:#e94560}
 </style>
 </head>
@@ -103,6 +106,19 @@ function log(m,t=""){S.log.push({m,t});if(S.log.length>80)S.log.shift()}
 
 function need(){return Math.floor((S.cult+1)*80*S.rootBonus)}
 
+let currentTab='game';
+
+function showFloat(text,color){
+const d=document.createElement("div");d.className="float-num";d.textContent=text;d.style.color=color||"#4ecdc4";
+d.style.left=(40+Math.random()*20)+"%";d.style.top=(30+Math.random()*20)+"%";
+document.body.appendChild(d);setTimeout(()=>d.remove(),1200);
+}
+
+function showTaskPop(text){
+const d=document.createElement("div");d.className="task-pop";d.innerHTML="📜 "+text;
+document.body.appendChild(d);setTimeout(()=>d.remove(),2500);
+}
+
 function render(){
 const m=document.getElementById("main");
 if(!S){
@@ -131,21 +147,23 @@ m.innerHTML=`
 </div>
 ${qHtml}
 <div class="tabs">
-<div class="tab on" onclick="tab('game',this)">🏔️修行</div>
-<div class="tab" onclick="tab('bag',this)">🎒背包</div>
-<div class="tab" onclick="tab('skill',this)">📖功法</div>
-<div class="tab" onclick="tab('alchemy',this)">⚗️炼丹</div>
-<div class="tab" onclick="tab('shop',this)">🏪商店</div>
-<div class="tab" onclick="tab('log',this)">📜日志</div>
+<div class="tab ${currentTab==='game'?'on':''}" onclick="switchTab('game',this)">🏔️修行</div>
+<div class="tab ${currentTab==='bag'?'on':''}" onclick="switchTab('bag',this)">🎒背包</div>
+<div class="tab ${currentTab==='skill'?'on':''}" onclick="switchTab('skill',this)">📖功法</div>
+<div class="tab ${currentTab==='alchemy'?'on':''}" onclick="switchTab('alchemy',this)">⚗️炼丹</div>
+<div class="tab ${currentTab==='shop'?'on':''}" onclick="switchTab('shop',this)">🏪商店</div>
+<div class="tab ${currentTab==='log'?'on':''}" onclick="switchTab('log',this)">📜日志</div>
 </div>
-<div class="pane on" id="p-game">${gamePane()}</div>
-<div class="pane" id="p-bag">${bagPane()}</div>
-<div class="pane" id="p-skill">${skillPane()}</div>
-<div class="pane" id="p-alchemy">${alchemyPane()}</div>
-<div class="pane" id="p-shop">${shopPane()}</div>
-<div class="pane" id="p-log"><div class="log">${S.log.map(l=>`<p class="${l.t}">${l.m}</p>`).reverse().join("")}</div></div>
+<div class="pane ${currentTab==='game'?'on':''}" id="p-game">${gamePane()}</div>
+<div class="pane ${currentTab==='bag'?'on':''}" id="p-bag">${bagPane()}</div>
+<div class="pane ${currentTab==='skill'?'on':''}" id="p-skill">${skillPane()}</div>
+<div class="pane ${currentTab==='alchemy'?'on':''}" id="p-alchemy">${alchemyPane()}</div>
+<div class="pane ${currentTab==='shop'?'on':''}" id="p-shop">${shopPane()}</div>
+<div class="pane ${currentTab==='log'?'on':''}" id="p-log"><div class="log">${S.log.map(l=>`<p class="${l.t}">${l.m}</p>`).reverse().join("")}</div></div>
 `;
 }
+
+function switchTab(n,el){currentTab=n;tab(n,el)}
 
 function tab(n,el){document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));el.classList.add("on");document.querySelectorAll(".pane").forEach(p=>p.classList.remove("on"));document.getElementById("p-"+n).classList.add("on")}
 
@@ -172,6 +190,7 @@ return h;
 function cult(lo,hi){
 const g=Math.floor(Math.random()*(hi-lo+1)+lo);
 S.spirit+=g;S.day++;log(`打坐修炼，灵气+${g}`);
+showFloat(`✨ +${g} 灵气`,"#4ecdc4");
 if(S.spirit>=need()){S.cult++;S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;pop();log(`✨突破！进入【${REALMS[S.cult]}】！`,"b")}
 checkQuest();save();render();
 }
@@ -189,7 +208,9 @@ save();render();
 function gather(){
 const herbs=Object.keys(HERBS);const h=herbs[Math.floor(Math.random()*herbs.length)];
 S.herbs[h]=(S.herbs[h]||0)+1;S.gatherCount[h]=(S.gatherCount[h]||0)+1;S.day++;
-log(`采集到【${h}】`,"g");checkQuest();save();render();
+log(`采集到【${h}】`,"g");
+showFloat(`🌿 +1 ${h}`,"#8bc34a");
+checkQuest();save();render();
 }
 
 function study(){
@@ -275,6 +296,7 @@ save();render();
 function win(){
 log(`击败【${combat.name}】！${combat.reward}两 ${combat.exp}经验`,"b");
 S.gold+=combat.reward;S.spirit+=combat.exp;
+showFloat(`💰 +${combat.reward} 两`,"#ffd700");
 S.killCount[combat.name]=(S.killCount[combat.name]||0)+1;
 combat=null;
 if(S.spirit>=need()){S.cult++;S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;pop();log(`✨突破！【${REALMS[S.cult]}】！`,"b")}
@@ -299,6 +321,7 @@ if(q.reward.item)S.items[q.reward.item]=(S.items[q.reward.item]||0)+1;
 if(q.reward.skill&&!S.skills.includes(q.reward.skill))S.skills.push(q.reward.skill);
 if(q.reward.title)S.title=q.reward.title;
 log(`📜完成任务${q.id}！获得奖励！`,"b");
+showTaskPop(`任务${q.id}完成！<br>奖励: ${q.reward.gold?q.reward.gold+"两 ":''}${q.reward.spirit?q.reward.spirit+"灵气 ":''}${q.reward.item?q.reward.item+" ":''}${q.reward.skill?q.reward.skill+" ":''}${q.reward.title?q.reward.title+" ":''}`);
 }
 });
 }
@@ -351,6 +374,7 @@ const p=PILLS[n];
 for(const[herb,cnt]of Object.entries(p.herbs)){S.herbs[herb]-=cnt;if(S.herbs[herb]<=0)delete S.herbs[herb]}
 S.items[n]=(S.items[n]||0)+1;
 log(`⚗️炼制成功【${n}】！`,"b");
+showFloat(`⚗️ 炼制 ${n}`,"#c9a84c");
 save();render();
 }
 
@@ -368,6 +392,7 @@ function buy(n,p){
 if(S.gold<p){log("银子不够！","c");return}
 S.gold-=p;S.items[n]=(S.items[n]||0)+1;
 log(`购买【${n}】`,"g");
+showFloat(`💰 -${p} 两`,"#ff6b6b");
 if(n==="青云剑"){S.atk+=10;log("装备青云剑，攻击+10","b")}
 if(n==="护体甲"){S.def+=5;log("装备护体甲，防御+5","b")}
 save();render();
