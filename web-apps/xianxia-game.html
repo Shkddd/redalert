@@ -9,225 +9,323 @@ body{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#e0d8c8;fo
 .app{width:680px;max-width:100%;background:rgba(22,33,62,.95);border-radius:15px;padding:20px;box-shadow:0 0 50px rgba(201,168,76,.2);border:1px solid rgba(201,168,76,.3)}
 h1{text-align:center;color:#c9a84c;font-size:28px;letter-spacing:5px;text-shadow:0 0 10px rgba(201,168,76,.5)}
 .sub{text-align:center;color:#888;font-size:12px;margin-bottom:10px}
-.status{background:rgba(15,52,96,.6);border-radius:10px;padding:12px;margin:8px 0;font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.status .r{display:flex;justify-content:space-between}
+.status{background:rgba(15,52,96,.6);border-radius:10px;padding:12px;margin:8px 0;font-size:13px}
+.status .row{display:flex;justify-content:space-between;margin:4px 0}
 .status span{color:#c9a84c;font-weight:bold}
-.bar{height:6px;background:#333;border-radius:3px;overflow:hidden;margin:3px 0}
+.bar{height:8px;background:#333;border-radius:4px;overflow:hidden;margin:4px 0}
 .bar>div{height:100%;transition:width .3s}
-.tabs{display:flex;gap:4px;margin:10px 0;flex-wrap:wrap}
-.tab{flex:1;min-width:60px;padding:8px 4px;text-align:center;background:rgba(255,255,255,.05);border-radius:6px;cursor:pointer;font-size:12px}
+.tabs{display:flex;gap:4px;margin:10px 0}
+.tab{flex:1;padding:10px 4px;text-align:center;background:rgba(255,255,255,.05);border-radius:6px;cursor:pointer;font-size:13px}
 .tab.on{background:#c9a84c;color:#1a1a2e;font-weight:bold}
-.pane{display:none}.pane.on{display:block;animation:fi .3s}
-@keyframes fi{from{opacity:0}to{opacity:1}}
+.pane{display:none}.pane.on{display:block}
 .ld{background:rgba(0,0,0,.3);border-left:3px solid #c9a84c;padding:10px;margin:8px 0;border-radius:0 6px 6px 0;font-size:13px;line-height:1.6}
 .acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
-.acts button{background:rgba(15,52,96,.8);color:#e0d8c8;border:1px solid rgba(201,168,76,.4);padding:10px;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;transition:all .15s}
+.acts button{background:rgba(15,52,96,.8);color:#e0d8c8;border:1px solid rgba(201,168,76,.4);padding:12px;border-radius:6px;cursor:pointer;font-size:14px;font-family:inherit}
 .acts button:hover{background:#c9a84c;color:#1a1a2e}
-.acts button:disabled{opacity:.3;cursor:not-allowed}
+.acts button:disabled{opacity:.3}
 .acts button.dng{border-color:#e94560;color:#e94560}
-.acts button.dng:hover{background:#e94560;color:#fff}
 .inv{background:rgba(0,0,0,.3);border-radius:6px;padding:10px;margin:8px 0;max-height:300px;overflow-y:auto}
-.inv-i{display:flex;justify-content:space-between;align-items:center;padding:6px;margin:4px 0;background:rgba(255,255,255,.05);border-radius:4px;font-size:12px}
-.inv-i button{padding:4px 10px;font-size:11px;background:rgba(201,168,76,.2);border:1px solid #c9a84c;border-radius:4px;cursor:pointer;color:#c9a84c}
-.inv-i button:hover{background:#c9a84c;color:#1a1a2e}
-.log{background:rgba(0,0,0,.4);border-radius:6px;padding:10px;margin-top:10px;max-height:300px;overflow-y:auto;font-size:12px;line-height:1.7}
-.log p{margin:2px 0;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.inv-i{display:flex;justify-content:space-between;align-items:center;padding:8px;margin:4px 0;background:rgba(255,255,255,.05);border-radius:4px;font-size:13px}
+.inv-i button{padding:5px 12px;font-size:12px;background:rgba(201,168,76,.2);border:1px solid #c9a84c;border-radius:4px;cursor:pointer;color:#c9a84c}
+.log{background:rgba(0,0,0,.4);border-radius:6px;padding:10px;margin-top:10px;max-height:250px;overflow-y:auto;font-size:12px;line-height:1.7}
+.log p{margin:2px 0;padding:2px 0}
 .log .c{color:#e94560}.log .g{color:#4ecdc4}.log .b{color:#ffd700;font-weight:bold}
 .foe{background:rgba(233,69,96,.1);border:1px solid #e94560;border-radius:8px;padding:12px;margin:8px 0;text-align:center}
 .foe h3{color:#e94560;margin-bottom:6px}
 .quest{background:rgba(78,205,196,.1);border:1px solid #4ecdc4;border-radius:8px;padding:10px;margin:8px 0;font-size:12px}
 .quest h4{color:#4ecdc4;margin-bottom:4px}
-.break-pop{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,#c9a84c,#ffd700);color:#1a1a2e;padding:25px 40px;border-radius:12px;font-size:20px;font-weight:bold;z-index:100;text-align:center;animation:pop .5s}
+.float-num{position:fixed;pointer-events:none;font-size:24px;font-weight:bold;z-index:200;animation:floatUp 1.2s ease-out forwards}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-80px)}}
+.task-pop{position:fixed;top:15%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#4ecdc4,#44a3aa);color:#1a1a2e;padding:20px 35px;border-radius:10px;font-size:16px;font-weight:bold;z-index:100;text-align:center;box-shadow:0 5px 30px rgba(78,205,196,.5)}
+.break-pop{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,#c9a84c,#ffd700);color:#1a1a2e;padding:25px 40px;border-radius:12px;font-size:22px;font-weight:bold;z-index:100;text-align:center;animation:pop .5s}
 @keyframes pop{0%{transform:translate(-50%,-50%) scale(0)}100%{transform:translate(-50%,-50%) scale(1)}}
-.float-num{position:fixed;pointer-events:none;font-size:22px;font-weight:bold;z-index:200;animation:floatUp 1.2s ease-out forwards}
-@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-60px)}}
-.task-pop{position:fixed;top:20%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#4ecdc4,#44a3aa);color:#1a1a2e;padding:20px 35px;border-radius:10px;font-size:16px;font-weight:bold;z-index:100;text-align:center;box-shadow:0 5px 30px rgba(78,205,196,.5)}
-.rarity-common{color:#aaa}.rarity-rare{color:#4ecdc4}.rarity-epic{color:#c9a84c}.rarity-legend{color:#e94560}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:12px 25px;border-radius:25px;font-size:14px;z-index:150;animation:toastIn .3s}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,20px)}to{opacity:1;transform:translate(-50%,0)}}
 </style>
 </head>
 <body>
 <div class="app">
-<h1>青 云 录 · 修 仙 传 奇</h1>
+<h1>青 云 录</h1>
 <div class="sub">从炼气蝼蚁到化神大帝</div>
 <div id="main"></div>
 </div>
 
 <script>
-const REALMS=["炼气一层","炼气二层","炼气三层","炼气四层","炼气五层","炼气六层","炼气七层","炼气八层","炼气九层","筑基初期","筑基中期","筑基后期","金丹初期","金丹中期","金丹后期","元婴初期","元婴中期","元婴后期","化神期"];
-const ROOTS=[{name:"凡骨",bonus:1},{name:"灵根",bonus:1.5},{name:"玄灵根",bonus:2},{name:"天灵根",bonus:3}];
-const SKILLS={
-"青云剑法":{type:"atk",mult:1.5,cost:10,desc:"攻击1.5倍，耗10灵气"},
-"烈焰诀":{type:"atk",mult:2.5,cost:25,desc:"攻击2.5倍，耗25灵气"},
-"金钟罩":{type:"def",mult:3,cost:15,desc:"本次防御×3，耗15灵气"},
-"回血术":{type:"heal",mult:0.5,cost:20,desc:"回复50%气血，耗20灵气"},
-"天雷破":{type:"atk",mult:4,cost:50,desc:"攻击4倍，耗50灵气"},
+// ========== DATA ==========
+var REALMS=["炼气一层","炼气二层","炼气三层","炼气四层","炼气五层","炼气六层","炼气七层","炼气八层","炼气九层","筑基初期","筑基中期","筑基后期","金丹初期","金丹中期","金丹后期","元婴期","化神期"];
+var ROOTS=[{name:"凡骨",bonus:1},{name:"灵根",bonus:1.5},{name:"玄灵根",bonus:2},{name:"天灵根",bonus:3}];
+var SKILLS={
+"青云剑法":{mult:1.5,cost:10},
+"烈焰诀":{mult:2.5,cost:25},
+"金钟罩":{mult:3,cost:15,def:true},
+"回血术":{mult:0.5,cost:20,heal:true},
+"天雷破":{mult:4,cost:50}
 };
-const HERBS={
-"灵草":{desc:"常见灵药",price:5},
-"百年参":{desc:"百年老参",price:20},
-"灵芝":{desc:"血色灵芝",price:50},
-"雪莲":{desc:"天山雪莲",price:100},
+var HERBS=["灵草","百年参","灵芝","雪莲"];
+var PILLS={
+"聚气丹":{herbs:{"灵草":2},hp:50},
+"回灵丹":{herbs:{"灵草":3},spirit:30},
+"疗伤丹":{herbs:{"灵草":1,"百年参":1},hp:100},
+"筑基丹":{herbs:{"百年参":2,"灵芝":1},brk:true}
 };
-const PILLS={
-"聚气丹":{herbs:{"灵草":2},effect:{hp:50},desc:"气血+50"},
-"回灵丹":{herbs:{"灵草":3},effect:{spirit:30},desc:"灵气+30"},
-"疗伤丹":{herbs:{"灵草":1,"百年参":1},effect:{hp:100},desc:"气血+100"},
-"筑基丹":{herbs:{"百年参":2,"灵芝":1},effect:{break:true},desc:"直接突破"},
-"天元丹":{herbs:{"灵芝":2,"雪莲":1},effect:{cult:1},desc:"修为大幅提升"},
-};
-const ENEMIES=[
+var ENEMIES=[
 {name:"野狼",hp:30,atk:5,reward:20,exp:15},
 {name:"山贼",hp:50,atk:8,reward:50,exp:25},
 {name:"灵蛇",hp:40,atk:12,reward:35,exp:30},
 {name:"妖兽",hp:80,atk:15,reward:80,exp:50},
-{name:"邪修散人",hp:120,atk:20,reward:120,exp:80},
-{name:"金丹长老",hp:200,atk:30,reward:300,exp:150},
-{name:"魔教主",hp:400,atk:50,reward:800,exp:300},
+{name:"邪修",hp:120,atk:20,reward:120,exp:80},
+{name:"金丹长老",hp:200,atk:30,reward:300,exp:150}
 ];
-const QUESTS=[
-{id:1,desc:"外门执事：去后山杀3只野狼",type:"kill",target:"野狼",count:3,reward:{gold:50,spirit:30}},
-{id:2,desc:"藏经阁老者：帮我采集5株灵草",type:"gather",target:"灵草",count:5,reward:{gold:80,spirit:50,skill:"青云剑法"}},
-{id:3,desc:"师姐被山贼欺负：清剿山贼窝点",type:"kill",target:"山贼",count:5,reward:{gold:150,spirit:80,item:"烈焰诀"}},
-{id:4,desc:"宗门大比：击败金丹长老，成为青云弟子第一人",type:"kill",target:"金丹长老",count:1,reward:{gold:500,spirit:300,item:"天元丹"}},
-{id:5,desc:"最终试炼：挑战魔教主，拯救青云山",type:"kill",target:"魔教主",count:1,reward:{gold:2000,spirit:1000,title:"青云大帝"}},
+var QUESTS=[
+{id:1,desc:"杀3只野狼",target:"野狼",count:3,reward:{gold:50,spirit:30}},
+{id:2,desc:"采集5株灵草",target:"灵草",count:5,reward:{gold:80,spirit:50,skill:"青云剑法"}},
+{id:3,desc:"击败5名山贼",target:"山贼",count:5,reward:{gold:150,spirit:80,item:"烈焰诀"}},
+{id:4,desc:"击败金丹长老，成为青云第一",target:"金丹长老",count:1,reward:{gold:500,spirit:300,title:"青云大帝"}}
 ];
 
-let S=null;
-function init(ri){
-S={name:"林砚",root:ROOTS[ri].name,rootBonus:ROOTS[ri].bonus,location:"青云山外门",spirit:0,cult:2,gold:50,
-items:{},herbs:{},skills:["青云剑法"],hp:100,maxhp:100,atk:10,def:0,day:1,log:[],
-questDone:[],killCount:{},gatherCount:{},reputation:0,title:"",breakReq:0};
-save();render();
+// ========== STATE ==========
+var S=null;
+var combat=null;
+var currentTab="game";
+
+function load(){
+try{
+var d=localStorage.getItem("xy2");
+if(d){S=JSON.parse(d);return true}
+}catch(e){}
+return false;
 }
-
-function save(){localStorage.setItem("xy_legend",JSON.stringify(S))}
-function load(){const d=localStorage.getItem("xy_legend");if(d){S=JSON.parse(d);return true}return false}
-function log(m,t=""){S.log.push({m,t});if(S.log.length>80)S.log.shift()}
-
+function save(){localStorage.setItem("xy2",JSON.stringify(S))}
 function need(){return Math.floor((S.cult+1)*80*S.rootBonus)}
 
-let currentTab='game';
-
-function showFloat(text,color){
-const d=document.createElement("div");d.className="float-num";d.textContent=text;d.style.color=color||"#4ecdc4";
-d.style.left=(40+Math.random()*20)+"%";d.style.top=(30+Math.random()*20)+"%";
-document.body.appendChild(d);setTimeout(()=>d.remove(),1200);
+function toast(msg){
+var t=document.createElement("div");t.className="toast";t.textContent=msg;
+document.body.appendChild(t);setTimeout(function(){t.remove()},2000);
+}
+function floatNum(txt,color){
+var d=document.createElement("div");d.className="float-num";d.textContent=txt;d.style.color=color||"#4ecdc4";
+d.style.left=(30+Math.random()*40)+"%";d.style.top=(20+Math.random()*30)+"%";
+document.body.appendChild(d);setTimeout(function(){d.remove()},1200);
+}
+function taskPop(txt){
+var d=document.createElement("div");d.className="task-pop";d.innerHTML="📜 "+txt;
+document.body.appendChild(d);setTimeout(function(){d.remove()},3000);
+}
+function breakPop(){
+var d=document.createElement("div");d.className="break-pop";
+d.innerHTML="✨ 突破成功！<br>"+REALMS[S.cult]+" ✨";
+document.body.appendChild(d);setTimeout(function(){d.remove()},2500);
 }
 
-function showTaskPop(text){
-const d=document.createElement("div");d.className="task-pop";d.innerHTML="📜 "+text;
-document.body.appendChild(d);setTimeout(()=>d.remove(),2500);
+function log(m,t){
+S.log.push({m:m,t:t||""});
+if(S.log.length>80)S.log.shift();
 }
 
+// ========== INIT ==========
+function init(ri){
+S={name:"林砚",root:ROOTS[ri].name,rootBonus:ROOTS[ri].bonus,location:"青云山外门",
+spirit:0,cult:2,gold:50,items:{},herbs:{},skills:["青云剑法"],
+hp:100,maxhp:100,atk:10,def:0,day:1,log:[],questDone:[],killCount:{},gatherCount:{},title:""};
+save();render();
+log("欢迎来到青云录。你是外门弟子林砚。");
+toast("游戏开始！选「打坐修炼」升级");
+}
+
+// ========== RENDER ==========
 function render(){
-const m=document.getElementById("main");
+var m=document.getElementById("main");
 if(!S){
-m.innerHTML=`<div style="text-align:center;padding:40px">
-<h2 style="color:#c9a84c;margin-bottom:20px">选择你的灵根</h2>
-<p style="color:#888;margin-bottom:20px">灵根决定修炼速度，越好的灵根突破越快</p>
-${ROOTS.map((r,i)=>`<button onclick="init(${i})" style="padding:15px 30px;margin:5px;background:rgba(201,168,76,.2);border:1px solid #c9a84c;color:#c9a84c;border-radius:8px;cursor:pointer;font-size:16px">${r.name} (×${r.bonus})</button><br>`).join("")}
-</div>`;return;
+m.innerHTML='<div style="text-align:center;padding:40px">'+
+'<h2 style="color:#c9a84c;margin-bottom:20px">选择灵根</h2>'+
+'<p style="color:#888;margin-bottom:20px">灵根越好，修炼越快</p>'+
+ROOTS.map(function(r,i){return '<button onclick="init('+i+')" style="padding:15px 30px;margin:5px;background:rgba(201,168,76,.2);border:1px solid #c9a84c;color:#c9a84c;border-radius:8px;cursor:pointer;font-size:16px">'+r.name+' ×'+r.bonus+'</button><br>'}).join("")+
+'</div>';
+return;
 }
 
-let qHtml="";
-QUESTS.forEach(q=>{
-if(!S.questDone.includes(q.id)){
-const prog=q.type==="kill"?(S.killCount[q.target]||0):(S.gatherCount[q.target]||0);
-qHtml+=`<div class="quest"><h4>📜 任务 ${q.id}</h4><p>${q.desc}</p><p style="color:#4ecdc4">进度: ${Math.min(prog,q.count)}/${q.count}</p></div>`;
-}});
+// quests
+var qHtml="";
+QUESTS.forEach(function(q){
+if(S.questDone.indexOf(q.id)<0){
+var prog=S.killCount[q.target]||S.gatherCount[q.target]||0;
+qHtml+='<div class="quest"><h4>📜 任务'+q.id+'</h4><p>'+q.desc+'</p><p style="color:#4ecdc4">进度: '+Math.min(prog,q.count)+'/'+q.count+'</p></div>';
+}
+});
 
-m.innerHTML=`
-<div class="status">
-<div class="r"><label>👤 ${S.name}</label><span>${REALMS[S.cult]}</span></div>
-<div class="r"><label>🧬 ${S.root}</label><span>${S.title||"外门弟子"}</span></div>
-<div class="r"><label>📅 第${S.day}天</label><span>💰${S.gold}两</span></div>
-<div class="r"><label>❤️ ${S.hp}/${S.maxhp}</label><span>⚔️${S.atk} 🛡️${S.def}</span></div>
-<div style="grid-column:1/-1"><div class="bar"><div style="width:${S.hp/S.maxhp*100}%;background:linear-gradient(90deg,#e94560,#ff6b6b)"></div></div></div>
-<div style="grid-column:1/-1"><label>✨ 灵气 ${S.spirit}/${need()}</label><div class="bar"><div style="width:${Math.min(S.spirit/need()*100,100)}%;background:linear-gradient(90deg,#4ecdc4,#44a3aa)"></div></div></div>
-</div>
-${qHtml}
-<div class="tabs">
-<div class="tab ${currentTab==='game'?'on':''}" onclick="switchTab('game',this)">🏔️修行</div>
-<div class="tab ${currentTab==='bag'?'on':''}" onclick="switchTab('bag',this)">🎒背包</div>
-<div class="tab ${currentTab==='skill'?'on':''}" onclick="switchTab('skill',this)">📖功法</div>
-<div class="tab ${currentTab==='alchemy'?'on':''}" onclick="switchTab('alchemy',this)">⚗️炼丹</div>
-<div class="tab ${currentTab==='shop'?'on':''}" onclick="switchTab('shop',this)">🏪商店</div>
-<div class="tab ${currentTab==='log'?'on':''}" onclick="switchTab('log',this)">📜日志</div>
-</div>
-<div class="pane ${currentTab==='game'?'on':''}" id="p-game">${gamePane()}</div>
-<div class="pane ${currentTab==='bag'?'on':''}" id="p-bag">${bagPane()}</div>
-<div class="pane ${currentTab==='skill'?'on':''}" id="p-skill">${skillPane()}</div>
-<div class="pane ${currentTab==='alchemy'?'on':''}" id="p-alchemy">${alchemyPane()}</div>
-<div class="pane ${currentTab==='shop'?'on':''}" id="p-shop">${shopPane()}</div>
-<div class="pane ${currentTab==='log'?'on':''}" id="p-log"><div class="log">${S.log.map(l=>`<p class="${l.t}">${l.m}</p>`).reverse().join("")}</div></div>
-`;
+var spiritPct=Math.min(S.spirit/need()*100,100);
+var hpPct=S.hp/S.maxhp*100;
+
+m.innerHTML=
+'<div class="status">'+
+'<div class="row"><label>👤 '+S.name+'</label><span>'+REALMS[S.cult]+'</span></div>'+
+'<div class="row"><label>🧬 '+S.root+'</label><span>'+(S.title||"外门弟子")+'</span></div>'+
+'<div class="row"><label>📅 第'+S.day+'天</label><span>💰'+S.gold+'两</span></div>'+
+'<div class="row"><label>❤️ '+S.hp+'/'+S.maxhp+'</label><span>⚔️'+S.atk+' 🛡️'+S.def+'</span></div>'+
+'<div class="bar"><div style="width:'+hpPct+'%;background:linear-gradient(90deg,#e94560,#ff6b6b)"></div></div>'+
+'<label>✨ 灵气 '+S.spirit+'/'+need()+'</label>'+
+'<div class="bar"><div style="width:'+spiritPct+'%;background:linear-gradient(90deg,#4ecdc4,#44a3aa)"></div></div>'+
+'</div>'+
+qHtml+
+'<div class="tabs">'+
+'<div class="tab '+(currentTab=='game'?'on':'')+'" onclick="goTab(\'game\',this)">🏔️修行</div>'+
+'<div class="tab '+(currentTab=='bag'?'on':'')+'" onclick="goTab(\'bag\',this)">🎒背包</div>'+
+'<div class="tab '+(currentTab=='skill'?'on':'')+'" onclick="goTab(\'skill\',this)">📖功法</div>'+
+'<div class="tab '+(currentTab=='alchemy'?'on':'')+'" onclick="goTab(\'alchemy\',this)">⚗️炼丹</div>'+
+'<div class="tab '+(currentTab=='shop'?'on':'')+'" onclick="goTab(\'shop\',this)">🏪商店</div>'+
+'<div class="tab '+(currentTab=='log'?'on':'')+'" onclick="goTab(\'log\',this)">📜日志</div>'+
+'</div>'+
+'<div class="pane '+(currentTab=='game'?'on':'')+'" id="p-game">'+gamePane()+'</div>'+
+'<div class="pane '+(currentTab=='bag'?'on':'')+'" id="p-bag">'+bagPane()+'</div>'+
+'<div class="pane '+(currentTab=='skill'?'on':'')+'" id="p-skill">'+skillPane()+'</div>'+
+'<div class="pane '+(currentTab=='alchemy'?'on':'')+'" id="p-alchemy">'+alchemyPane()+'</div>'+
+'<div class="pane '+(currentTab=='shop'?'on':'')+'" id="p-shop">'+shopPane()+'</div>'+
+'<div class="pane '+(currentTab=='log'?'on':'')+'" id="p-log"><div class="log">'+S.log.slice().reverse().map(function(l){return '<p class="'+l.t+'">'+l.m+'</p>'}).join("")+'</div></div>';
 }
 
-function switchTab(n,el){currentTab=n;tab(n,el)}
+function goTab(n,el){
+currentTab=n;
+document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("on")});
+el.classList.add("on");
+document.querySelectorAll(".pane").forEach(function(p){p.classList.remove("on")});
+document.getElementById("p-"+n).classList.add("on");
+}
 
-function tab(n,el){document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));el.classList.add("on");document.querySelectorAll(".pane").forEach(p=>p.classList.remove("on"));document.getElementById("p-"+n).classList.add("on")}
-
-const LOCS={
-"青云山外门":{d:"青石牌坊下，云雾缭绕。",a:{"打坐修炼":()=>cult(8,20),"下山赶集":()=>go("山下集市"),"去后山断崖":()=>go("后山断崖"),"去藏经阁":()=>go("藏经阁"),"外出历练":()=>explore()}},
-"后山断崖":{d:"冷风呼啸，谷底老林黑沉。残玉发热。",a:{"残玉引气":()=>cult(25,50),"采药":()=>gather(),"谷底探险":()=>dungeon(),"返回":()=>go("青云山外门")}},
-"藏经阁":{d:"书架密密，薄灰覆盖。",a:{"翻阅功法":()=>study(),"偷进内室":()=>steal(),"返回":()=>go("青云山外门")}},
-"山下集市":{d:"人声鼎沸，摊贩吆喝。",a:{"逛地摊":()=>stall(),"进商店":()=>{document.querySelectorAll('.tab')[4].click()},"返回":()=>go("青云山外门")}},
-"幽暗密林":{d:"古木参天，阴气森森。",a:{"前进":()=>startCombat(),"撤退":()=>go("青云山外门")}},
-"山洞深处":{d:"岩壁刻着古符文，灵气弥漫。",a:{"参悟符文":()=>cult(50,100),"开宝箱":()=>chest(),"采药":()=>gather(),"返回":()=>go("后山断崖")}},
+// ========== LOCATIONS ==========
+var LOCS={
+"青云山外门":{d:"青石牌坊下，云雾缭绕，仙鹤掠过。",a:{
+"打坐修炼":function(){cult(8,20)},
+"下山赶集":function(){go("山下集市")},
+"去后山断崖":function(){go("后山断崖")},
+"去藏经阁":function(){go("藏经阁")},
+"外出历练":function(){explore()}
+}},
+"后山断崖":{d:"冷风呼啸，谷底老林黑沉。怀中残玉隐隐发热。",a:{
+"残玉引气":function(){cult(25,50)},
+"采药":function(){gather()},
+"谷底探险":function(){dungeon()},
+"返回外门":function(){go("青云山外门")}
+}},
+"藏经阁":{d:"书架密密麻麻，落着薄灰。",a:{
+"翻阅功法":function(){study()},
+"偷进内室":function(){steal()},
+"返回外门":function(){go("青云山外门")}
+}},
+"山下集市":{d:"人声鼎沸，摊贩吆喝灵药法器。",a:{
+"逛地摊":function(){stall()},
+"返回山门":function(){go("青云山外门")}
+}},
+"幽暗密林":{d:"古木参天，阴气森森，异兽低吼。",a:{
+"前进":function(){startCombat()},
+"撤退":function(){go("青云山外门")}
+}},
+"山洞深处":{d:"岩壁刻着古老符文，灵气弥漫。",a:{
+"参悟符文":function(){cult(50,100)},
+"开宝箱":function(){chest()},
+"采药":function(){gather()},
+"返回":function(){go("后山断崖")}
+}}
 };
 
-function tabByName(n){document.querySelectorAll(".tab").forEach(t=>{if(t.textContent.includes({shop:"商店",game:"修行"}[n]))t.click()})}
-
 function gamePane(){
-if(combat){return combatPane()}
-const loc=LOCS[S.location];
-let h=`<div class="ld"><strong>📍${S.location}</strong><br>${loc.d}</div><div class="acts">`;
-for(const[k,v]of Object.entries(loc.a)){h+=`<button onclick="${v}">${k}</button>`}
-h+=`<button class="dng" onclick="if(confirm('确定重开？')){localStorage.removeItem('xy_legend');location.reload()}">🔄重开</button></div>`;
+if(combat)return combatPane();
+var loc=LOCS[S.location];
+var h='<div class="ld"><strong>📍 '+S.location+'</strong><br>'+loc.d+'</div><div class="acts">';
+for(var k in loc.a){
+h+='<button onclick="'+loc.a[k].toString()+'" data-act="'+k+'">'+k+'</button>';
+}
+// can't use function toString, rebuild properly
+h='<div class="ld"><strong>📍 '+S.location+'</strong><br>'+loc.d+'</div><div class="acts">';
+var acts=loc.a;
+Object.keys(acts).forEach(function(key){
+h+='<button onclick="doAct(\''+key+'\')">'+key+'</button>';
+});
+h+='<button class="dng" onclick="if(confirm(\'重开？\')){localStorage.removeItem(\'xy2\');location.reload()}">🔄重开</button>';
+h+='</div>';
 return h;
 }
 
+function doAct(key){
+var loc=LOCS[S.location];
+if(loc.a[key])loc.a[key]();
+}
+
+// ========== ACTIONS ==========
 function cult(lo,hi){
-const g=Math.floor(Math.random()*(hi-lo+1)+lo);
-S.spirit+=g;S.day++;log(`打坐修炼，灵气+${g}`);
-showFloat(`✨ +${g} 灵气`,"#4ecdc4");
-if(S.spirit>=need()){S.cult++;S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;pop();log(`✨突破！进入【${REALMS[S.cult]}】！`,"b")}
+var g=Math.floor(Math.random()*(hi-lo+1)+lo);
+S.spirit+=g;S.day++;
+log("打坐修炼，灵气+"+g);
+floatNum("✨ +"+g+" 灵气","#4ecdc4");
+toast("灵气 +"+g);
+if(S.spirit>=need()){
+S.cult=Math.min(S.cult+1,REALMS.length-1);
+S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;
+breakPop();
+log("✨突破！进入【"+REALMS[S.cult]+"】！","b");
+}
 checkQuest();save();render();
 }
 
-function go(l){S.location=l;S.day++;log(`来到${l}`);save();render()}
+function go(loc){
+S.location=loc;S.day++;
+log("来到"+loc);
+save();render();
+}
 
 function explore(){
-S.day++;const r=Math.random();
+S.day++;
+var r=Math.random();
 if(r<0.4){log("遭遇敌人！","c");startCombat()}
-else if(r<0.65){const g=Math.floor(Math.random()*30)+10;S.gold+=g;log(`捡到${g}两银子`,"g")}
+else if(r<0.7){var g=Math.floor(Math.random()*30)+10;S.gold+=g;log("捡到"+g+"两银子","g");floatNum("💰 +"+g,"#ffd700")}
 else{gather()}
 save();render();
 }
 
 function gather(){
-const herbs=Object.keys(HERBS);const h=herbs[Math.floor(Math.random()*herbs.length)];
-S.herbs[h]=(S.herbs[h]||0)+1;S.gatherCount[h]=(S.gatherCount[h]||0)+1;S.day++;
-log(`采集到【${h}】`,"g");
-showFloat(`🌿 +1 ${h}`,"#8bc34a");
+var h=HERBS[Math.floor(Math.random()*HERBS.length)];
+S.herbs[h]=(S.herbs[h]||0)+1;
+S.gatherCount[h]=(S.gatherCount[h]||0)+1;
+S.day++;
+log("采集到【"+h+"】","g");
+floatNum("🌿 +1 "+h,"#8bc34a");
+toast("获得 "+h);
 checkQuest();save();render();
 }
 
 function study(){
-S.spirit+=20;S.day++;log("翻阅功法，灵气+20");
-if(Math.random()<0.3&&!S.skills.includes("金钟罩")){S.skills.push("金钟罩");log("✨领悟新功法【金钟罩】！","b")}
+S.spirit+=20;S.day++;
+log("翻阅功法，灵气+20");
+floatNum("✨ +20","#4ecdc4");
+if(Math.random()<0.3&&S.skills.indexOf("金钟罩")<0){
+S.skills.push("金钟罩");
+log("✨领悟新功法【金钟罩】！","b");
+toast("学会新功法：金钟罩！");
+}
 save();render();
 }
 
 function steal(){
-if(Math.random()<0.5){S.day+=2;log("被执事发现，面壁两天！","c")}
-else{S.spirit+=50;if(Math.random()<0.4&&!S.skills.includes("回血术")){S.skills.push("回血术");log("✨偷看到秘籍【回血术】！","b")}else log("偷看到功法残页，灵气+50","b")}
+if(Math.random()<0.5){S.day+=2;log("被执事发现，面壁两天！","c");toast("被抓了！")}
+else{
+S.spirit+=50;
+log("偷看到功法残页，灵气+50","b");
+floatNum("✨ +50","#ffd700");
+if(Math.random()<0.4&&S.skills.indexOf("回血术")<0){
+S.skills.push("回血术");
+log("✨偷看到秘籍【回血术】！","b");
+}
+}
 S.day++;save();render();
 }
 
 function stall(){
-const items=["聚气丹","回灵丹","青云剑"];const it=items[Math.floor(Math.random()*items.length)];
-S.items[it]=(S.items[it]||0)+1;S.day++;log(`地摊淘宝，获得【${it}】！`,"g");save();render();
+var items=["聚气丹","回灵丹","青云剑"];
+var it=items[Math.floor(Math.random()*items.length)];
+S.items[it]=(S.items[it]||0)+1;
+S.day++;
+log("地摊淘宝，获得【"+it+"】！","g");
+toast("获得 "+it);
+save();render();
 }
 
 function dungeon(){
@@ -237,47 +335,62 @@ save();render();
 }
 
 function chest(){
-const g=Math.floor(Math.random()*50)+30;S.gold+=g;S.items["聚气丹"]=(S.items["聚气丹"]||0)+1;
-log(`宝箱: ${g}两 + 聚气丹×1`,"b");save();render();
+var g=Math.floor(Math.random()*50)+30;
+S.gold+=g;S.items["聚气丹"]=(S.items["聚气丹"]||0)+1;
+log("宝箱: "+g+"两 + 聚气丹×1","b");
+floatNum("💰 +"+g,"#ffd700");
+toast("宝箱开出 "+g+" 两！");
+save();render();
 }
 
-// ===== COMBAT =====
-let combat=null;
+// ========== COMBAT ==========
 function startCombat(){
-const maxTier=Math.min(S.cult,ENEMIES.length-1);
-const e=ENEMIES[Math.floor(Math.random()*(maxTier+1))];
-combat={...e,cur:e.hp,defending:false};
-log(`遭遇【${e.name}】！HP:${e.hp} 攻:${e.atk}`,"c");
+var maxTier=Math.min(S.cult,ENEMIES.length-1);
+var e=ENEMIES[Math.floor(Math.random()*(maxTier+1))];
+combat={name:e.name,hp:e.hp,cur:e.hp,atk:e.atk,reward:e.reward,exp:e.exp,defending:false};
+log("遭遇【"+e.name+"】！HP:"+e.hp+" 攻:"+e.atk,"c");
+render();
 }
 
 function combatPane(){
-const e=combat;
-return `<div class="foe"><h3>⚔️ ${e.name}</h3><p>HP: ${e.cur}/${e.hp} | 攻: ${e.atk}</p></div>
-<div class="acts">
-<button onclick="cAtk()">普通攻击</button>
-${S.skills.map(s=>{const sk=SKILLS[s];return `<button onclick="cSkill('${s}')">${s}(${sk.cost}灵)</button>`}).join("")}
-<button onclick="cDef()">防御</button>
-<button class="dng" onclick="cFlee()">逃跑</button>
-</div>`;
+var e=combat;
+var h='<div class="foe"><h3>⚔️ '+e.name+'</h3><p>HP: '+e.cur+'/'+e.hp+' | 攻: '+e.atk+'</p></div>';
+h+='<div class="acts">';
+h+='<button onclick="cAtk()">普通攻击</button>';
+S.skills.forEach(function(s){
+var sk=SKILLS[s];
+h+='<button onclick="cSkill(\''+s+'\')">'+s+'('+sk.cost+'灵)</button>';
+});
+h+='<button onclick="cDef()">防御</button>';
+h+='<button class="dng" onclick="cFlee()">逃跑</button>';
+h+='</div>';
+return h;
 }
 
 function cAtk(){
-const d=S.atk+Math.floor(Math.random()*5);
-combat.cur-=d;log(`你攻击${combat.name}，造成${d}伤害`);
+var d=S.atk+Math.floor(Math.random()*5);
+combat.cur-=d;
+log("你攻击"+combat.name+"，造成"+d+"伤害");
+floatNum("-"+d,"#ff6b6b");
 if(combat.cur<=0){win();return}
 eTurn();
 }
 
 function cSkill(name){
-const sk=SKILLS[name];
-if(S.spirit<sk.cost){log("灵气不足！","c");return}
+var sk=SKILLS[name];
+if(S.spirit<sk.cost){toast("灵气不足！");return}
 S.spirit-=sk.cost;
-if(sk.type==="atk"){
-const d=Math.floor(S.atk*sk.mult)+Math.floor(Math.random()*10);
-combat.cur-=d;log(`施展【${name}】，造成${d}伤害！`,"b");
+if(sk.heal){
+var h=Math.floor(S.maxhp*sk.mult);
+S.hp=Math.min(S.hp+h,S.maxhp);
+log("施展【"+name+"】，气血+"+h,"g");
+floatNum("❤️ +"+h,"#e94560");
+}else{
+var d=Math.floor(S.atk*sk.mult)+Math.floor(Math.random()*10);
+combat.cur-=d;
+log("施展【"+name+"】，造成"+d+"伤害！","b");
+floatNum("-"+d,"#ffd700");
 if(combat.cur<=0){win();return}
-}else if(sk.type==="heal"){
-const h=Math.floor(S.maxhp*sk.mult);S.hp=Math.min(S.hp+h,S.maxhp);log(`施展【${name}】，气血+${h}`,"g");
 }
 eTurn();
 }
@@ -285,21 +398,38 @@ eTurn();
 function cDef(){combat.defending=true;log("摆出防御姿态");eTurn()}
 
 function eTurn(){
-let d=combat.atk+Math.floor(Math.random()*5)-S.def;
+var d=combat.atk+Math.floor(Math.random()*5)-S.def;
 if(combat.defending)d=Math.floor(d/2);
-d=Math.max(d,1);S.hp-=d;combat.defending=false;
-log(`${combat.name}反击，你受${d}伤害！`,"c");
-if(S.hp<=0){log("你被击败了...被抬回外门。","c");S.hp=Math.floor(S.maxhp*0.5);S.location="青云山外门";combat=null;save();render();return}
+d=Math.max(d,1);
+S.hp-=d;combat.defending=false;
+log(combat.name+"反击，你受"+d+"伤害！","c");
+floatNum("-"+d+" HP","#e94560");
+if(S.hp<=0){
+log("你被击败了...被抬回外门。","c");
+S.hp=Math.floor(S.maxhp*0.5);
+S.location="青云山外门";
+combat=null;
+toast("你被击败了...");
+save();render();
+return;
+}
 save();render();
 }
 
 function win(){
-log(`击败【${combat.name}】！${combat.reward}两 ${combat.exp}经验`,"b");
-S.gold+=combat.reward;S.spirit+=combat.exp;
-showFloat(`💰 +${combat.reward} 两`,"#ffd700");
+log("击败【"+combat.name+"】！"+combat.reward+"两 "+combat.exp+"经验","b");
+S.gold+=combat.reward;
+S.spirit+=combat.exp;
+floatNum("💰 +"+combat.reward,"#ffd700");
+toast("胜利！+"+combat.reward+"两");
 S.killCount[combat.name]=(S.killCount[combat.name]||0)+1;
 combat=null;
-if(S.spirit>=need()){S.cult++;S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;pop();log(`✨突破！【${REALMS[S.cult]}】！`,"b")}
+if(S.spirit>=need()){
+S.cult=Math.min(S.cult+1,REALMS.length-1);
+S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;
+breakPop();
+log("✨突破！【"+REALMS[S.cult]+"】！","b");
+}
 checkQuest();save();render();
 }
 
@@ -308,35 +438,42 @@ if(Math.random()<0.6){log("成功逃跑","g");combat=null;save();render()}
 else{log("逃跑失败！","c");eTurn()}
 }
 
-// ===== QUEST =====
+// ========== QUEST ==========
 function checkQuest(){
-QUESTS.forEach(q=>{
-if(S.questDone.includes(q.id))return;
-const prog=q.type==="kill"?(S.killCount[q.target]||0):(S.gatherCount[q.target]||0);
+QUESTS.forEach(function(q){
+if(S.questDone.indexOf(q.id)>=0)return;
+var prog=S.killCount[q.target]||S.gatherCount[q.target]||0;
 if(prog>=q.count){
 S.questDone.push(q.id);
-if(q.reward.gold)S.gold+=q.reward.gold;
-if(q.reward.spirit)S.spirit+=q.reward.spirit;
-if(q.reward.item)S.items[q.reward.item]=(S.items[q.reward.item]||0)+1;
-if(q.reward.skill&&!S.skills.includes(q.reward.skill))S.skills.push(q.reward.skill);
-if(q.reward.title)S.title=q.reward.title;
-log(`📜完成任务${q.id}！获得奖励！`,"b");
-showTaskPop(`任务${q.id}完成！<br>奖励: ${q.reward.gold?q.reward.gold+"两 ":''}${q.reward.spirit?q.reward.spirit+"灵气 ":''}${q.reward.item?q.reward.item+" ":''}${q.reward.skill?q.reward.skill+" ":''}${q.reward.title?q.reward.title+" ":''}`);
+var rw=q.reward;
+if(rw.gold)S.gold+=rw.gold;
+if(rw.spirit)S.spirit+=rw.spirit;
+if(rw.item)S.items[rw.item]=(S.items[rw.item]||0)+1;
+if(rw.skill&&S.skills.indexOf(rw.skill)<0)S.skills.push(rw.skill);
+if(rw.title)S.title=rw.title;
+log("📜完成任务"+q.id+"！获得奖励！","b");
+var msg="任务"+q.id+"完成！<br>奖励: ";
+if(rw.gold)msg+=rw.gold+"两 ";
+if(rw.spirit)msg+=rw.spirit+"灵气 ";
+if(rw.item)msg+=rw.item+" ";
+if(rw.skill)msg+=rw.skill+" ";
+if(rw.title)msg+=rw.title;
+taskPop(msg);
 }
 });
 }
 
-// ===== BAG =====
+// ========== BAG ==========
 function bagPane(){
-let h="<h3 style='color:#c9a84c;margin:10px'>🎒 背包</h3>";
-if(Object.keys(S.items).length===0)h+="<p style='text-align:center;color:#888;padding:20px'>空空如也</p>";
-for(const[k,v]of Object.entries(S.items)){
-h+=`<div class="inv-i"><span>${k} ×${v}</span><button onclick="useItem('${k}')">使用</button></div>`;
+var h='<h3 style="color:#c9a84c;margin:10px">🎒 背包</h3>';
+if(Object.keys(S.items).length===0)h+='<p style="text-align:center;color:#888;padding:20px">空空如也</p>';
+for(var k in S.items){
+h+='<div class="inv-i"><span>'+k+' ×'+S.items[k]+'</span><button onclick="useItem(\''+k+'\')">使用</button></div>';
 }
-h+="<h3 style='color:#4ecdc4;margin:15px 10px 5px'>🌿 药材</h3>";
-if(Object.keys(S.herbs).length===0)h+="<p style='color:#888;padding:10px'>没有药材</p>";
-for(const[k,v]of Object.entries(S.herbs)){
-h+=`<div class="inv-i"><span class="rarity-rare">${k} ×${v}</span><span style="color:#888">${HERBS[k].desc}</span></div>`;
+h+='<h3 style="color:#4ecdc4;margin:15px 10px 5px">🌿 药材</h3>';
+if(Object.keys(S.herbs).length===0)h+='<p style="color:#888;padding:10px">没有药材，去后山采药</p>';
+for(var k in S.herbs){
+h+='<div class="inv-i"><span style="color:#8bc34a">'+k+' ×'+S.herbs[k]+'</span></div>';
 }
 return h;
 }
@@ -344,68 +481,72 @@ return h;
 function useItem(n){
 if(!S.items[n]||S.items[n]<=0)return;
 S.items[n]--;if(S.items[n]<=0)delete S.items[n];
-if(n==="聚气丹"){S.hp=Math.min(S.hp+50,S.maxhp);log("服用聚气丹，气血+50","g")}
-if(n==="回灵丹"){S.spirit+=30;log("服用回灵丹，灵气+30","g")}
-if(n==="疗伤丹"){S.hp=Math.min(S.hp+100,S.maxhp);log("服用疗伤丹，气血+100","g")}
-if(n==="筑基丹"){S.cult=Math.min(S.cult+1,REALMS.length-1);S.maxhp+=20;S.atk+=5;pop();log("服用筑基丹，直接突破！","b")}
-if(n==="天元丹"){S.spirit+=200;log("服用天元丹，灵气+200","g")}
+if(n=="聚气丹"){S.hp=Math.min(S.hp+50,S.maxhp);toast("气血+50")}
+if(n=="回灵丹"){S.spirit+=30;toast("灵气+30")}
+if(n=="疗伤丹"){S.hp=Math.min(S.hp+100,S.maxhp);toast("气血+100")}
+if(n=="筑基丹"){S.cult=Math.min(S.cult+1,REALMS.length-1);S.maxhp+=20;S.atk+=5;breakPop()}
+log("使用【"+n+"】","g");
 save();render();
 }
 
-// ===== SKILL =====
+// ========== SKILLS ==========
 function skillPane(){
-let h="<h3 style='color:#c9a84c;margin:10px'>📖 已学功法</h3>";
-S.skills.forEach(s=>{const sk=SKILLS[s];h+=`<div class="inv-i"><span class="rarity-epic">${s}</span><span style="color:#888">${sk.desc}</span></div>`});
+var h='<h3 style="color:#c9a84c;margin:10px">📖 已学功法</h3>';
+S.skills.forEach(function(s){
+var sk=SKILLS[s];
+h+='<div class="inv-i"><span style="color:#c9a84c">'+s+'</span><span style="color:#888">耗'+sk.cost+'灵气</span></div>';
+});
 return h;
 }
 
-// ===== ALCHEMY =====
+// ========== ALCHEMY ==========
 function alchemyPane(){
-let h="<h3 style='color:#c9a84c;margin:10px'>⚗️ 炼丹炉</h3>";
-for(const[n,p]of Object.entries(PILLS)){
-const can=Object.entries(p.herbs).every(([herb,cnt])=>(S.herbs[herb]||0)>=cnt);
-h+=`<div class="inv-i"><span class="${can?'rarity-legend':''}">${n}</span><span style="color:#888;font-size:11px">${Object.entries(p.herbs).map(([h,c])=>`${h}×${c}`).join(" ")} - ${p.desc}</span><button onclick="craft('${n}')" ${can?'':'disabled'}>炼制</button></div>`;
+var h='<h3 style="color:#c9a84c;margin:10px">⚗️ 炼丹炉</h3>';
+for(var n in PILLS){
+var p=PILLS[n];
+var can=true;
+for(var herb in p.herbs){
+if((S.herbs[herb]||0)<p.herbs[herb])can=false;
+}
+var herbStr=Object.keys(p.herbs).map(function(k){return k+"×"+p.herbs[k]}).join(" ");
+h+='<div class="inv-i"><span>'+n+'</span><span style="color:#888;font-size:11px">'+herbStr+'</span><button onclick="craft(\''+n+'\')" '+(can?'':'disabled')+'>炼制</button></div>';
 }
 return h;
 }
 
 function craft(n){
-const p=PILLS[n];
-for(const[herb,cnt]of Object.entries(p.herbs)){S.herbs[herb]-=cnt;if(S.herbs[herb]<=0)delete S.herbs[herb]}
+var p=PILLS[n];
+for(var herb in p.herbs){S.herbs[herb]-=p.herbs[herb];if(S.herbs[herb]<=0)delete S.herbs[herb]}
 S.items[n]=(S.items[n]||0)+1;
-log(`⚗️炼制成功【${n}】！`,"b");
-showFloat(`⚗️ 炼制 ${n}`,"#c9a84c");
+log("⚗️炼制成功【"+n+"】！","b");
+floatNum("⚗️ "+n,"#c9a84c");
+toast("炼成 "+n+"！");
 save();render();
 }
 
-// ===== SHOP =====
+// ========== SHOP ==========
 function shopPane(){
-const SHOP=[{n:"聚气丹",p:15},{n:"回灵丹",p:25},{n:"疗伤丹",p:50},{n:"青云剑",p:100},{n:"护体甲",p:150},{n:"百年参",p:20},{n:"灵芝",p:50}];
-let h="<h3 style='color:#c9a84c;margin:10px'>🏪 杂货铺</h3>";
-SHOP.forEach(it=>{
-h+=`<div class="inv-i"><span>${it.n}</span><button onclick="buy('${it.n}',${it.p})">${it.p}两</button></div>`;
+var SHOP=[{n:"聚气丹",p:15},{n:"回灵丹",p:25},{n:"百年参",p:20},{n:"灵芝",p:50},{n:"青云剑",p:100,atk:10},{n:"护体甲",p:150,def:5}];
+var h='<h3 style="color:#c9a84c;margin:10px">🏪 杂货铺</h3>';
+SHOP.forEach(function(it){
+h+='<div class="inv-i"><span>'+it.n+'</span><button onclick="buy(\''+it.n+'\','+it.p+')">'+it.p+'两</button></div>';
 });
 return h;
 }
 
 function buy(n,p){
-if(S.gold<p){log("银子不够！","c");return}
+if(S.gold<p){toast("银子不够！");return}
 S.gold-=p;S.items[n]=(S.items[n]||0)+1;
-log(`购买【${n}】`,"g");
-showFloat(`💰 -${p} 两`,"#ff6b6b");
-if(n==="青云剑"){S.atk+=10;log("装备青云剑，攻击+10","b")}
-if(n==="护体甲"){S.def+=5;log("装备护体甲，防御+5","b")}
+log("购买【"+n+"】","g");
+floatNum("💰 -"+p,"#ff6b6b");
+if(n=="青云剑"){S.atk+=10;toast("攻击+10")}
+if(n=="护体甲"){S.def+=5;toast("防御+5")}
 save();render();
 }
 
-function pop(){
-const d=document.createElement("div");d.className="break-pop";
-d.textContent=`✨ 突破成功！${REALMS[S.cult]} ✨`;
-document.body.appendChild(d);setTimeout(()=>d.remove(),2000);
-}
-
-// boot
-if(!load()){render()}else{render();log("欢迎回来，道友。")}
+// ========== BOOT ==========
+if(!load()){render()}
+else{save();render();log("欢迎回来，道友。");}
 </script>
 </body>
 </html>
