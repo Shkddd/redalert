@@ -197,26 +197,63 @@ player.y=Math.max(player.h, Math.min(WORLD_H-player.h, player.y));
 // 攻击
 if(player.attackCd>0)player.attackCd--;
 if(keys["j"]&&player.attackCd<=0){
+// 挥剑特效
+attackAnim=8;
 // 攻击范围
 var ax=player.x+player.facing*30;
 for(var en of enemies){
 if(!en.hp)continue;
 var dx=en.x-ax, dy=en.y-(player.y+player.h/2);
-if(Math.abs(dx)<30&&Math.abs(dy)<30){
+if(Math.abs(dx)<35&&Math.abs(dy)<35){
 var dmg=player.atk+Math.floor(Math.random()*5);
 en.hp-=dmg;
-en.hurtCd=10;
-spawnParticles(en.x, en.y, 5, "#ffd700");
+en.hurtCd=15;
+en.hitDir=player.facing;
+en.hitX=en.x;
+spawnParticles(en.x, en.y, 10, "#ffd700");
+spawnParticles(en.x, en.y, 5, "#fff");
+// 命中数字
+floatTexts.push({x:en.x,y:en.y-20,text:"-"+dmg,color:"#ff6b6b",life:40});
 if(en.hp<=0){
 player.gold+=en.reward;
 player.spirit+=en.spirit;
-spawnParticles(en.x, en.y, 15, "#ffd700");
+spawnParticles(en.x, en.y, 20, "#ffd700");
+spawnParticles(en.x, en.y, 10, "#ff9b6b");
+floatTexts.push({x:en.x,y:en.y-30,text:"+"+en.spirit+"灵气",color:"#4ecdc4",life:60});
 en.dead=true;
 checkBreak();
 }
 }
 }
 player.attackCd=20;
+}
+
+// 法术
+if(keys["k"]&&player.attackCd<=0&&player.spirit>=30){
+player.spirit-=30;
+castAnim=15;
+spawnParticles(player.x, player.y, 15, "#ff6b6b");
+// 范围AOE
+for(var en of enemies){
+if(!en.hp)continue;
+var dx=en.x-player.x, dy=en.y-player.y;
+var dist=Math.sqrt(dx*dx+dy*dy);
+if(dist<80){
+var dmg=player.atk*2+10;
+en.hp-=dmg;
+en.hurtCd=20;
+spawnParticles(en.x, en.y, 12, "#ff6b6b");
+floatTexts.push({x:en.x,y:en.y-20,text:"-"+dmg,color:"#ff6b6b",life:40});
+if(en.hp<=0){
+player.gold+=en.reward;
+player.spirit+=en.spirit;
+spawnParticles(en.x, en.y, 20, "#ffd700");
+en.dead=true;
+checkBreak();
+}
+}
+}
+player.attackCd=40;
 }
 
 // 灵气球收集
@@ -301,6 +338,9 @@ showPop("✨ 突破！"+REALMS[player.realm]+" ✨");
 
 // 特效
 var particles=[];
+var floatTexts=[];
+var attackAnim=0;
+var castAnim=0;
 function spawnParticles(x,y,n,color){
 for(var i=0;i<n;i++){
 particles.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:20+Math.random()*20,color:color});
@@ -392,14 +432,17 @@ ctx.beginPath();ctx.arc(o.x,o.y,6*pulse,0,Math.PI*2);ctx.fill();
 // 画敌人
 for(var en of enemies){
 if(!en.hp||en.dead)continue;
-if(en.hurtCd>0&&Math.floor(Date.now()/100)%2===0)continue;
-ctx.fillStyle=en.color;
-ctx.fillRect(en.x-en.w/2, en.y-en.h/2, en.w, en.h);
+var drawX=en.x;
+if(en.hurtCd>0){
+drawX+=Math.random()*6-3; // 抖动
+}
+ctx.fillStyle=en.hurtCd>0?"#fff":en.color;
+ctx.fillRect(drawX-en.w/2, en.y-en.h/2, en.w, en.h);
 // 血条
 ctx.fillStyle="#333";
-ctx.fillRect(en.x-15, en.y-en.h/2-8, 30, 4);
+ctx.fillRect(drawX-15, en.y-en.h/2-8, 30, 4);
 ctx.fillStyle="#e94560";
-ctx.fillRect(en.x-15, en.y-en.h/2-8, 30*en.hp/(en.hp+100), 4);
+ctx.fillRect(drawX-15, en.y-en.h/2-8, 30*en.hp/(en.hp+100), 4);
 }
 
 // 画玩家
@@ -413,6 +456,29 @@ ctx.beginPath();ctx.arc(player.x, player.y-player.h+4, 6, 0, Math.PI*2);ctx.fill
 ctx.fillStyle="#4ecdc4";
 ctx.fillRect(player.x-player.w/2+3, player.y-player.h+12, player.w-6, player.h-14);
 }
+// 挥剑特效
+if(attackAnim>0){
+ctx.strokeStyle="rgba(255,215,0,"+(attackAnim/8)+")";
+ctx.lineWidth=3;
+ctx.beginPath();
+ctx.arc(player.x, player.y-player.h/2, 25, player.facing>0?-0.5:Math.PI-0.5, player.facing>0?0.5:Math.PI+0.5);
+ctx.stroke();
+}
+// 施法特效
+if(castAnim>0){
+ctx.fillStyle="rgba(255,107,107,"+(castAnim/15*0.3)+")";
+ctx.beginPath();ctx.arc(player.x, player.y-player.h/2, 80-castAnim*3, 0, Math.PI*2);ctx.fill();
+}
+
+// 浮动数字
+for(var ft of floatTexts){
+ctx.globalAlpha=Math.min(1, ft.life/30);
+ctx.fillStyle=ft.color;
+ctx.font="bold 14px 'Songti SC'";
+ctx.textAlign="center";
+ctx.fillText(ft.text, ft.x, ft.y);
+}
+ctx.globalAlpha=1;
 
 // 粒子
 for(var pt of particles){
@@ -465,6 +531,14 @@ var pt=particles[i];
 pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.2;pt.life--;
 if(pt.life<=0)particles.splice(i,1);
 }
+// 更新浮动数字
+for(var i=floatTexts.length-1;i>=0;i--){
+var ft=floatTexts[i];
+ft.y-=1;ft.life--;
+if(ft.life<=0)floatTexts.splice(i,1);
+}
+if(attackAnim>0)attackAnim--;
+if(castAnim>0)castAnim--;
 draw();
 requestAnimationFrame(loop);
 }
