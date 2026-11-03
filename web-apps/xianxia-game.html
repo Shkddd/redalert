@@ -53,7 +53,9 @@ h1{text-align:center;color:#c9a84c;font-size:28px;letter-spacing:5px;text-shadow
 <script>
 // ========== DATA ==========
 var REALMS=["炼气一层","炼气二层","炼气三层","炼气四层","炼气五层","炼气六层","炼气七层","炼气八层","炼气九层","筑基初期","筑基中期","筑基后期","金丹初期","金丹中期","金丹后期","元婴初期","元婴中期","元婴后期","化神初期","化神中期","化神后期","炼虚期","合体期","大乘期","渡劫期","真仙","金仙","大罗金仙","仙帝"];
-var ROOTS=[{name:"凡骨",bonus:1},{name:"灵根",bonus:1.5},{name:"玄灵根",bonus:2},{name:"天灵根",bonus:3}];
+// 每个境界突破所需灵气（指数增长，越往后越难）
+var REALM_REQ=[0,100,150,220,320,450,620,850,1150,1500,2200,3200,4500,6500,9000,13000,18000,25000,35000,50000,70000,100000,150000,220000,320000,500000,800000,1300000,2000000];
+var ROOTS=[{name:"凡骨",bonus:1,wuxue:0.8},{name:"灵根",bonus:1.3,wuxue:1},{name:"玄灵根",bonus:1.8,wuxue:1.3},{name:"天灵根",bonus:2.5,wuxue:1.8}];
 var SKILLS={
 "青云剑法":{mult:1.5,cost:10},
 "烈焰诀":{mult:2.5,cost:25},
@@ -96,7 +98,14 @@ if(d){S=JSON.parse(d);return true}
 return false;
 }
 function save(){localStorage.setItem("xy2",JSON.stringify(S))}
-function need(){return Math.floor((S.cult+1)*80*S.rootBonus)}
+function need(){return REALM_REQ[S.cult+1]||9999999;}
+
+// 突破成功率 = 灵根悟性 × (1 - 当前境界惩罚)
+function breakChance(){
+var base=S.rootWuxue||1;
+var realmPenalty=Math.max(0,1-S.cult*0.03); // 越高越难
+return Math.min(0.95,base*realmPenalty);
+}
 
 function toast(msg){
 var t=document.createElement("div");t.className="toast";t.textContent=msg;
@@ -124,12 +133,13 @@ if(S.log.length>80)S.log.shift();
 
 // ========== INIT ==========
 function init(ri){
-S={name:"林砚",root:ROOTS[ri].name,rootBonus:ROOTS[ri].bonus,location:"青云山外门",
-spirit:0,cult:2,gold:50,items:{},herbs:{},skills:["青云剑法"],
-hp:100,maxhp:100,atk:10,def:0,day:1,log:[],questDone:[],killCount:{},gatherCount:{},title:""};
+S={name:"林砚",root:ROOTS[ri].name,rootBonus:ROOTS[ri].bonus,rootWuxue:ROOTS[ri].wuxue,
+location:"青云山外门",spirit:0,cult:2,gold:50,items:{},herbs:{},skills:["青云剑法"],
+hp:100,maxhp:100,atk:10,def:0,day:1,log:[],questDone:[],killCount:{},gatherCount:{},title:"",
+insight:0,meditation:0};
 save();render();
 log("欢迎来到青云录。你是外门弟子林砚。");
-toast("游戏开始！选「打坐修炼」升级");
+toast("游戏开始！注意：突破有概率失败，走火入魔会掉血！");
 }
 
 // ========== RENDER ==========
@@ -155,6 +165,8 @@ qHtml+='<div class="quest"><h4>📜 任务'+q.id+'</h4><p>'+q.desc+'</p><p style
 
 var spiritPct=Math.min(S.spirit/need()*100,100);
 var hpPct=S.hp/S.maxhp*100;
+var canBreak=S.spirit>=need();
+var chancePct=Math.floor(breakChance()*100);
 
 m.innerHTML=
 '<div class="status">'+
@@ -165,6 +177,7 @@ m.innerHTML=
 '<div class="bar"><div style="width:'+hpPct+'%;background:linear-gradient(90deg,#e94560,#ff6b6b)"></div></div>'+
 '<label>✨ 灵气 '+S.spirit+'/'+need()+'</label>'+
 '<div class="bar"><div style="width:'+spiritPct+'%;background:linear-gradient(90deg,#4ecdc4,#44a3aa)"></div></div>'+
+(canBreak?'<button onclick="tryBreak()" style="width:100%;margin-top:8px;padding:12px;background:linear-gradient(90deg,#c9a84c,#ffd700);color:#1a1a2e;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer">⚡ 冲击境界 ('+chancePct+'%成功率)</button>':'')+
 '</div>'+
 qHtml+
 '<div class="tabs">'+
@@ -269,22 +282,46 @@ if(loc.a[key])loc.a[key]();
 // ========== ACTIONS ==========
 function cult(lo,hi){
 var g=Math.floor(Math.random()*(hi-lo+1)+lo);
+// 悟性影响获取量
+g=Math.floor(g*(S.rootWuxue||1));
 S.spirit+=g;S.day++;
 log("打坐修炼，灵气+"+g);
 floatNum("✨ +"+g+" 灵气","#4ecdc4");
-toast("灵气 +"+g);
-if(S.spirit>=need()){
+toast("灵气 +"+g+" / 需 "+need());
+checkQuest();save();render();
+}
+
+// 手动冲击境界
+function tryBreak(){
+if(S.spirit<need()){toast("灵气不足，无法突破！");return}
+var chance=breakChance();
+var roll=Math.random();
+if(roll<chance){
+// 成功
 S.cult=Math.min(S.cult+1,REALMS.length-1);
-S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;
+S.spirit=0;S.maxhp+=30;S.hp=S.maxhp;S.atk+=8;S.def+=2;
 breakPop();
-log("✨突破！进入【"+REALMS[S.cult]+"】！","b");
-// 渡劫期满了飞升仙界
-if(S.cult===25&&S.location==="青云山外门"){
+log("✨突破成功！进入【"+REALMS[S.cult]+"】！全属性提升！","b");
+toast("突破成功！当前："+REALMS[S.cult]);
+// 仙界飞升
+if(S.cult===25){
 setTimeout(function(){
-taskPop("🌊 渡劫成功！你飞升仙界！<br>已抵达南天门");
+taskPop("🌊 九九天劫渡过！你飞升仙界！<br>已抵达南天门");
 S.location="南天门";
-save();render();
 },2500);
+}
+}else{
+// 失败，走火入魔
+var dmg=Math.floor(S.maxhp*0.3*(1+S.cult*0.05));
+S.hp-=dmg;
+S.spirit=Math.floor(S.spirit*0.5); // 灵气流失一半
+log("💥 突破失败！走火入魔，气血-"+dmg+"，灵气流失一半！","c");
+floatNum("💥 走火入魔 -"+dmg+"HP","#e94560");
+toast("突破失败！概率 "+Math.floor(chance*100)+"%，再试一次？");
+if(S.hp<=0){
+S.hp=Math.floor(S.maxhp*0.3);
+S.location="青云山外门";
+log("你经脉逆行被同门救回，躺了三天...","c");
 }
 }
 checkQuest();save();render();
@@ -547,9 +584,24 @@ function useItem(n){
 if(!S.items[n]||S.items[n]<=0)return;
 S.items[n]--;if(S.items[n]<=0)delete S.items[n];
 if(n=="聚气丹"){S.hp=Math.min(S.hp+50,S.maxhp);toast("气血+50")}
-if(n=="回灵丹"){S.spirit+=30;toast("灵气+30")}
+if(n=="回灵丹"){
+var gain=Math.floor(need()*0.1); // 只给当前境界所需的10%
+S.spirit+=gain;
+toast("灵气+"+gain+" (仅辅助，不能靠嗑药突破)");
+}
 if(n=="疗伤丹"){S.hp=Math.min(S.hp+100,S.maxhp);toast("气血+100")}
-if(n=="筑基丹"){S.cult=Math.min(S.cult+1,REALMS.length-1);S.maxhp+=20;S.atk+=5;breakPop()}
+if(n=="筑基丹"){
+// 直接突破，但成功率减半
+var chance=breakChance()*0.5;
+if(Math.random()<chance){
+S.cult=Math.min(S.cult+1,REALMS.length-1);
+S.spirit=0;S.maxhp+=30;S.atk+=8;S.def+=2;
+breakPop();toast("筑基丹助力突破成功！");
+}else{
+S.hp-=Math.floor(S.maxhp*0.2);
+toast("丹药过猛，经脉受损！");
+}
+}
 log("使用【"+n+"】","g");
 save();render();
 }
