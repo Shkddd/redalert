@@ -39,7 +39,7 @@ camX=0;
 hp=100;maxHp=100;spirit=50;maxSpirit=100;
 score=0;
 
-player={x:80,y:groundY-40,w:32,h:48,vx:0,vy:0,onGround:false,facing:1,attackCd:0,hurtCd:0,anim:0};
+player={x:80,y:groundY-40,w:32,h:48,vx:0,vy:0,onGround:false,facing:1,attackCd:0,hurtCd:120,anim:0};
 
 // 平台
 var px=0;
@@ -56,6 +56,7 @@ platforms.push({x:gx,y:groundY,w:80,h:60,gap:true});
 }
 
 // 敌人
+// 敌人类型
 var enemyTypes=[
 {name:"野狼",hp:20,w:36,h:28,speed:1.2,dmg:10,score:50,color:"#8b7355"},
 {name:"山贼",hp:35,w:32,h:44,speed:0.8,dmg:15,score:100,color:"#a0522d"},
@@ -63,14 +64,21 @@ var enemyTypes=[
 {name:"妖兽",hp:60,w:44,h:44,speed:0.6,dmg:20,score:200,color:"#9b59b6"},
 {name:"邪修",hp:80,w:32,h:48,speed:1.0,dmg:25,score:300,color:"#e94560"}
 ];
+// 地面裂缝（坑）——远离出生点
+for(var i=0;i<lv+2;i++){
+var gx=800+i*400+Math.random()*100;
+platforms.push({x:gx,y:groundY,w:80,h:60,gap:true});
+}
+
+// 敌人——500以后才刷
 for(var i=0;i<10+lv*3;i++){
 var et=enemyTypes[Math.floor(Math.random()*Math.min(enemyTypes.length,2+lv))];
-enemies.push({x:300+i*200+Math.random()*100,y:groundY-et.h,name:et.name,hp:et.hp,w:et.w,h:et.h,speed:et.speed,dmg:et.dmg,score:et.score,color:et.color,vy:0,onGround:false,anim:Math.random()*10,dir:-1});
+enemies.push({x:600+i*200+Math.random()*100,y:groundY-et.h,name:et.name,hp:et.hp,w:et.w,h:et.h,speed:et.speed,dmg:et.dmg,score:et.score,color:et.color,vy:0,onGround:false,anim:Math.random()*10,dir:-1});
 }
 
 // 灵气球
 for(var i=0;i<20+lv*5;i++){
-orbs.push({x:200+i*150+Math.random()*50,y:groundY-60-Math.random()*150,r:8,collected:false,pulse:Math.random()*6});
+orbs.push({x:300+i*150+Math.random()*50,y:groundY-60-Math.random()*150,r:8,collected:false,pulse:Math.random()*6});
 }
 }
 
