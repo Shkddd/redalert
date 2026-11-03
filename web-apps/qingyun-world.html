@@ -81,6 +81,9 @@ row.push(T_GRASS);
 world.push(row);
 }
 
+// 玩家出生点（提前定义）
+var spawnTx=Math.floor(400/TILE), spawnTy=Math.floor(300/TILE);
+
 // 加水塘（随机几个）
 for(var i=0;i<8;i++){
 var wx=Math.floor(Math.random()*WORLD_W/TILE);
@@ -100,14 +103,16 @@ if(nx>=0&&nx<world[0].length&&ny>=0&&ny<world.length)world[ny][nx]=T_WATER;
 for(var i=0;i<200;i++){
 var tx=Math.floor(Math.random()*WORLD_W/TILE);
 var ty=Math.floor(Math.random()*WORLD_H/TILE);
-if(world[ty][tx]===T_GRASS)world[ty][tx]=T_TREE;
+var dx=tx-spawnTx, dy=ty-spawnTy;
+if(dx*dx+dy*dy>16&&world[ty][tx]===T_GRASS)world[ty][tx]=T_TREE;
 }
 
 // 加石头
 for(var i=0;i<80;i++){
 var rx=Math.floor(Math.random()*WORLD_W/TILE);
 var ry=Math.floor(Math.random()*WORLD_H/TILE);
-if(world[ry][rx]===T_GRASS)world[ry][rx]=T_ROCK;
+var dx=rx-spawnTx, dy=ry-spawnTy;
+if(dx*dx+dy*dy>16&&world[ry][rx]===T_GRASS)world[ry][rx]=T_ROCK;
 }
 
 // 主路（十字）
@@ -117,6 +122,16 @@ if(world[22][x]===T_GRASS)world[22][x]=T_PATH;
 }
 for(var y=0;y<WORLD_H/TILE;y++){
 if(world[y][15]===T_GRASS)world[y][15]=T_PATH;
+}
+
+// 清掉玩家出生点周围（保证能移动）
+for(var dy=-3;dy<=3;dy++){
+for(var dx=-3;dx<=3;dx++){
+var nx=spawnTx+dx, ny=spawnTy+dy;
+if(nx>=0&&nx<world[0].length&&ny>=0&&ny<world.length){
+world[ny][nx]=T_PATH;
+}
+}
 }
 
 // 建筑：青云门大殿（中心）
