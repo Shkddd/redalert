@@ -283,12 +283,13 @@ save();render();
 
 function gather(){
 var h=HERBS[Math.floor(Math.random()*HERBS.length)];
-S.herbs[h]=(S.herbs[h]||0)+1;
-S.gatherCount[h]=(S.gatherCount[h]||0)+1;
+var amt=Math.random()<0.5?1:2;
+S.herbs[h]=(S.herbs[h]||0)+amt;
+S.gatherCount[h]=(S.gatherCount[h]||0)+amt;
 S.day++;
-log("采集到【"+h+"】","g");
-floatNum("🌿 +1 "+h,"#8bc34a");
-toast("获得 "+h);
+log("采集到【"+h+"】×"+amt,"g");
+floatNum("🌿 +"+amt+" "+h,"#8bc34a");
+toast("获得 "+h+" ×"+amt);
 checkQuest();save();render();
 }
 
@@ -502,14 +503,21 @@ return h;
 // ========== ALCHEMY ==========
 function alchemyPane(){
 var h='<h3 style="color:#c9a84c;margin:10px">⚗️ 炼丹炉</h3>';
+// 显示现有药材
+h+='<div style="background:rgba(0,0,0,.3);padding:10px;border-radius:6px;margin:8px 0;font-size:13px">';
+h+='<strong>现有药材：</strong>';
+var herbList=HERBS.map(function(herb){return herb+'×'+(S.herbs[herb]||0)}).join(" | ");
+h+=herbList+'</div>';
+h+='<p style="color:#888;font-size:12px;margin:5px 0 10px">💡 去「后山断崖」或「山洞深处」点「采药」获取药材</p>';
 for(var n in PILLS){
 var p=PILLS[n];
 var can=true;
+var missing=[];
 for(var herb in p.herbs){
-if((S.herbs[herb]||0)<p.herbs[herb])can=false;
+if((S.herbs[herb]||0)<p.herbs[herb]){can=false;missing.push(herb+'缺'+(p.herbs[herb]-(S.herbs[herb]||0)))}
 }
-var herbStr=Object.keys(p.herbs).map(function(k){return k+"×"+p.herbs[k]}).join(" ");
-h+='<div class="inv-i"><span>'+n+'</span><span style="color:#888;font-size:11px">'+herbStr+'</span><button onclick="craft(\''+n+'\')" '+(can?'':'disabled')+'>炼制</button></div>';
+var herbStr=Object.keys(p.herbs).map(function(k){return k+'×'+p.herbs[k]}).join(" ");
+h+='<div class="inv-i"><span>'+n+'</span><span style="color:'+(can?'#4ecdc4':'#e94560')+';font-size:11px">'+herbStr+(can?'':' (缺:'+missing.join(',')+')')+'</span><button onclick="craft(\''+n+'\')" '+(can?'':'disabled')+'>'+(can?'炼制':'材料不足')+'</button></div>';
 }
 return h;
 }
