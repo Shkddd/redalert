@@ -52,7 +52,7 @@ h1{text-align:center;color:#c9a84c;font-size:28px;letter-spacing:5px;text-shadow
 
 <script>
 // ========== DATA ==========
-var REALMS=["炼气一层","炼气二层","炼气三层","炼气四层","炼气五层","炼气六层","炼气七层","炼气八层","炼气九层","筑基初期","筑基中期","筑基后期","金丹初期","金丹中期","金丹后期","元婴期","化神期"];
+var REALMS=["炼气一层","炼气二层","炼气三层","炼气四层","炼气五层","炼气六层","炼气七层","炼气八层","炼气九层","筑基初期","筑基中期","筑基后期","金丹初期","金丹中期","金丹后期","元婴初期","元婴中期","元婴后期","化神初期","化神中期","化神后期","炼虚期","合体期","大乘期","渡劫期","真仙","金仙","大罗金仙","仙帝"];
 var ROOTS=[{name:"凡骨",bonus:1},{name:"灵根",bonus:1.5},{name:"玄灵根",bonus:2},{name:"天灵根",bonus:3}];
 var SKILLS={
 "青云剑法":{mult:1.5,cost:10},
@@ -224,6 +224,22 @@ var LOCS={
 "开宝箱":function(){chest()},
 "采药":function(){gather()},
 "返回":function(){go("后山断崖")}
+}},
+"南天门":{d:"金光万道，瑞气千条。你已飞升仙界，南天门天兵森严。",a:{
+"朝拜玉帝":function(){cult(200,400)},
+"去蟠桃园":function(){go("蟠桃园")},
+"去凌霄殿":function(){go("凌霄殿")},
+"返回凡间":function(){go("青云山外门")}
+}},
+"蟠桃园":{d:"仙桃累累，香气袭人。仙女在园中巡逻。",a:{
+"偷摘仙桃":function(){stealPeach()},
+"打坐悟道":function(){cult(150,300)},
+"返回南天门":function(){go("南天门")}
+}},
+"凌霄殿":{d:"玉帝端坐龙椅，仙家两列站立。金光耀眼。",a:{
+"接受仙禄":function(){acceptTitle()},
+"挑战神将":function(){startHeavenCombat()},
+"返回南天门":function(){go("南天门")}
 }}
 };
 
@@ -262,6 +278,14 @@ S.cult=Math.min(S.cult+1,REALMS.length-1);
 S.spirit=0;S.maxhp+=20;S.hp=S.maxhp;S.atk+=5;
 breakPop();
 log("✨突破！进入【"+REALMS[S.cult]+"】！","b");
+// 渡劫期满了飞升仙界
+if(S.cult===25&&S.location==="青云山外门"){
+setTimeout(function(){
+taskPop("🌊 渡劫成功！你飞升仙界！<br>已抵达南天门");
+S.location="南天门";
+save();render();
+},2500);
+}
 }
 checkQuest();save();render();
 }
@@ -342,6 +366,46 @@ log("宝箱: "+g+"两 + 聚气丹×1","b");
 floatNum("💰 +"+g,"#ffd700");
 toast("宝箱开出 "+g+" 两！");
 save();render();
+}
+
+function stealPeach(){
+if(Math.random()<0.4){
+log("被仙女发现，赶出蟠桃园！","c");
+toast("被发现了！");
+S.location="南天门";
+}else{
+var heal=Math.floor(S.maxhp*0.5);
+S.hp=Math.min(S.hp+heal,S.maxhp);
+S.spirit+=100;
+log("偷到一颗仙桃！气血+"+heal+"，灵气+100","b");
+floatNum("🍑 仙桃！","#ff6b9d");
+toast("仙桃入腹，气力大增！");
+}
+S.day++;save();render();
+}
+
+function acceptTitle(){
+var titles=["散仙","地仙","天仙","金仙","大罗金仙"];
+var t=titles[Math.floor(Math.random()*titles.length)];
+S.title=t;
+S.spirit+=200;
+log("玉帝册封你为【"+t+"】！灵气+200","b");
+taskPop("🏅 受封 "+t+"！<br>灵气+200");
+save();render();
+}
+
+var HEAVEN_ENEMIES=[
+{name:"天兵",hp:200,atk:30,reward:200,exp:200},
+{name:"天将",hp:400,atk:50,reward:500,exp:400},
+{name:"二郎神",hp:800,atk:80,reward:1000,exp:800},
+{name:"哪吒三太子",hp:1200,atk:120,reward:2000,exp:1500}
+];
+
+function startHeavenCombat(){
+var e=HEAVEN_ENEMIES[Math.floor(Math.random()*HEAVEN_ENEMIES.length)];
+combat={name:e.name,hp:e.hp,cur:e.hp,atk:e.atk,reward:e.reward,exp:e.exp,defending:false};
+log("仙界遭遇【"+e.name+"】！HP:"+e.hp,"c");
+render();
 }
 
 // ========== COMBAT ==========
