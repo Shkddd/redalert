@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>御剑飞仙 · 横版修仙动作游戏</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:"Songti SC",serif;color:#e0d8c8}
+h1{color:#c9a84c;margin-bottom:10px;letter-spacing:5px;text-shadow:0 0 10px rgba(201,168,76,.5)}
+#game{border:2px solid #c9a84c;border-radius:8px;box-shadow:0 0 30px rgba(201,168,76,.3);background:#1a1a2e}
+.controls{margin-top:15px;text-align:center;color:#888;font-size:13px;line-height:1.8}
+.controls b{color:#c9a84c}
+</style>
+</head>
+<body>
+<h1>⚔️ 御 剑 飞 仙 ⚔️</h1>
+<canvas id="game" width="960" height="540"></canvas>
+<div class="controls">
+<b>A/D或←/→</b> 移动 &nbsp; <b>W/↑/空格</b> 跳跃 &nbsp; <b>J</b> 御剑攻击 &nbsp; <b>K</b> 法术（耗灵气） &nbsp; <b>P</b> 暂停
+<br>收集灵气球升级，打死妖怪得分，别掉坑里！
+</div>
+
+<script>
+var cv=document.getElementById("game"),ctx=cv.getContext("2d");
+var W=cv.width,H=cv.height;
+
+// ===== 游戏状态 =====
+var state="menu"; // menu / play / dead / win
+var keys={};
+var player,enemies,projectiles,particles,platforms,orbs,camX,score,hp,maxHp,spirit,maxSpirit,groundY,level,levelWidth,timer;
+
+// ===== 关卡 =====
+function buildLevel(lv){
+level=lv;
+levelWidth=3000+lv*500;
+groundY=H-60;
+platforms=[];enemies=[];projectiles=[];particles=[];orbs=[];
+camX=0;
+hp=100;maxHp=100;spirit=50;maxSpirit=100;
+score=0;
+
+player={x:80,y:groundY-40,w:32,h:48,vx:0,vy:0,onGround:false,facing:1,attackCd:0,hurtCd:0,anim:0};
+
+// 平台
+var px=0;
+while(px<levelWidth){
+var pw=150+Math.random()*200;
+var py=groundY-80-Math.random()*120;
+if(Math.random()>0.3){platforms.push({x:px,y:py,w:pw,h:12});}
+px+=pw+80+Math.random()*100;
+}
+// 地面裂缝（坑）
+for(var i=0;i<lv+2;i++){
+var gx=400+i*400+Math.random()*100;
+platforms.push({x:gx,y:groundY,w:80,h:60,gap:true});
+}
+
+// 敌人
+var enemyTypes=[
+{name:"野狼",hp:20,w:36,h:28,speed:1.2,dmg:10,score:50,color:"#8b7355"},
+{name:"山贼",hp:35,w:32,h:44,speed:0.8,dmg:15,score:100,color:"#a0522d"},
+{name:"灵蛇",hp:25,w:40,h:20,speed:1.8,dmg:12,score:80,color:"#4ecdc4"},
+{name:"妖兽",hp:60,w:44,h:44,speed:0.6,dmg:20,score:200,color:"#9b59b6"},
+{name:"邪修",hp:80,w:32,h:48,speed:1.0,dmg:25,score:300,color:"#e94560"}
+];
+for(var i=0;i<10+lv*3;i++){
+var et=enemyTypes[Math.floor(Math.random()*Math.min(enemyTypes.length,2+lv))];
+enemies.push({x:300+i*200+Math.random()*100,y:groundY-et.h,name:et.name,hp:et.hp,w:et.w,h:et.h,speed:et.speed,dmg:et.dmg,score:et.score,color:et.color,vy:0,onGround:false,anim:Math.random()*10,dir:-1});
+}
+
+// 灵气球
+for(var i=0;i<20+lv*5;i++){
+orbs.push({x:200+i*150+Math.random()*50,y:groundY-60-Math.random()*150,r:8,collected:false,pulse:Math.random()*6});
+}
+}
+
+// ===== 输入 =====
+document.addEventListener("keydown",e=>{
+keys[e.key.toLowerCase()]=true;
+if(e.key==" ")e.preventDefault();
+if(state=="menu"&&(e.key==" "||e.key=="Enter")){state="play";buildLevel(1)}
+if(state=="dead"&&(e.key==" "||e.key=="Enter")){state="menu"}
+});
+document.addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false});
+
+// ===== 更新 =====
+function update(){
+if(state!="play")return;
+timer++;
+
+// 玩家输入
+var accel=0.6;
+if(keys["a"]||keys["arrowleft"]){player.vx-=accel;player.facing=-1}
+if(keys["d"]||keys["arrowright"]){player.vx+=accel;player.facing=1}
+player.vx*=0.85; // friction
+if(Math.abs(player.vx)<0.1)player.vx=0;
+
+if((keys["w"]||keys["arrowup"]||keys[" "])&&player.onGround){
+player.vy=-13;
+player.onGround=false;
+spawnParticles(player.x+player.w/2,player.y+player.h,5,"#4ecdc4");
+}
+
+// 攻击
+if(player.attackCd>0)player.attackCd--;
+if(keys["j"]&&player.attackCd<=0){
+projectiles.push({x:player.x+player.w/2+player.facing*20,y:player.y+player.h/2-10,vx:player.facing*8,vy:0,r:10,type:"sword",life:40});
+player.attackCd=15;
+spawnParticles(player.x+player.w/2,player.y+player.h/2,3,"#c9a84c");
+}
+
+// 法术
+if(keys["k"]&&player.attackCd<=0&&spirit>=30){
+projectiles.push({x:player.x+player.w/2,y:player.y+player.h/2,vx:player.facing*6,vy:-2,r:16,type:"fire",life:60});
+spirit-=30;
+player.attackCd=30;
+spawnParticles(player.x+player.w/2,player.y+player.h/2,10,"#ff6b6b");
+}
+
+// 物理
+player.vy+=0.6; // gravity
+player.x+=player.vx;
+player.y+=player.vy;
+player.anim+=Math.abs(player.vx)*0.1;
+
+// 边界
+if(player.x<0)player.x=0;
+if(player.x>levelWidth-player.w){player.x=levelWidth-player.w}
+
+// 平台碰撞
+player.onGround=false;
+for(var p of platforms){
+if(p.gap)continue;
+if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h<p.y+p.h+10&&player.vy>=0){
+player.y=p.y-player.h;
+player.vy=0;
+player.onGround=true;
+}
+}
+
+// 掉坑
+if(player.y>H+100){
+hp=0;
+}
+
+// 灵气球
+for(var o of orbs){
+if(!o.collected){
+o.pulse+=0.1;
+var dx=player.x+player.w/2-o.x,dy=player.y+player.h/2-o.y;
+if(dx*dx+dy*dy<40*40){
+o.collected=true;
+spirit=Math.min(spirit+10,maxSpirit);
+score+=20;
+spawnParticles(o.x,o.y,8,"#4ecdc4");
+}
+}
+}
+
+// 敌人
+for(var en of enemies){
+en.anim+=0.1;
+en.vy+=0.5;
+en.x+=en.speed*en.dir;
+en.y+=en.vy;
+// 敌人平台
+en.onGround=false;
+for(var p of platforms){
+if(p.gap)continue;
+if(en.x+en.w>p.x&&en.x<p.x+p.w&&en.y+en.h>p.y&&en.y+en.h<p.y+p.h+10&&en.vy>=0){
+en.y=p.y-en.h;en.vy=0;en.onGround=true;
+}
+}
+// 敌人边界转向
+if(en.x<0||en.x>levelWidth-en.w)en.dir*=-1;
+// 碰墙转向
+for(var p of platforms){
+if(p.gap)continue;
+if(en.onGround&&Math.abs(en.vy)<1){
+var ahead=en.x+en.w/2+en.dir*20;
+if(ahead<p.x||ahead>p.x+p.w){en.dir*=-1}
+}
+}
+
+// 玩家碰撞敌人
+if(player.hurtCd<=0){
+if(player.x+player.w>en.x&&player.x<en.x+en.w&&player.y+player.h>en.y&&player.y<en.y+en.h){
+// 如果从上面踩
+if(player.vy>0&&player.y+player.h<en.y+20){
+en.hp-=30;
+player.vy=-8;
+spawnParticles(en.x+en.w/2,en.y,8,"#e94560");
+}else{
+hp-=en.dmg;
+player.hurtCd=60;
+player.vx=-player.facing*5;
+player.vy=-5;
+spawnParticles(player.x+player.w/2,player.y+player.h/2,10,"#e94560");
+}
+}
+}
+if(en.hp<=0){
+score+=en.score;
+spawnParticles(en.x+en.w/2,en.y+en.h/2,15,"#ffd700");
+en.dead=true;
+}
+}
+enemies=enemies.filter(e=>!e.dead);
+
+// 弹幕
+for(var pr of projectiles){
+pr.x+=pr.vx;
+pr.y+=pr.vy;
+if(pr.type=="fire")pr.vy+=0.05;
+pr.life--;
+if(pr.life<=0)pr.dead=true;
+// 打敌人
+for(var en of enemies){
+if(!en.hit){
+var dx=pr.x-(en.x+en.w/2),dy=pr.y-(en.y+en.h/2);
+if(dx*dx+dy*dy<(pr.r+en.w/2)*(pr.r+en.w/2)){
+en.hp-=pr.type=="fire"?40:20;
+en.hit=true;
+spawnParticles(pr.x,pr.y,10,"#ffd700");
+pr.dead=true;
+}
+}
+}
+}
+projectiles=projectiles.filter(p=>!p.dead);
+
+// 粒子
+for(var pt of particles){
+pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.2;pt.life--;
+}
+particles=particles.filter(p=>p.life>0);
+
+// 受伤无敌
+if(player.hurtCd>0)player.hurtCd--;
+
+// 镜头
+camX=Math.max(0,Math.min(player.x-W/2,levelWidth-W));
+
+// 死亡
+if(hp<=0){state="dead"}
+// 通关（走到头）
+if(player.x>levelWidth-100){state="win"}
+
+// 灵气慢慢恢复
+if(timer%30==0&&spirit<maxSpirit)spirit++;
+}
+
+function spawnParticles(x,y,n,color){
+for(var i=0;i<n;i++){
+particles.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-2,life:20+Math.random()*20,color:color,r:2+Math.random()*3});
+}
+}
+
+// ===== 绘制 =====
+function draw(){
+// 背景渐变
+var grd=ctx.createLinearGradient(0,0,0,H);
+grd.addColorStop(0,"#1a1a3e");
+grd.addColorStop(0.6,"#3a3a5e");
+grd.addColorStop(1,"#c97b63");
+ctx.fillStyle=grd;
+ctx.fillRect(0,0,W,H);
+
+// 远山（视差）
+ctx.fillStyle="rgba(40,40,70,0.5)";
+for(var i=0;i<5;i++){
+var mx=i*400-camX*0.2;
+ctx.beginPath();
+ctx.moveTo(mx,H);
+ctx.lineTo(mx+200,200);
+ctx.lineTo(mx+400,H);
+ctx.fill();
+}
+
+if(state=="menu"){
+ctx.fillStyle="#c9a84c";
+ctx.font="bold 48px 'Songti SC'";
+ctx.textAlign="center";
+ctx.fillText("御剑飞仙",W/2,H/2-50);
+ctx.font="20px 'Songti SC'";
+ctx.fillStyle="#e0d8c8";
+ctx.fillText("按 空格 开始修仙之旅",W/2,H/2+20);
+ctx.font="14px 'Songti SC'";
+ctx.fillStyle="#888";
+ctx.fillText("A/D移动 | W跳 | J御剑 | K法术",W/2,H/2+60);
+return;
+}
+
+if(state=="dead"){
+ctx.fillStyle="rgba(0,0,0,0.7)";
+ctx.fillRect(0,0,W,H);
+ctx.fillStyle="#e94560";
+ctx.font="bold 48px 'Songti SC'";
+ctx.textAlign="center";
+ctx.fillText("💀 道殒身消",W/2,H/2-30);
+ctx.fillStyle="#e0d8c8";
+ctx.font="20px 'Songti SC'";
+ctx.fillText("得分: "+score+" | 按空格重来",W/2,H/2+20);
+return;
+}
+
+if(state=="win"){
+ctx.fillStyle="rgba(0,0,0,0.7)";
+ctx.fillRect(0,0,W,H);
+ctx.fillStyle="#ffd700";
+ctx.font="bold 48px 'Songti SC'";
+ctx.textAlign="center";
+ctx.fillText("🏆 飞升成仙！",W/2,H/2-30);
+ctx.fillStyle="#e0d8c8";
+ctx.font="20px 'Songti SC'";
+ctx.fillText("最终得分: "+score,W/2,H/2+20);
+return;
+}
+
+ctx.save();
+ctx.translate(-camX,0);
+
+// 平台
+for(var p of platforms){
+if(p.gap){
+ctx.fillStyle="rgba(0,0,0,0.5)";
+ctx.fillRect(p.x,p.y,p.w,p.h);
+}else{
+ctx.fillStyle="#5a4a3a";
+ctx.fillRect(p.x,p.y,p.w,p.h);
+ctx.fillStyle="#4a7a3a";
+ctx.fillRect(p.x,p.y,p.w,4);
+}
+}
+
+// 灵气球
+for(var o of orbs){
+if(!o.collected){
+var pulse=1+Math.sin(o.pulse)*0.2;
+ctx.fillStyle="rgba(78,205,196,0.3)";
+ctx.beginPath();ctx.arc(o.x,o.y,o.r*2*pulse,0,Math.PI*2);ctx.fill();
+ctx.fillStyle="#4ecdc4";
+ctx.beginPath();ctx.arc(o.x,o.y,o.r*pulse,0,Math.PI*2);ctx.fill();
+}
+}
+
+// 敌人
+for(var en of enemies){
+ctx.fillStyle=en.color;
+ctx.fillRect(en.x,en.y,en.w,en.h);
+// 眼睛
+ctx.fillStyle="#fff";
+ctx.fillRect(en.x+en.w/2+en.dir*5-3,en.y+8,6,4);
+}
+
+// 弹幕
+for(var pr of projectiles){
+if(pr.type=="sword"){
+ctx.strokeStyle="#c9a84c";
+ctx.lineWidth=3;
+ctx.beginPath();
+ctx.moveTo(pr.x-10*pr.vx,pr.y);
+ctx.lineTo(pr.x+10*pr.vx,pr.y);
+ctx.stroke();
+}else{
+ctx.fillStyle="rgba(255,107,107,0.5)";
+ctx.beginPath();ctx.arc(pr.x,pr.y,pr.r*1.5,0,Math.PI*2);ctx.fill();
+ctx.fillStyle="#ff6b6b";
+ctx.beginPath();ctx.arc(pr.x,pr.y,pr.r,0,Math.PI*2);ctx.fill();
+}
+}
+
+// 粒子
+for(var pt of particles){
+ctx.globalAlpha=pt.life/40;
+ctx.fillStyle=pt.color;
+ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,Math.PI*2);ctx.fill();
+}
+ctx.globalAlpha=1;
+
+// 玩家（小修士）
+if(player.hurtCd<=0||Math.floor(timer/5)%2==0){
+ctx.fillStyle="#e0d8c8";
+ctx.fillRect(player.x,player.y,player.w,player.h);
+// 道髻
+ctx.fillStyle="#1a1a2e";
+ctx.beginPath();ctx.arc(player.x+player.w/2,player.y+4,8,0,Math.PI*2);ctx.fill();
+// 衣服
+ctx.fillStyle="#4ecdc4";
+ctx.fillRect(player.x+4,player.y+16,player.w-8,player.h-20);
+// 剑
+if(player.attackCd>5){
+ctx.strokeStyle="#c9a84c";
+ctx.lineWidth=2;
+ctx.beginPath();
+ctx.moveTo(player.x+player.w/2+player.facing*10,player.y+20);
+ctx.lineTo(player.x+player.w/2+player.facing*30,player.y+10);
+ctx.stroke();
+}
+}
+
+ctx.restore();
+
+// HUD
+ctx.fillStyle="rgba(0,0,0,0.6)";
+ctx.fillRect(10,10,200,60);
+// 血条
+ctx.fillStyle="#333";ctx.fillRect(20,20,180,12);
+ctx.fillStyle="#e94560";ctx.fillRect(20,20,180*hp/maxHp,12);
+// 灵气条
+ctx.fillStyle="#333";ctx.fillRect(20,40,180,12);
+ctx.fillStyle="#4ecdc4";ctx.fillRect(20,40,180*spirit/maxSpirit,12);
+// 文字
+ctx.fillStyle="#fff";
+ctx.font="12px 'Songti SC'";
+ctx.textAlign="left";
+ctx.fillText("❤️ "+hp+"  ✨ "+spirit,20,70);
+
+ctx.textAlign="right";
+ctx.fillStyle="#ffd700";
+ctx.font="bold 18px 'Songti SC'";
+ctx.fillText("得分: "+score,W-20,30);
+ctx.fillStyle="#888";
+ctx.font="12px 'Songti SC'";
+ctx.fillText("进度: "+Math.floor(player.x/levelWidth*100)+"%",W-20,50);
+}
+
+// ===== 主循环 =====
+function loop(){
+update();
+draw();
+requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
