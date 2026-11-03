@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>辩论对手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#1a1a2e,#16213e);min-height:100vh;font-family:"PingFang SC",sans-serif;display:flex;flex-direction:column;align-items:center;padding:20px;color:#e0d8c8}
+h1{color:#c9a84c;margin-bottom:5px;letter-spacing:3px}
+.sub{color:rgba(255,255,255,.5);margin-bottom:20px;font-size:14px}
+.topic{width:600px;max-width:100%;padding:15px;background:rgba(255,255,255,.05);border:1px solid rgba(201,168,76,.3);border-radius:10px;margin-bottom:15px}
+.topic input{width:100%;padding:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font-size:14px}
+.chat{width:600px;max-width:100%;height:400px;overflow-y:auto;padding:15px;background:rgba(0,0,0,.3);border-radius:10px;margin-bottom:15px}
+.msg{margin:10px 0;padding:10px 15px;border-radius:10px;max-width:80%;line-height:1.6}
+.you{background:rgba(76,205,196,.2);margin-left:auto;border:1px solid #4ecdc4}
+.foe{background:rgba(233,69,96,.2);margin-right:auto;border:1px solid #e94560}
+.msg-label{font-size:11px;opacity:.6;margin-bottom:5px}
+.input-area{width:600px;max-width:100%;display:flex;gap:10px}
+.input-area input{flex:1;padding:12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff}
+.input-area button{padding:12px 25px;background:linear-gradient(90deg,#e94560,#ff6b6b);border:none;border-radius:8px;color:#fff;font-weight:bold;cursor:pointer}
+.round{text-align:center;color:#c9a84c;margin:10px 0;font-size:13px}
+</style>
+</head>
+<body>
+<h1>⚔️ 辩论对手</h1>
+<div class="sub">输入一个辩题，我当反方和你辩</div>
+<div class="topic">
+<input id="topic" placeholder="输入辩题，例如：AI是否会取代人类工作？">
+</div>
+<div class="chat" id="chat"></div>
+<div class="input-area">
+<input id="msg" placeholder="输入你的论点..." onkeydown="if(event.key==='Enter')send()">
+<button onclick="send()">发送</button>
+</div>
+<script>
+var round=0, topic="";
+var replies=[
+"对方辩友的观点看似有理，但忽略了一个关键前提：这个问题的本质是什么？我们不妨从更深层次来分析。",
+"你的论据存在逻辑漏洞。请允许我指出：你举的例子并不能证明你的结论，反而恰恰说明了相反的情况。",
+"对方辩友一直在回避核心问题。我们今天讨论的不是'理想状态下应该怎样'，而是'现实中到底怎样'。",
+"这个问题需要辩证看待。你只看到了事物的一面，却没有看到另一面。让我从另一个角度来论证。",
+"你的观点建立在错误的假设之上。事实上，情况并非如你所说的那样。我们有充分的证据表明相反的结论。",
+"对方辩友混淆了因果关系。A导致B，不代表B导致A。这是典型的逻辑谬误。",
+"我们不妨退一步思考。即使你的前提成立，你的结论也不必然成立。这中间存在巨大的逻辑跳跃。",
+"对方辩友一直在用个别案例代替普遍规律。这是不严谨的论证方式。",
+"这个问题的关键不在于你说的那些表面现象，而在于背后的根本机制。我们必须抓住主要矛盾。",
+"感谢对方辩友的发言，但我必须指出：你的论证存在以偏概全的问题。让我用数据和事实来说话。"
+];
+
+function addMsg(text,who){
+var d=document.createElement("div");
+d.className="msg "+who;
+d.innerHTML='<div class="msg-label">'+(who==="you"?"你":"反方")+'</div>'+text;
+document.getElementById("chat").appendChild(d);
+document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+}
+
+function send(){
+var input=document.getElementById("msg");
+var text=input.value.trim();
+if(!text)return;
+if(!topic){
+topic=document.getElementById("topic").value.trim()||"未命名辩题";
+round=0;
+document.getElementById("chat").innerHTML="";
+addMsg("辩题："+topic,"foe");
+}
+addMsg(text,"you");
+input.value="";
+round++;
+document.getElementById("chat").innerHTML+='<div class="round">--- 第'+round+'回合 ---</div>';
+setTimeout(function(){
+var reply=replies[Math.floor(Math.random()*replies.length)];
+addMsg(reply,"foe");
+},600);
+}
+</script>
+</body>
+</html>

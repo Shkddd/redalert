@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>支出羞辱追踪</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#1a1a2e,#16213e);min-height:100vh;font-family:"PingFang SC",sans-serif;display:flex;justify-content:center;padding:20px;color:#e0d8c8}
+.app{width:600px;max-width:100%}
+h1{text-align:center;font-size:28px;color:#e94560;margin-bottom:5px;letter-spacing:3px}
+.sub{text-align:center;color:rgba(255,255,255,.5);margin-bottom:20px;font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.stat{background:rgba(255,255,255,.05);padding:15px;border-radius:10px;text-align:center;border:1px solid rgba(233,69,96,.3)}
+.stat-num{font-size:22px;font-weight:bold}
+.stat-label{font-size:12px;opacity:.6;margin-top:5px}
+.add-form{background:rgba(255,255,255,.05);padding:15px;border-radius:12px;margin-bottom:20px;border:1px solid rgba(255,255,255,.1)}
+.add-form input,.add-form select{width:100%;padding:10px;margin:5px 0;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff}
+.add-form button{width:100%;padding:12px;margin-top:10px;background:#e94560;border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer}
+.shame{background:rgba(233,69,96,.1);border:1px solid #e94560;padding:15px;border-radius:12px;margin-bottom:20px;font-size:14px;line-height:1.6}
+.shame h3{color:#e94560;margin-bottom:10px}
+.list{max-height:300px;overflow-y:auto}
+.item{display:flex;justify-content:space-between;padding:10px;background:rgba(0,0,0,.2);margin:5px 0;border-radius:8px;align-items:center}
+.item-info{flex:1}
+.item-name{font-size:14px}
+.item-cat{font-size:11px;opacity:.6;margin-top:2px}
+.item-amt{color:#e94560;font-weight:bold}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>💸 支出羞辱追踪</h1>
+<div class="sub">记录每一笔乱花钱，让现实教你做人</div>
+<div class="stats">
+<div class="stat"><div class="stat-num" style="color:#e94560" id="total">¥0</div><div class="stat-label">总支出</div></div>
+<div class="stat"><div class="stat-num" style="color:#ffd700" id="daily">¥0</div><div class="stat-label">今日</div></div>
+<div class="stat"><div class="stat-num" style="color:#4ecdc4" id="count">0</div><div class="stat-label">笔数</div></div>
+</div>
+<div class="shame" id="shame"></div>
+<div class="add-form">
+<input type="text" id="name" placeholder="买了什么？（例：奶茶/游戏皮肤/夜宵）">
+<input type="number" id="amt" placeholder="多少钱？">
+<select id="cat">
+<option value="饮食">饮食</option>
+<option value="购物">购物</option>
+<option value="娱乐">娱乐</option>
+<option value="交通">交通</option>
+<option value="其他">其他</option>
+</select>
+<button onclick="addExp()">记账！</button>
+</div>
+<div class="list" id="list"></div>
+</div>
+<script>
+var SHAMES=[
+"你又买这破玩意儿？你的钱包在哭泣。",
+"这钱攒下来不好吗？你看看你！",
+"月光族就是这么来的，醒醒吧！",
+"你每花一笔，存款就离你远一步。",
+"消费主义陷阱了解一下？",
+"你上次说要省钱是上周三的事了。",
+"这杯奶茶=你半小时白班。",
+"你的花呗额度不是你的收入。",
+"想想你的房租，再看看这个。",
+"后悔吗？晚了。钱已经没了。"
+];
+
+var exps=JSON.parse(localStorage.getItem("exp_shame")||"[]");
+
+function save(){localStorage.setItem("exp_shame",JSON.stringify(exps))}
+
+function render(){
+var total=exps.reduce((s,e)=>s+e.amt,0);
+var today=new Date().toDateString();
+var todayExps=exps.filter(e=>new Date(e.date).toDateString()===today);
+var todayAmt=todayExps.reduce((s,e)=>s+e.amt,0);
+document.getElementById("total").textContent="¥"+total;
+document.getElementById("daily").textContent="¥"+todayAmt;
+document.getElementById("count").textContent=exps.length;
+
+var h="";
+exps.slice().reverse().forEach(function(e){
+h+='<div class="item"><div class="item-info"><div class="item-name">'+e.name+'</div><div class="item-cat">'+e.cat+' · '+new Date(e.date).toLocaleDateString()+'</div></div><div class="item-amt">¥'+e.amt+'</div></div>';
+});
+document.getElementById("list").innerHTML=h;
+
+var shameMsg=SHAMES[Math.floor(Math.random()*SHAMES.length)];
+if(todayAmt>100)shameMsg="🚨 今日已花¥"+todayAmt+"！"+shameMsg;
+else if(total>1000)shameMsg="💰 累计已花¥"+total+"。"+shameMsg;
+document.getElementById("shame").innerHTML="<h3>😤 羞辱时间</h3>"+shameMsg;
+}
+
+function addExp(){
+var n=document.getElementById("name").value.trim();
+var a=parseFloat(document.getElementById("amt").value);
+var c=document.getElementById("cat").value;
+if(!n||!a)return;
+exps.push({name:n,amt:a,cat:c,date:new Date().toISOString()});
+document.getElementById("name").value="";
+document.getElementById("amt").value="";
+save();render();
+}
+
+render();
+</script>
+</body>
+</html>

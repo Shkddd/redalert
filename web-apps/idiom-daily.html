@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>每日成语挑战</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#1a1a2e,#16213e);min-height:100vh;font-family:"PingFang SC",serif;display:flex;justify-content:center;padding:20px;color:#e0d8c8}
+.app{width:600px;max-width:100%}
+h1{text-align:center;font-size:32px;color:#c9a84c;margin-bottom:5px;letter-spacing:5px}
+.sub{text-align:center;color:rgba(255,255,255,.5);margin-bottom:25px;font-size:14px}
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(201,168,76,.3);border-radius:16px;padding:30px;margin-bottom:20px;backdrop-filter:blur(10px)}
+.idiom{font-size:42px;text-align:center;color:#c9a84c;margin:20px 0;letter-spacing:8px;font-weight:bold}
+.pinyin{text-align:center;color:rgba(255,255,255,.5);margin-bottom:20px;font-size:14px}
+.section-title{color:#c9a84c;font-size:16px;margin:15px 0 8px;border-left:3px solid #c9a84c;padding-left:10px}
+.text{line-height:1.8;font-size:15px;color:#e0d8c8}
+.quiz{margin-top:20px}
+.q{font-size:16px;margin-bottom:15px;color:#fff}
+.opts{display:grid;gap:10px}
+.opt{padding:12px 15px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;transition:all .2s;font-size:14px}
+.opt:hover{background:rgba(201,168,76,.2);border-color:#c9a84c}
+.opt.correct{background:rgba(76,205,196,.3);border-color:#4ecdc4}
+.opt.wrong{background:rgba(233,69,96,.3);border-color:#e94560}
+.btn{width:100%;padding:15px;margin-top:10px;background:linear-gradient(90deg,#c9a84c,#e94560);border:none;border-radius:10px;color:#fff;font-size:16px;cursor:pointer;font-weight:bold}
+.btn:hover{transform:scale(1.02)}
+.score{text-align:center;margin:15px 0;font-size:18px;color:#4ecdc4}
+.tags{display:flex;gap:8px;justify-content:center;margin-top:15px;flex-wrap:wrap}
+.tag{background:rgba(201,168,76,.2);padding:4px 12px;border-radius:20px;font-size:12px;color:#c9a84c}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>📜 每日成语</h1>
+<div class="sub">每天学一个成语，涨知识</div>
+<div class="card" id="card"></div>
+<div class="card quiz" id="quiz"></div>
+<button class="btn" onclick="next()">🔄 换一个成语</button>
+</div>
+<script>
+var IDIOMS=[
+{idiom:"画蛇添足",pinyin:"huà shé tiān zú",meaning:"比喻做了多余的事，非但无益，反而不合适。",origin:"楚国有个祭祀的人，赏给门客一壶酒。门客们互相商量说：'大家一起喝这壶酒不够，一个人喝它还有剩余。请大家在地上画蛇，先画好的人喝这壶酒。'一个人最先画好了蛇，拿起酒壶准备饮酒，却左手拿着酒壶，右手画蛇，说：'我能够为它画脚。'他还没有画完，另一个人的蛇画好了，抢过他的酒壶，说：'蛇本来就没有脚，你怎么能给它画脚呢?'说完就喝了那壶酒。",example:"这篇文章的结尾已经很完美了，再加一段反而画蛇添足。",quiz:{q:"'画蛇添足'这个成语告诉我们什么道理？",opts:["做事要精益求精","多此一举反而坏事","蛇是没有脚的","画画要有想象力"],ans:1},
+{idiom:"守株待兔",pinyin:"shǒu zhū dài tù",meaning:"比喻不主动努力，而存万一的侥幸心理，希望得到意外的收获。",origin:"宋国有个农民，他的田地中有一截树桩。一天，一只跑得飞快的野兔撞在了树桩上，扭断了脖子死了。于是，农民便放下他的农具日日夜夜守在树桩子旁边，希望能再得到一只兔子。然而野兔是不可能再次得到了，而他自己也被宋国人耻笑。",example:"你不努力工作，只想守株待兔等好运降临，是不可能成功的。",quiz:{q:"那个农夫为什么被宋国人耻笑？",opts:["他种田太懒","他想不劳而获，死守树桩","他不会抓兔子","他把兔子放跑了"],ans:1},
+{idiom:"井底之蛙",pinyin:"jǐng dǐ zhī wā",meaning:"比喻见识短浅的人。",origin:"井底下的青蛙，只能看到井口那么大的一块天，它以为那就是整个天空。比喻那些见识狭窄、目光短浅的人。",example:"有些人从未离开过家乡，就像井底之蛙，以为世界只有他见过的那么大。",quiz:{q:"'井底之蛙'用来比喻什么样的人？",opts:["勇敢的人","见识短浅的人","勤劳的人","乐观的人"],ans:1},
+{idiom:"亡羊补牢",pinyin:"wáng yáng bǔ láo",meaning:"比喻出了问题以后想办法补救，可以防止继续受损失。",origin:"战国时楚襄王荒淫无度，不理朝政，终于导致了国土沦丧。楚襄王后悔不已，大臣庄辛就给他讲了一个故事：有人丢了羊才去修补羊圈，虽然羊已经丢了，但还好以后不会再丢了。楚襄王听后深受启发，决心重整旗鼓。",example:"虽然你这次考试没考好，但亡羊补牢为时未晚，从现在开始努力还来得及。",quiz:{q:"'亡羊补牢'的寓意是什么？",opts:["丢了羊再补羊圈已经太晚了","出了问题及时补救还来得及","羊圈很重要","要提前做好准备"],ans:1},
+{idiom:"掩耳盗铃",pinyin:"yǎn ěr dào líng",meaning:"比喻自己欺骗自己，明明掩盖不住的事情偏要想法子掩盖。",origin:"有个人想偷一口大钟。钟太大了，无法背走，他就想用锤子把钟敲碎再搬。敲时钟声很大，他怕别人听见来抢钟，就捂住自己的耳朵。他以为自己听不见，别人也就听不见了。",example:"你这种做法就是掩耳盗铃，明明大家都知道真相，你还想掩盖。",quiz:{q:"偷钟的人为什么捂住自己的耳朵？",opts:["他怕钟声吵到自己","他以为自己听不见别人也听不见","他耳朵疼","他想专心偷钟"],ans:1},
+{idiom:"刻舟求剑",pinyin:"kè zhōu qiú jiàn",meaning:"比喻办事刻板，拘泥而不知变通。",origin:"楚国有个人坐船渡江。船到江心，他一不小心，把随身携带的一把宝剑掉落江中。他赶紧掏出一把小刀，在船舷上刻上一个记号，说：'这是我宝剑落水的地方。'船靠岸后，那个人从刻记号的地方下水去找剑。船已经走了很远，而剑还在原来的地方。",example:"时代变了，你还用老方法解决新问题，这不是刻舟求剑吗？",quiz:{q:"那个人为什么找不到剑？",opts:["他的潜水技术不好","船在移动，剑不会跟着船走","水太深了","剑被水冲走了"],ans:1},
+{idiom:"滥竽充数",pinyin:"làn yú chōng shù",meaning:"比喻无本领的冒充有本领，次货冒充好货。",origin:"战国时，齐宣王喜欢听吹竽，而且总要三百人一起吹。南郭先生不会吹竽，却混在乐队里充数，拿着和别人一样的俸禄。齐宣王死后，他的儿子齐湣王继位，喜欢听一个一个地独奏，南郭先生只好逃走了。",example:"团队里不要滥竽充数的人，每个人都要有真本事。",quiz:{q:"南郭先生为什么要逃走？",opts:["他想家了","齐湣王要听独奏，他不会吹","他嫌工资低","他犯了别的错"],ans:1},
+{idiom:"自相矛盾",pinyin:"zì xiāng máo dùn",meaning:"比喻自己说话做事前后抵触。",origin:"楚国有个卖矛和盾的人，他先夸耀自己的盾很坚硬，说：'无论用什么东西都无法破坏它！'然后，他又夸耀自己的矛很锐利，说：'无论什么东西都能将其破坏！'有人质问他：'如果用你的矛去刺你的盾，会怎么样？'那个人无法回答。",example:"你刚才说的话和你之前说的自相矛盾，到底哪个是真的？",quiz:{q:"那人为什么无法回答？",opts:["他不知道答案","他的话前后抵触了","他生气了","他被问住了"],ans:1},
+{idiom:"胸有成竹",pinyin:"xiōng yǒu chéng zhú",meaning:"比喻在做事之前已经拿定主意。",origin:"宋代画家文同擅长画竹子。他在画竹子之前，心里早就有了竹子的形象。别人问他为什么画得这么好，他说：'我只是把心中的竹子画出来罢了。'",example:"对于这次比赛，他准备充分，胸有成竹。",quiz:{q:"'胸有成竹'在做事之前是什么状态？",opts:["很紧张","已经有了完整的计划","心里有竹子","什么都没准备"],ans:1},
+{idiom:"闻鸡起舞",pinyin:"wén jī qǐ wǔ",meaning:"比喻有志报国的人及时奋起。",origin:"晋代的祖逖是个胸怀坦荡、具有远大抱负的人。他和好友刘琨住在一起，每天半夜听到鸡叫，就起床练剑，刻苦锻炼。后来，他们都成为了名将。",example:"青年时期就要有闻鸡起舞的精神，才能成就一番事业。",quiz:{q:"祖逖和刘琨每天半夜做什么？",opts:["起床练剑","喂鸡","睡觉","聊天"],ans:1}
+];
+
+var current=null, answered=false;
+
+function next(){
+current=IDIOMS[Math.floor(Math.random()*IDIOMS.length)];
+answered=false;
+document.getElementById("card").innerHTML=
+'<div class="idiom">'+current.idiom+'</div>'+
+'<div class="pinyin">'+current.pinyin+'</div>'+
+'<div class="section-title">📖 释义</div>'+
+'<div class="text">'+current.meaning+'</div>'+
+'<div class="section-title">📜 出处</div>'+
+'<div class="text">'+current.origin+'</div>'+
+'<div class="section-title">✏️ 例句</div>'+
+'<div class="text">'+current.example+'</div>';
+
+var quizHtml='<div class="section-title">🧠 小测验</div><div class="q">'+current.quiz.q+'</div><div class="opts">';
+current.quiz.opts.forEach(function(o,i){
+quizHtml+='<div class="opt" onclick="answer('+i+',this)">'+String.fromCharCode(65+i)+'. '+o+'</div>';
+});
+quizHtml+='</div>';
+document.getElementById("quiz").innerHTML=quizHtml;
+}
+
+function answer(i,el){
+if(answered)return;
+answered=true;
+var correct=current.quiz.ans;
+var opts=document.querySelectorAll(".opt");
+opts[correct].classList.add("correct");
+if(i!==correct)el.classList.add("wrong");
+setTimeout(next,2500);
+}
+
+next();
+</script>
+</body>
+</html>

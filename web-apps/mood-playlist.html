@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>心情歌单生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#2c3e50,#4ca1af);min-height:100vh;font-family:"PingFang SC",sans-serif;display:flex;justify-content:center;padding:20px}
+.app{width:600px;background:rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:20px;padding:30px;border:1px solid rgba(255,255,255,.2);color:#fff}
+h1{text-align:center;font-size:28px;margin-bottom:10px;letter-spacing:3px}
+.sub{text-align:center;color:rgba(255,255,255,.6);margin-bottom:25px;font-size:14px}
+.moods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:25px}
+.mood{padding:15px 10px;border-radius:10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);cursor:pointer;text-align:center;font-size:14px;transition:all .2s}
+.mood:hover,.mood.on{background:rgba(255,255,255,.25);transform:translateY(-2px)}
+.songs{margin-top:20px}
+.song{display:flex;align-items:center;padding:12px;margin:8px 0;background:rgba(0,0,0,.2);border-radius:8px;animation:slideIn .4s ease-out}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+.song-num{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;margin-right:12px;font-size:12px}
+.song-info{flex:1}
+.song-title{font-size:15px;font-weight:bold}
+.song-artist{font-size:12px;opacity:.7;margin-top:2px}
+.song-tag{font-size:11px;background:rgba(78,205,196,.3);padding:3px 8px;border-radius:10px}
+.btn{width:100%;padding:15px;margin-top:15px;background:linear-gradient(90deg,#e94560,#ff6b6b);border:none;border-radius:10px;color:#fff;font-size:16px;cursor:pointer;font-weight:bold}
+.btn:hover{transform:scale(1.02)}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>🎵 心情歌单</h1>
+<div class="sub">选个心情，给你配5首</div>
+<div class="moods" id="moods"></div>
+<button class="btn" onclick="gen()">✨ 生成歌单</button>
+<div class="songs" id="songs"></div>
+</div>
+<script>
+var MOODS=["🥳 开心","😢 难过","😤 愤怒","😌 放松","🌧️ 雨天","🌙 深夜","☕ 午后","🔥 热血"];
+var DB={
+"🥳 开心":[
+{t:"阳光彩虹小白马",a:"大张伟",tag:"欢快"},
+{t:"Good Time",a:"Owl City",tag:"欧美"},
+{t:"快乐崇拜",a:"潘玮柏",tag:"经典"},
+{t:"Lovely Day",a:"Bill Withers",tag:"灵魂"},
+{t:"小城夏天",a:"LBI利比",tag:"夏日"}
+],
+"😢 难过":[
+{t:"后来",a:"刘若英",tag:"怀旧"},
+{t:"Hurt",a:"Johnny Cash",tag:"伤感"},
+{t:"体面",a:"于文文",tag:"分手"},
+{t:"Someone Like You",a:"Adele",tag:"欧美"},
+{t:"领悟",a:"辛晓琪",tag:"经典"}
+],
+"😤 愤怒":[
+{t:"逆战",a:"张杰",tag:"战歌"},
+{t:"Basket Case",a:"Green Day",tag:"朋克"},
+{t:"不服",a:"许巍",tag:"摇滚"},
+{t:"Warriors",a:"Imagine Dragons",tag:"战歌"},
+{t:"海阔天空",a:"Beyond",tag:"经典"}
+],
+"😌 放松":[
+{t:"成都",a:"赵雷",tag:"民谣"},
+{t:"Lemon Tree",a:"Fool's Garden",tag:"清新"},
+{t:"理想三旬",a:"陈鸿宇",tag:"民谣"},
+{t:"Banana Pancakes",a:"Jack Johnson",tag:"慵懒"},
+{t:"南山南",a:"马頔",tag:"民谣"}
+],
+"🌧️ 雨天":[
+{t:"雨天",a:"孙燕姿",tag:"下雨"},
+{t:"Have You Ever Seen the Rain",a:"CCR",tag:"经典"},
+{t:"一直下雨的星期天",a:"赵痞子",tag:"文艺"},
+{t:"November Rain",a:"Guns N' Roses",tag:"史诗"},
+{t:"雨夜曼彻斯特",a:"盘尼西林",tag:"英伦"}
+],
+"🌙 深夜":[
+{t:"夜空中最亮的星",a:"逃跑计划",tag:"治愈"},
+{t:"Weightless",a:"Marconi Union",tag:"助眠"},
+{t:"晚安",a:"颜人中",tag:"温柔"},
+{t:"The Night We Met",a:"Lord Huron",tag:"温柔"},
+{t:"寂寞的季节",a:"陶喆",tag:"安静"}
+],
+"☕ 午后":[
+{t:"Loving Strangers",a:"Russian Red",tag:"咖啡馆"},
+{t:"小幸运",a:"田馥甄",tag:"青春"},
+{t:"Friday I'm in Love",a:"The Cure",tag:"轻快"},
+{t:"春风十里",a:"鹿先森",tag:"温柔"},
+{t:"Crescent",a:"Joe Hisaishi",tag:"久石让"}
+],
+"🔥 热血":[
+{t:"逆鳞",a:"周杰伦",tag:"燃"},
+{t:"Centuries",a:"Fall Out Boy",tag:"战歌"},
+{t:"男儿当自强",a:"林子祥",tag:"经典"},
+{t:"Warriors",a:"Imagine Dragons",tag:"电竞"},
+{t:"海阔天空",a:"Beyond",tag:"励志"}
+]
+};
+var selected=null;
+var mm=document.getElementById("moods");
+MOODS.forEach(function(m){
+var d=document.createElement("div");
+d.className="mood";d.textContent=m;
+d.onclick=function(){
+document.querySelectorAll(".mood").forEach(x=>x.classList.remove("on"));
+d.classList.add("on");selected=m;
+};
+mm.appendChild(d);
+});
+function gen(){
+if(!selected){alert("先选个心情！");return}
+var list=DB[selected].slice();
+list.sort(()=>Math.random()-0.5);
+list=list.slice(0,5);
+var h="";
+list.forEach(function(s,i){
+h+='<div class="song"><div class="song-num">'+(i+1)+'</div><div class="song-info"><div class="song-title">'+s.t+'</div><div class="song-artist">'+s.a+'</div></div><div class="song-tag">'+s.tag+'</div></div>';
+});
+document.getElementById("songs").innerHTML=h;
+}
+</script>
+</body>
+</html>

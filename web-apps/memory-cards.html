@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>记忆宫殿 · 闪卡</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#1a1a2e,#16213e);min-height:100vh;font-family:"PingFang SC",sans-serif;display:flex;justify-content:center;padding:20px;color:#e0d8c8}
+.app{width:600px;max-width:100%}
+h1{text-align:center;font-size:28px;color:#c9a84c;margin-bottom:5px;letter-spacing:3px}
+.sub{text-align:center;color:rgba(255,255,255,.5);margin-bottom:20px;font-size:14px}
+.stats{display:flex;gap:10px;justify-content:center;margin-bottom:20px}
+.stat{background:rgba(255,255,255,.05);padding:10px 20px;border-radius:10px;text-align:center;border:1px solid rgba(201,168,76,.2)}
+.stat-num{font-size:24px;color:#c9a84c;font-weight:bold}
+.stat-label{font-size:12px;opacity:.6}
+.card-container{perspective:1000px;margin:20px 0}
+.card{width:100%;height:250px;position:relative;transform-style:preserve-3d;transition:transform .5s;cursor:pointer}
+.card.flipped{transform:rotateY(180deg)}
+.card-front,.card-back{position:absolute;width:100%;height:100%;backface-visibility:hidden;display:flex;align-items:center;justify-content:center;border-radius:16px;padding:30px;font-size:18px;text-align:center}
+.card-front{background:linear-gradient(135deg,#c9a84c,#e94560);color:#fff}
+.card-back{background:rgba(255,255,255,.1);border:1px solid #4ecdc4;color:#e0d8c8;transform:rotateY(180deg)}
+.actions{display:flex;gap:10px;margin-top:20px}
+.btn{flex:1;padding:15px;border:none;border-radius:10px;color:#fff;font-size:14px;cursor:pointer;font-weight:bold}
+.btn-easy{background:#4ecdc4}
+.btn-mid{background:#c9a84c}
+.btn-hard{background:#e94560}
+.add-form{background:rgba(255,255,255,.05);padding:20px;border-radius:12px;margin-top:20px;border:1px solid rgba(255,255,255,.1)}
+.add-form input,.add-form textarea{width:100%;padding:10px;margin:5px 0;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font-family:inherit}
+.add-form button{width:100%;padding:12px;margin-top:10px;background:#4ecdc4;border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>🏛️ 记忆宫殿</h1>
+<div class="sub">间隔重复记忆系统</div>
+<div class="stats">
+<div class="stat"><div class="stat-num" id="total">0</div><div class="stat-label">总卡片</div></div>
+<div class="stat"><div class="stat-num" id="due">0</div><div class="stat-label">今日待复习</div></div>
+<div class="stat"><div class="stat-num" id="mastered">0</div><div class="stat-label">已掌握</div></div>
+</div>
+<div class="card-container">
+<div class="card" id="card" onclick="flip()">
+<div class="card-front" id="front">点我翻转</div>
+<div class="card-back" id="back"></div>
+</div>
+</div>
+<div class="actions" id="actions">
+<button class="btn btn-hard" onclick="rate(1)">😖 忘了</button>
+<button class="btn btn-mid" onclick="rate(3)">😐 有点印象</button>
+<button class="btn btn-easy" onclick="rate(5)">😄 记住了</button>
+</div>
+<div class="add-form">
+<h3 style="color:#c9a84c;margin-bottom:10px">➕ 添加新卡片</h3>
+<input type="text" id="newFront" placeholder="正面（问题/术语）">
+<textarea id="newBack" placeholder="背面（答案/解释）" rows="3"></textarea>
+<button onclick="addCard()">添加</button>
+</div>
+</div>
+<script>
+var DEFAULT_CARDS=[
+{front:"什么是代位求偿？",back:"保险人在补偿被保险人的损失后，依法取得被保险人对第三者的求偿权。",box:0,due:0,review:0},
+{front:"近因原则",back:"造成保险标的损失的最直接、最有效、起决定性作用的原因。",box:0,due:0,review:0},
+{front:"告知义务",back:"投保人在订立保险合同时，应将与保险标的有关的重要事实如实告知保险人。",box:0,due:0,review:0},
+{front:"不可抗辩条款",back:"保险合同成立满2年后，保险人不得以投保人违反告知义务为由解除合同。",box:0,due:0,review:0},
+{front:"重复保险",back:"投保人对同一保险标的、同一保险利益、同一保险事故分别与两个以上保险人订立保险合同。",box:0,due:0,review:0}
+];
+
+var cards=JSON.parse(localStorage.getItem("memo_cards")||"null")||DEFAULT_CARDS;
+var current=null;
+
+function save(){localStorage.setItem("memo_cards",JSON.stringify(cards))}
+
+function updateStats(){
+document.getElementById("total").textContent=cards.length;
+var today=Math.floor(Date.now()/86400000);
+var due=cards.filter(c=>c.due<=today).length;
+document.getElementById("due").textContent=due;
+document.getElementById("mastered").textContent=cards.filter(c=>c.box>=5).length;
+}
+
+function nextCard(){
+var today=Math.floor(Date.now()/86400000);
+var due=cards.filter(c=>c.due<=today);
+if(due.length===0){
+document.getElementById("front").textContent="🎉 今日复习完成！";
+document.getElementById("back").textContent="明天再来吧";
+document.getElementById("actions").style.display="none";
+current=null;
+return;
+}
+document.getElementById("actions").style.display="flex";
+current=due[Math.floor(Math.random()*due.length)];
+document.getElementById("front").textContent=current.front;
+document.getElementById("back").textContent=current.back;
+document.getElementById("card").classList.remove("flipped");
+}
+
+function flip(){
+if(current)document.getElementById("card").classList.toggle("flipped");
+}
+
+function rate(r){
+if(!current)return;
+if(r===1){current.box=0;current.due=Math.floor(Date.now()/86400000)+1}
+else if(r===3){current.box=Math.max(1,current.box);current.due=Math.floor(Date.now()/86400000)+(current.box+1)}
+else{current.box++;current.due=Math.floor(Date.now()/86400000)+Math.pow(2,current.box)}
+current.review++;
+save();
+updateStats();
+nextCard();
+}
+
+function addCard(){
+var f=document.getElementById("newFront").value.trim();
+var b=document.getElementById("newBack").value.trim();
+if(!f||!b)return;
+cards.push({front:f,back:b,box:0,due:0,review:0});
+localStorage.setItem("memo_cards",JSON.stringify(cards));
+document.getElementById("newFront").value="";
+document.getElementById("newBack").value="";
+save();updateStats();nextCard();
+}
+
+save();updateStats();nextCard();
+</script>
+</body>
+</html>

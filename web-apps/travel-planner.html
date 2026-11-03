@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>旅行规划器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#2c3e50,#4ca1af);min-height:100vh;font-family:"PingFang SC",sans-serif;display:flex;justify-content:center;padding:20px;color:#fff}
+.app{width:650px;max-width:100%}
+h1{text-align:center;font-size:28px;margin-bottom:5px;letter-spacing:3px}
+.sub{text-align:center;color:rgba(255,255,255,.6);margin-bottom:20px;font-size:14px}
+.form{background:rgba(255,255,255,.1);backdrop-filter:blur(10px);padding:25px;border-radius:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,.2)}
+.form label{display:block;margin:10px 0 5px;font-size:13px;opacity:.8}
+.form input,.form select{width:100%;padding:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff}
+.form button{width:100%;padding:15px;margin-top:15px;background:linear-gradient(90deg,#e94560,#ff6b6b);border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer}
+.result{background:rgba(0,0,0,.3);padding:20px;border-radius:12px;display:none}
+.day{margin:15px 0;padding:15px;background:rgba(255,255,255,.05);border-radius:10px;border-left:3px solid #4ecdc4}
+.day-title{color:#4ecdc4;font-weight:bold;margin-bottom:10px}
+.schedule{line-height:2;font-size:14px}
+.tip{background:rgba(201,168,76,.2);padding:10px;border-radius:8px;margin-top:15px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>✈️ 旅行规划器</h1>
+<div class="sub">输入目的地，自动生成行程</div>
+<div class="form">
+<label>目的地</label>
+<input type="text" id="dest" placeholder="例：成都/日本/云南">
+<label>天数</label>
+<select id="days"><option value="3">3天</option><option value="5" selected>5天</option><option value="7">7天</option></select>
+<label>预算</label>
+<select id="budget"><option value="low">经济（穷游）</option><option value="mid" selected>舒适</option><option value="high">豪华</option></select>
+<label>偏好</label>
+<select id="pref"><option value="food">美食探店</option><option value="sight">景点打卡</option><option value="relax">休闲放松</option><option value="adventure">户外探险</option></select>
+<button onclick="generate()">✨ 生成行程</button>
+</div>
+<div class="result" id="result"></div>
+</div>
+<script>
+var DEST_DATA={
+"成都":{
+food:["火锅（蜀九香/大龙燚）","串串香（马路边边）","担担面","龙抄手","兔头","冰粉"],
+sight:["宽窄巷子","锦里","大熊猫繁育研究基地","武侯祠","杜甫草堂","人民公园"],
+relax:["人民公园喝茶","九眼桥酒吧街","太古里逛街"],
+adventure:["青城山","都江堰","西岭雪山"]
+},
+"云南":{
+food:["过桥米线","汽锅鸡","鲜花饼","野生菌火锅","傣味烧烤"],
+sight:["大理古城","洱海","丽江古城","玉龙雪山","香格里拉","石林"],
+relax:["洱海骑行","丽江发呆","腾冲温泉"],
+adventure:["虎跳峡","玉龙雪山徒步","梅里雪山"]
+},
+"日本":{
+food:["寿司","拉面","神户牛","怀石料理","居酒屋","抹茶甜品"],
+sight:["东京塔","浅草寺","富士山","京都金阁寺","大阪城","涩谷十字路口"],
+relax:["温泉","樱花季散步","秋叶原逛街"],
+adventure:["富士山登山","北海道滑雪","冲绳潜水"]
+}
+};
+
+function generate(){
+var dest=document.getElementById("dest").value.trim()||"成都";
+var days=parseInt(document.getElementById("days").value);
+var budget=document.getElementById("budget").value;
+var pref=document.getElementById("pref").value;
+
+var data=DEST_DATA[dest]||DEST_DATA["成都"];
+var items=data[pref]||data.sight;
+
+var h="<h2 style='color:#4ecdc4;margin-bottom:15px'>📋 "+dest+" "+days+"天行程</h2>";
+for(var i=1;i<=days;i++){
+h+='<div class="day"><div class="day-title">第'+i+'天</div><div class="schedule">';
+var idx=(i-1)%items.length;
+h+="☀️ 上午："+items[idx]+"<br>";
+h+="🍜 中午：当地特色美食<br>";
+h+="🌆 下午："+items[(idx+1)%items.length]+"<br>";
+h+="🌙 晚上：自由活动/夜市觅食";
+h+="</div></div>";
+}
+var budgetText=budget==="low"?"经济型：青旅+公交+小吃，预算约200/天":budget==="mid"?"舒适型：酒店+打车+正餐，预算约500/天":"豪华型：五星酒店+包车+米其林，预算约1500/天";
+h+='<div class="tip">💰 预算建议：'+budgetText+'<br>🎒 小贴士：提前订机票/酒店，避开节假日</div>';
+document.getElementById("result").innerHTML=h;
+document.getElementById("result").style.display="block";
+}
+</script>
+</body>
+</html>

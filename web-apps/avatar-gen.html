@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>动漫头像生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#2c3e50,#4ca1af);min-height:100vh;font-family:"PingFang SC",sans-serif;display:flex;justify-content:center;padding:20px;color:#fff}
+.app{width:600px;text-align:center}
+h1{font-size:28px;color:#fff;margin-bottom:5px;letter-spacing:3px}
+.sub{color:rgba(255,255,255,.6);margin-bottom:20px;font-size:14px}
+.avatar-box{width:300px;height:300px;margin:0 auto 20px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.avatar-box svg{width:100%;height:100%}
+.controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:15px}
+.btn{padding:12px 20px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:10px;color:#fff;cursor:pointer;font-size:14px;transition:all .2s}
+.btn:hover{background:rgba(255,255,255,.25);transform:translateY(-2px)}
+.btn.primary{background:linear-gradient(90deg,#e94560,#ff6b6b);border:none;font-weight:bold}
+.style-list{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:15px 0}
+.style-item{padding:10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;font-size:13px}
+.style-item:hover,.style-item.on{background:rgba(233,69,96,.3);border-color:#e94560}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>🎨 动漫头像生成器</h1>
+<div class="sub">随机生成你的专属头像</div>
+<div class="avatar-box"><svg id="avatar" viewBox="0 0 200 200"></svg></div>
+<div class="style-list" id="styles"></div>
+<div class="controls">
+<button class="btn" onclick="randomize()">🎲 随机生成</button>
+<button class="btn primary" onclick="download()">⬇️ 下载头像</button>
+</div>
+</div>
+<script>
+var STYLES=[
+{name:"日系赛璐璐",bg1:"#ff9a9e",bg2:"#fecfef",hair:"#2c1810",skin:"#ffe0bd",eye:"#4ecdc4"},
+{name:"水墨国风",bg1:"#e0e0e0",bg2:"#909090",hair:"#1a1a1a",skin:"#f5e6d3",eye:"#2c3e50"},
+{name:"赛博朋克",bg1:"#0f0c29",bg2:"#302b63",hair:"#ff00ff",skin:"#c9a84c",eye:"#00ff00"},
+{name:"水彩治愈",bg1:"#a1c4fd",bg2:"#c2e9fb",hair:"#8b4513",skin:"#ffe4c4",eye:"#6b8e23"},
+{name:"暗黑哥特",bg1:"#000000",bg2:"#1a1a2e",hair:"#8b0000",skin:"#e0d8c8",eye:"#ffd700"},
+{name:"Q版可爱",bg1:"#ffecd2",bg2:"#fcb69f",hair:"#ff6b9d",skin:"#fff0f5",eye:"#4169e1"}
+];
+
+var selectedStyle=0;
+var stylesDiv=document.getElementById("styles");
+STYLES.forEach(function(s,i){
+var d=document.createElement("div");
+d.className="style-item"+(i===0?" on":"");
+d.textContent=s.name;
+d.onclick=function(){selectedStyle=i;document.querySelectorAll(".style-item").forEach(x=>x.classList.remove("on"));d.classList.add("on");randomize()};
+stylesDiv.appendChild(d);
+});
+
+function randomize(){
+var s=STYLES[selectedStyle];
+var hairColor=s.hair;
+var skinColor=s.skin;
+var eyeColor=s.eye;
+
+// 随机发型
+var hairStyles=["bob","long","ponytail","curly","buns"];
+var hair=hairStyles[Math.floor(Math.random()*hairStyles.length)];
+
+var svg=`<defs>
+<linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" style="stop-color:${s.bg1}"/>
+<stop offset="100%" style="stop-color:${s.bg2}"/>
+</linearGradient>
+</defs>
+<rect width="200" height="200" fill="url(#bg)"/>
+<!-- 脸 -->
+<ellipse cx="100" cy="110" rx="45" ry="50" fill="${skinColor}"/>
+<!-- 头发 -->`;
+
+if(hair==="bob"){
+svg+=`<path d="M55 90 Q55 50 100 50 Q145 50 145 90 L145 100 L140 100 L140 85 Q130 65 100 65 Q70 65 60 85 L60 100 L55 100 Z" fill="${hairColor}"/>`;
+}else if(hair==="long"){
+svg+=`<path d="M55 90 Q55 45 100 45 Q145 45 145 90 L150 150 L140 150 L138 95 Q130 65 100 65 Q70 65 62 95 L60 150 L50 150 Z" fill="${hairColor}"/>`;
+}else if(hair==="ponytail"){
+svg+=`<path d="M55 90 Q55 50 100 50 Q145 50 145 90 L143 95 Q135 65 100 65 Q65 65 57 95 Z" fill="${hairColor}"/>
+<ellipse cx="150" cy="60" rx="15" ry="25" fill="${hairColor}"/>`;
+}else if(hair==="curly"){
+svg+=`<circle cx="70" cy="70" r="20" fill="${hairColor}"/>
+<circle cx="100" cy="55" r="22" fill="${hairColor}"/>
+<circle cx="130" cy="70" r="20" fill="${hairColor}"/>
+<circle cx="60" cy="90" r="15" fill="${hairColor}"/>
+<circle cx="140" cy="90" r="15" fill="${hairColor}"/>`;
+}else{ // buns
+svg+=`<path d="M55 90 Q55 50 100 50 Q145 50 145 90 L143 95 Q135 65 100 65 Q65 65 57 95 Z" fill="${hairColor}"/>
+<circle cx="70" cy="45" r="15" fill="${hairColor}"/>
+<circle cx="130" cy="45" r="15" fill="${hairColor}"/>`;
+}
+
+// 眼睛
+svg+=`<ellipse cx="80" cy="110" rx="6" ry="8" fill="${eyeColor}"/>
+<ellipse cx="120" cy="110" rx="6" ry="8" fill="${eyeColor}"/>
+<circle cx="82" cy="108" r="2" fill="#fff"/>
+<circle cx="122" cy="108" r="2" fill="#fff"/>
+<!-- 腮红 -->
+<circle cx="70" cy="125" r="5" fill="#ffb6c1" opacity="0.5"/>
+<circle cx="130" cy="125" r="5" fill="#ffb6c1" opacity="0.5"/>
+<!-- 嘴 -->
+<path d="M95 135 Q100 140 105 135" stroke="#e74c3c" stroke-width="2" fill="none"/>`;
+
+document.getElementById("avatar").innerHTML=svg;
+}
+
+function download(){
+var svg=document.getElementById("avatar");
+var serializer=new XMLSerializer();
+var svgStr=serializer.serializeToString(svg);
+var blob=new Blob([svgStr],{type:"image/svg+xml"});
+var url=URL.createObjectURL(blob);
+var a=document.createElement("a");
+a.href=url;a.download="avatar.svg";a.click();
+URL.revokeObjectURL(url);
+}
+
+randomize();
+</script>
+</body>
+</html>

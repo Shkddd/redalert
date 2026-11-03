@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>冰箱食谱建议器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#1a1a2e,#16213e);min-height:100vh;font-family:"PingFang SC",sans-serif;display:flex;justify-content:center;padding:20px;color:#e0d8c8}
+.app{width:600px;max-width:100%}
+h1{text-align:center;font-size:28px;color:#8bc34a;margin-bottom:5px;letter-spacing:3px}
+.sub{text-align:center;color:rgba(255,255,255,.5);margin-bottom:20px;font-size:14px}
+.ingredients{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
+.ingr{padding:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;text-align:center;font-size:13px;transition:all .2s}
+.ingr:hover{background:rgba(139,195,74,.2)}
+.ingr.on{background:rgba(139,195,74,.4);border-color:#8bc34a}
+.btn{width:100%;padding:15px;background:linear-gradient(90deg,#8bc34a,#4caf50);border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;margin-bottom:20px}
+.recipes{display:grid;gap:15px}
+.recipe{background:rgba(255,255,255,.05);padding:15px;border-radius:10px;border:1px solid rgba(139,195,74,.3)}
+.recipe h3{color:#8bc34a;margin-bottom:10px}
+.recipe .steps{line-height:1.8;font-size:14px}
+.match{color:#ffd700;font-size:12px;margin-bottom:5px}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>🥬 冰箱食谱建议器</h1>
+<div class="sub">选你冰箱里有什么，我给你出菜谱</div>
+<div class="ingredients" id="ingredients"></div>
+<button class="btn" onclick="suggest()">🍳 给我出菜谱！</button>
+<div class="recipes" id="recipes"></div>
+</div>
+<script>
+var ALL_INGR=["鸡蛋","西红柿","土豆","青椒","猪肉","鸡肉","牛肉","豆腐","白菜","米饭","面条","葱","姜","蒜","酱油","盐","油","辣椒"];
+var selected=[];
+
+var RECIPES=[
+{name:"西红柿炒蛋",need:["鸡蛋","西红柿","葱","盐","油"],steps:["1. 鸡蛋打散，西红柿切块","2. 热油炒蛋盛出","3. 炒西红柿出汁","4. 倒回鸡蛋翻炒，加盐出锅"]},
+{name:"土豆丝",need:["土豆","青椒","醋","盐","油"],steps:["1. 土豆切丝泡水去淀粉","2. 热油爆香葱花","3. 下土豆丝翻炒","4. 加醋、盐、青椒丝出锅"]},
+{name:"青椒肉丝",need:["猪肉","青椒","酱油","蒜","油"],steps:["1. 猪肉切丝用酱油腌10分钟","2. 热油炒肉丝盛出","3. 炒青椒丝","4. 倒回肉丝，加盐翻炒"]},
+{name:"麻婆豆腐",need:["豆腐","猪肉","辣椒","酱油","蒜","葱"],steps:["1. 豆腐切块焯水","2. 炒肉末加辣椒面","3. 加水放豆腐煮3分钟","4. 勾芡撒葱花"]},
+{name:"蛋炒饭",need:["米饭","鸡蛋","葱","盐","油"],steps:["1. 鸡蛋打散","2. 热油炒鸡蛋","3. 加米饭翻炒","4. 加盐撒葱花出锅"]},
+{name:"青菜豆腐汤",need:["白菜","豆腐","盐","葱"],steps:["1. 白菜豆腐切块","2. 水烧开下豆腐","3. 放白菜煮3分钟","4. 加盐撒葱花"]}
+];
+
+var ingDiv=document.getElementById("ingredients");
+ALL_INGR.forEach(function(i){
+var d=document.createElement("div");
+d.className="ingr";d.textContent=i;
+d.onclick=function(){
+d.classList.toggle("on");
+if(selected.indexOf(i)>=0)selected=selected.filter(x=>x!==i);
+else selected.push(i);
+};
+ingDiv.appendChild(d);
+});
+
+function suggest(){
+var matched=RECIPES.map(function(r){
+var have=r.need.filter(n=>selected.indexOf(n)>=0).length;
+return {r:r,score:have/r.need.length};
+}).sort((a,b)=>b.score-a.score).slice(0,3);
+
+var h="";
+matched.forEach(function(m){
+h+='<div class="recipe"><h3>'+m.r.name+'</h3><div class="match">匹配度：'+Math.floor(m.score*100)+'%</div><div class="steps">'+m.r.steps.join("<br>")+'</div></div>';
+});
+document.getElementById("recipes").innerHTML=h;
+}
+</script>
+</body>
+</html>
