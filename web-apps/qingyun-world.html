@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>青云界 · 修仙开放世界</title>
+<title>青云界 · 修仙传奇</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:"Songti SC",serif;color:#e0d8c8}
@@ -13,30 +13,24 @@ h1{color:#c9a84c;margin-bottom:8px;letter-spacing:5px;text-shadow:0 0 10px rgba(
 </style>
 </head>
 <body>
-<h1>⛰️ 青 云 界 ⛰️</h1>
+<h1>⛰️ 青 云 界 · 修 仙 传 奇 ⛰️</h1>
 <canvas id="game" width="800" height="600"></canvas>
 <div class="controls">
-<b>WASD / 方向键</b> 移动 &nbsp; <b>J</b> 攻击 &nbsp; <b>K</b> 法术 &nbsp; <b>E</b> 交互（捡东西/进建筑）
-<br>收集灵气升级，打怪突破境界，探索整个世界
+<b>WASD/方向键</b> 移动 &nbsp; <b>J</b> 攻击 &nbsp; <b>K</b> 法术 &nbsp; <b>E</b> 交互 &nbsp; <b>L</b> 炼丹 &nbsp; <b>G</b> 技能
+<br>日夜交替，夜晚妖兽更强。打怪升级，学技能，炼丹，挑战Boss，飞升仙界。
 </div>
 
 <script>
 var cv=document.getElementById("game"),ctx=cv.getContext("2d");
 var W=cv.width,H=cv.height;
 
-// ===== 世界配置（星露谷物语风格大地图）=====
-var WORLD_W=2400, WORLD_H=1800; // 世界 2400x1800 像素
-var TILE=40; // 瓦片大小
+// ===== 世界配置 =====
+var WORLD_W=3000, WORLD_H=2200;
+var TILE=40;
 
-// 地形类型
-var T_GRASS=0, T_PATH=1, T_WATER=2, T_TREE=3, T_ROCK=4, T_BUILDING=5;
+var T_GRASS=0, T_PATH=1, T_WATER=2, T_TREE=3, T_ROCK=4, T_FLOWER=5;
 
-// 世界数据
-var world=[];
-var buildings=[]; // 可进入的建筑
-var npcs=[];
-var enemies=[];
-var spiritOrbs=[];
+var world=[], buildings=[], npcs=[], enemies=[], spiritOrbs=[], herbs=[];
 var camX=0, camY=0;
 
 // ===== 玩家 =====
@@ -44,17 +38,34 @@ var player={
 x:400, y:300, w:24, h:32,
 vx:0, vy:0, speed:2.5,
 facing:1, attackCd:0, hurtCd:0,
-// 修仙属性
-realm:0, // 境界index
-spirit:0, spiritNeed:100,
-hp:100, maxHp:100,
-atk:10, def:0,
-gold:0,
-items:{}
+realm:0, spirit:0, spiritNeed:100,
+hp:100, maxHp:100, atk:10, def:0,
+gold:50, items:{}, skills:[], skillPoints:0,
+day:1, time:0, // 0-1 表示一天进度
+herbs:{}, alive:true
 };
 
 var REALMS=["炼气一层","炼气三层","炼气五层","炼气七层","炼气九层","筑基初期","筑基中期","筑基后期","金丹期","元婴期","化神期","炼虚期","合体期","大乘期","渡劫期","真仙","金仙","大罗金仙","仙帝"];
 var REALM_BONUS=[0,100,200,350,550,800,1200,1800,2800,4500,7000,10000,15000,22000,32000,50000,80000,130000,200000];
+
+// 技能树
+var SKILLS={
+"sword_boost":{name:"御剑精通",desc:"攻击+5",cost:1},
+"tough":{name:"铜皮铁骨",desc:"防御+3,气血+30",cost:1},
+"spirit_drain":{name:"吸灵大法",desc:"打怪多吸30%灵气",cost:1},
+"flame":{name:"烈焰术",desc:"K键法术伤害翻倍",cost:2},
+"teleport":{name:"神行百变",desc:"速度+1",cost:1},
+"big_sword":{name:"万剑归宗",desc:"攻击范围+20",cost:2}
+};
+
+// 炼丹配方
+var PILLS={
+"聚气丹":{herbs:{"灵草":2},effect:function(){player.spirit+=50}},
+"回春丹":{herbs:{"灵草":1,"红花":1},effect:function(){player.hp=Math.min(player.hp+80,player.maxHp)}},
+"小还丹":{herbs:{"红花":2,"灵芝":1},effect:function(){player.hp=player.maxHp}},
+"筑基丹":{herbs:{"灵芝":2,"百年参":1},effect:function(){player.spirit+=player.spiritNeed*0.5}},
+"狂暴丹":{herbs:{"百年参":1,"雪莲":1},effect:function(){player.atk+=5;player.maxHp+=20;player.hp=player.maxHp}}
+};
 
 // ===== 输入 =====
 var keys={};
@@ -66,93 +77,88 @@ document.addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false});
 
 // ===== 生成世界 =====
 function genWorld(){
-world=[];
-buildings=[];
-npcs=[];
-enemies=[];
-spiritOrbs=[];
+world=[];buildings=[];npcs=[];enemies=[];spiritOrbs=[];herbs=[];
 
-// 初始化全是草地
 for(var y=0;y<WORLD_H/TILE;y++){
 var row=[];
-for(var x=0;x<WORLD_W/TILE;x++){
-row.push(T_GRASS);
-}
+for(var x=0;x<WORLD_W/TILE;x++)row.push(T_GRASS);
 world.push(row);
 }
 
-// 玩家出生点（提前定义）
 var spawnTx=Math.floor(400/TILE), spawnTy=Math.floor(300/TILE);
 
-// 加水塘（随机几个）
-for(var i=0;i<8;i++){
+// 水塘
+for(var i=0;i<10;i++){
 var wx=Math.floor(Math.random()*WORLD_W/TILE);
 var wy=Math.floor(Math.random()*WORLD_H/TILE);
 var wr=2+Math.floor(Math.random()*3);
-for(var dy=-wr;dy<=wr;dy++){
-for(var dx=-wr;dx<=wr;dx++){
+for(var dy=-wr;dy<=wr;dy++)for(var dx=-wr;dx<=wr;dx++){
 if(dx*dx+dy*dy<wr*wr){
-var nx=wx+dx, ny=wy+dy;
+var nx=wx+dx,ny=wy+dy;
 if(nx>=0&&nx<world[0].length&&ny>=0&&ny<world.length)world[ny][nx]=T_WATER;
 }
 }
 }
+
+// 树和石头（避开出生点）
+for(var i=0;i<250;i++){
+var tx=Math.floor(Math.random()*WORLD_W/TILE), ty=Math.floor(Math.random()*WORLD_H/TILE);
+var dx=tx-spawnTx,dy=ty-spawnTy;
+if(dx*dx+dy*dy>25&&world[ty][tx]===T_GRASS)world[ty][tx]=T_TREE;
+}
+for(var i=0;i<100;i++){
+var rx=Math.floor(Math.random()*WORLD_W/TILE), ry=Math.floor(Math.random()*WORLD_H/TILE);
+var dx=rx-spawnTx,dy=ry-spawnTy;
+if(dx*dx+dy*dy>25&&world[ry][rx]===T_GRASS)world[ry][rx]=T_ROCK;
 }
 
-// 加树（随机散布）
-for(var i=0;i<200;i++){
-var tx=Math.floor(Math.random()*WORLD_W/TILE);
-var ty=Math.floor(Math.random()*WORLD_H/TILE);
-var dx=tx-spawnTx, dy=ty-spawnTy;
-if(dx*dx+dy*dy>16&&world[ty][tx]===T_GRASS)world[ty][tx]=T_TREE;
+// 花（药材点）
+for(var i=0;i<60;i++){
+var fx=Math.floor(Math.random()*WORLD_W/TILE), fy=Math.floor(Math.random()*WORLD_H/TILE);
+var dx=fx-spawnTx,dy=fy-spawnTy;
+if(dx*dx+dy*dy>9&&world[fy][fx]===T_GRASS)world[fy][fx]=T_FLOWER;
 }
 
-// 加石头
-for(var i=0;i<80;i++){
-var rx=Math.floor(Math.random()*WORLD_W/TILE);
-var ry=Math.floor(Math.random()*WORLD_H/TILE);
-var dx=rx-spawnTx, dy=ry-spawnTy;
-if(dx*dx+dy*dy>16&&world[ry][rx]===T_GRASS)world[ry][rx]=T_ROCK;
-}
-
-// 主路（十字）
+// 主路
 for(var x=0;x<WORLD_W/TILE;x++){
-if(world[9][x]===T_GRASS)world[9][x]=T_PATH;
-if(world[22][x]===T_GRASS)world[22][x]=T_PATH;
+if(world[10][x]===T_GRASS)world[10][x]=T_PATH;
+if(world[30][x]===T_GRASS)world[30][x]=T_PATH;
 }
 for(var y=0;y<WORLD_H/TILE;y++){
-if(world[y][15]===T_GRASS)world[y][15]=T_PATH;
+if(world[y][20]===T_GRASS)world[y][20]=T_PATH;
 }
 
-// 清掉玩家出生点周围（保证能移动）
-for(var dy=-3;dy<=3;dy++){
-for(var dx=-3;dx<=3;dx++){
-var nx=spawnTx+dx, ny=spawnTy+dy;
-if(nx>=0&&nx<world[0].length&&ny>=0&&ny<world.length){
-world[ny][nx]=T_PATH;
-}
-}
+// 清出生点
+for(var dy=-3;dy<=3;dy++)for(var dx=-3;dx<=3;dx++){
+var nx=spawnTx+dx,ny=spawnTy+dy;
+if(nx>=0&&nx<world[0].length&&ny>=0&&ny<world.length)world[ny][nx]=T_PATH;
 }
 
-// 建筑：青云门大殿（中心）
-buildings.push({x:15*TILE-40, y:9*TILE-60, w:120, h:80, name:"青云门大殿", type:"sect"});
-buildings.push({x:15*TILE+80, y:9*TILE+10, w:80, h:60, name:"丹房", type:"alchemy"});
-buildings.push({x:10*TILE, y:22*TILE-40, w:100, h:70, name:"山下集市", type:"shop"});
+// 建筑
+buildings.push({x:20*TILE-60, y:10*TILE-70, w:140, h:90, name:"青云门大殿", type:"sect"});
+buildings.push({x:20*TILE+90, y:10*TILE+10, w:90, h:70, name:"丹房", type:"alchemy"});
+buildings.push({x:10*TILE, y:30*TILE-50, w:110, h:80, name:"山下集市", type:"shop"});
+buildings.push({x:35*TILE, y:15*TILE-40, w:100, h:80, name:"藏经阁", type:"library"});
+buildings.push({x:5*TILE, y:5*TILE-40, w:90, h:70, name:"灵药园", type:"garden"});
 
-// NPC：掌门
-npcs.push({x:15*TILE, y:9*TILE, name:"青云掌门", text:"少侠，好好修炼！突破要靠灵气积累。"});
-// NPC：丹师
-npcs.push({x:16*TILE+20, y:10*TILE+20, name:"丹师李", text:"采药炼丹，延年益寿。"});
+// NPC
+npcs.push({x:20*TILE, y:10*TILE, name:"青云掌门", text:"少侠，修炼之路漫漫。突破要靠灵气积累，去地图东边找妖兽练练手。"});
+npcs.push({x:21*TILE+30, y:11*TILE+20, name:"丹师李", text:"采灵草来我这炼丹，吃了能快速提升。"});
+npcs.push({x:11*TILE, y:31*TILE, name:"集市商人", text:"买丹药回血，20两一次。"});
+npcs.push({x:36*TILE, y:16*TILE, name:"藏经阁守", text:"在藏经阁按E可以学技能（消耗技能点）。"});
 
-// 灵气球（散布地图）
-for(var i=0;i<80;i++){
-spiritOrbs.push({
-x:Math.random()*WORLD_W, y:Math.random()*WORLD_H,
-r:6, pulse:Math.random()*6, collected:false
-});
+// 灵气球
+for(var i=0;i<120;i++){
+spiritOrbs.push({x:Math.random()*WORLD_W,y:Math.random()*WORLD_H,r:6,pulse:Math.random()*6,collected:false});
 }
 
-// 敌人（按区域分布）
+// 药材采集点
+var herbTypes=["灵草","红花","灵芝","百年参","雪莲"];
+for(var i=0;i<50;i++){
+herbs.push({x:Math.random()*WORLD_W,y:Math.random()*WORLD_H,type:herbTypes[Math.floor(Math.random()*herbTypes.length)],respawn:0,pulse:Math.random()*6});
+}
+
+// 敌人（按区域难度分布）
 var enemyTypes=[
 {name:"野狼",hp:20,atk:5,def:0,reward:20,spirit:15,color:"#8b7355"},
 {name:"山贼",hp:40,atk:8,def:2,reward:50,spirit:30,color:"#a0522d"},
@@ -160,496 +166,419 @@ var enemyTypes=[
 {name:"妖兽",hp:80,atk:18,def:5,reward:100,spirit:80,color:"#9b59b6"},
 {name:"邪修",hp:120,atk:25,def:8,reward:200,spirit:150,color:"#e94560"}
 ];
-for(var i=0;i<30;i++){
-var tier=Math.min(4, Math.floor(i/6));
+for(var i=0;i<50;i++){
+var tier=Math.min(4,Math.floor(i/10));
 var et=enemyTypes[Math.floor(Math.random()*(tier+1))];
 enemies.push({
-x:Math.random()*WORLD_W, y:Math.random()*WORLD_H,
-w:28, h:28, name:et.name, hp:et.hp, atk:et.atk, def:et.def, reward:et.reward, spirit:et.spirit, color:et.color,
-vx:0, vy:0, dirX:(Math.random()-0.5)*2, dirY:(Math.random()-0.5)*2,
-hurtCd:0, anim:Math.random()*10
+x:Math.random()*WORLD_W,y:Math.random()*WORLD_H,w:28,h:28,
+name:et.name,hp:et.hp,maxhp:et.hp,atk:et.atk,def:et.def,
+reward:et.reward,spirit:et.spirit,color:et.color,
+dirX:(Math.random()-0.5)*2,dirY:(Math.random()-0.5)*2,
+hurtCd:0,anim:Math.random()*10, isBoss:false
 });
 }
+
+// Boss
+enemies.push({x:WORLD_W-200,y:WORLD_H-200,w:50,h:50,name:"魔教主",hp:500,maxhp:500,atk:40,def:15,reward:1000,spirit:500,color:"#8b0000",dirX:0,dirY:0,hurtCd:0,anim:0,isBoss:true});
 }
 
-// ===== 碰撞检测 =====
+// ===== 碰撞 =====
 function isSolid(px,py){
-var tx=Math.floor(px/TILE), ty=Math.floor(py/TILE);
+var tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
 if(tx<0||tx>=world[0].length||ty<0||ty>=world.length)return true;
 var t=world[ty][tx];
-return t===T_WATER||t===T_TREE||t===T_ROCK||t===T_BUILDING;
+return t===T_WATER||t===T_TREE||t===T_ROCK;
 }
 
-// ===== 更新 =====
-var interactCd=0, dialogOpen=false, dialogText="", toastMsg="";
+// ===== 特效 =====
+var particles=[], floatTexts=[];
+var attackAnim=0, castAnim=0;
+function spawnParticles(x,y,n,color){
+for(var i=0;i<n;i++)particles.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:20+Math.random()*20,color:color});
+}
 
+var popMsg=null,popTimer=0;
+function showPop(msg){popMsg=msg;popTimer=120}
+
+var interactCd=0,dialogOpen=false,dialogText="",toastMsg="";
+var skillPanelOpen=false, alchemyPanelOpen=false;
+
+// ===== 更新 =====
 function update(){
-// 移动
-var mvx=0, mvy=0;
+if(!player.alive)return;
+
+// 时间流逝
+player.time+=0.002;
+if(player.time>=1){player.time=0;player.day++;showPop("☀️ 第"+player.day+"天");}
+var isNight=player.time>0.5&&player.time<0.85; // 夜晚时段
+
+// 移动速度（有技能加成）
+var spd=player.speed+(player.skills.indexOf("teleport")>=0?1:0);
+
+var mvx=0,mvy=0;
 if(keys["w"]||keys["arrowup"])mvy=-1;
 if(keys["s"]||keys["arrowdown"])mvy=1;
 if(keys["a"]||keys["arrowleft"]){mvx=-1;player.facing=-1}
 if(keys["d"]||keys["arrowright"]){mvx=1;player.facing=1}
-
-// 归一化对角线
 if(mvx!==0&&mvy!==0){mvx*=0.7;mvy*=0.7}
 
-var nx=player.x+mvx*player.speed;
-var ny=player.y+mvy*player.speed;
-
-// 碰撞（分轴）
-if(!isSolid(nx+player.w/2, player.y) && !isSolid(nx-player.w/2, player.y) &&
-   !isSolid(nx+player.w/2, player.y+player.h) && !isSolid(nx-player.w/2, player.y+player.h)){
-player.x=nx;
-}
-if(!isSolid(player.x, ny+player.h) && !isSolid(player.x, ny) &&
-   !isSolid(player.x+player.w, ny+player.h) && !isSolid(player.x+player.w, ny)){
-player.y=ny;
-}
-
-// 边界
-player.x=Math.max(player.w, Math.min(WORLD_W-player.w, player.x));
-player.y=Math.max(player.h, Math.min(WORLD_H-player.h, player.y));
+var nx=player.x+mvx*spd, ny=player.y+mvy*spd;
+if(!isSolid(nx+player.w/2,player.y)&&!isSolid(nx-player.w/2,player.y)&&
+   !isSolid(nx+player.w/2,player.y+player.h)&&!isSolid(nx-player.w/2,player.y+player.h))player.x=nx;
+if(!isSolid(player.x,ny+player.h)&&!isSolid(player.x,ny)&&
+   !isSolid(player.x+player.w,ny+player.h)&&!isSolid(player.x+player.w,ny))player.y=ny;
+player.x=Math.max(player.w,Math.min(WORLD_W-player.w,player.x));
+player.y=Math.max(player.h,Math.min(WORLD_H-player.h,player.y));
 
 // 攻击
 if(player.attackCd>0)player.attackCd--;
+var atkRange=35+(player.skills.indexOf("big_sword")>=0?20:0);
 if(keys["j"]&&player.attackCd<=0){
-// 挥剑特效
 attackAnim=8;
-// 攻击范围
 var ax=player.x+player.facing*30;
 for(var en of enemies){
 if(!en.hp)continue;
-var dx=en.x-ax, dy=en.y-(player.y+player.h/2);
-if(Math.abs(dx)<35&&Math.abs(dy)<35){
-var dmg=player.atk+Math.floor(Math.random()*5);
-en.hp-=dmg;
-en.hurtCd=15;
-en.hitDir=player.facing;
-en.hitX=en.x;
-spawnParticles(en.x, en.y, 10, "#ffd700");
-spawnParticles(en.x, en.y, 5, "#fff");
-// 命中数字
+var dx=en.x-ax,dy=en.y-(player.y+player.h/2);
+if(Math.abs(dx)<atkRange&&Math.abs(dy)<atkRange){
+var dmg=Math.max(1,player.atk+Math.floor(Math.random()*5)-en.def);
+en.hp-=dmg;en.hurtCd=15;
+spawnParticles(en.x,en.y,10,"#ffd700");
 floatTexts.push({x:en.x,y:en.y-20,text:"-"+dmg,color:"#ff6b6b",life:40});
-if(en.hp<=0){
-player.gold+=en.reward;
-player.spirit+=en.spirit;
-spawnParticles(en.x, en.y, 20, "#ffd700");
-spawnParticles(en.x, en.y, 10, "#ff9b6b");
-floatTexts.push({x:en.x,y:en.y-30,text:"+"+en.spirit+"灵气",color:"#4ecdc4",life:60});
-en.dead=true;
-checkBreak();
-}
+if(en.hp<=0)killEnemy(en);
 }
 }
 player.attackCd=20;
 }
 
 // 法术
+var flameMult=player.skills.indexOf("flame")>=0?2:1;
 if(keys["k"]&&player.attackCd<=0&&player.spirit>=30){
-player.spirit-=30;
-castAnim=15;
-spawnParticles(player.x, player.y, 15, "#ff6b6b");
-// 范围AOE
+player.spirit-=30;castAnim=15;
+spawnParticles(player.x,player.y,15,"#ff6b6b");
 for(var en of enemies){
 if(!en.hp)continue;
-var dx=en.x-player.x, dy=en.y-player.y;
+var dx=en.x-player.x,dy=en.y-player.y;
 var dist=Math.sqrt(dx*dx+dy*dy);
-if(dist<80){
-var dmg=player.atk*2+10;
-en.hp-=dmg;
-en.hurtCd=20;
-spawnParticles(en.x, en.y, 12, "#ff6b6b");
+if(dist<100){
+var dmg=Math.max(1,(player.atk*2+10)*flameMult-en.def);
+en.hp-=dmg;en.hurtCd=20;
+spawnParticles(en.x,en.y,12,"#ff6b6b");
 floatTexts.push({x:en.x,y:en.y-20,text:"-"+dmg,color:"#ff6b6b",life:40});
-if(en.hp<=0){
-player.gold+=en.reward;
-player.spirit+=en.spirit;
-spawnParticles(en.x, en.y, 20, "#ffd700");
-en.dead=true;
-checkBreak();
-}
+if(en.hp<=0)killEnemy(en);
 }
 }
 player.attackCd=40;
 }
 
-// 灵气球收集
-for(var o of spiritOrbs){
-if(o.collected)continue;
-o.pulse+=0.1;
-var dx=player.x-o.x, dy=player.y-o.y;
-if(dx*dx+dy*dy<30*30){
-o.collected=true;
-player.spirit+=10;
-spawnParticles(o.x, o.y, 8, "#4ecdc4");
-checkBreak();
-}
-}
+// 技能面板
+if(keys["g"]&&!skillPanelOpen){skillPanelOpen=true}
+// 炼丹面板
+if(keys["l"]&&!alchemyPanelOpen){alchemyPanelOpen=true}
 
-// 敌人AI
-for(var en of enemies){
-if(!en.hp||en.dead)continue;
-en.anim+=0.1;
-if(en.hurtCd>0)en.hurtCd--;
-
-// 简单巡逻
-en.x+=en.dirX*0.8;
-en.y+=en.dirY*0.8;
-if(Math.random()<0.01){en.dirX=(Math.random()-0.5)*2;en.dirY=(Math.random()-0.5)*2}
-
-// 撞边界转回
-if(en.x<0||en.x>WORLD_W){en.dirX*=-1}
-if(en.y<0||en.y>WORLD_H){en.dirY*=-1}
-
-// 玩家靠近就追
-var pdx=player.x-en.x, pdy=player.y-en.y;
-var dist=Math.sqrt(pdx*pdx+pdy*pdy);
-if(dist<120){
-en.dirX=pdx/dist*1.2;
-en.dirY=pdy/dist*1.2;
-}
-
-// 碰玩家
-if(dist<30&&player.hurtCd<=0){
-player.hp-=en.atk;
-player.hurtCd=60;
-spawnParticles(player.x, player.y, 8, "#e94560");
-if(player.hp<=0){
-player.hp=0;
-// 死亡回出生点
-player.x=400;player.y=300;
-player.hp=player.maxHp;
-player.spirit=Math.floor(player.spirit*0.8);
-}
-}
-}
-enemies=enemies.filter(e=>!e.dead);
-
-// 镜头跟随
-camX=player.x-W/2;
-camY=player.y-H/2;
-camX=Math.max(0, Math.min(WORLD_W-W, camX));
-camY=Math.max(0, Math.min(WORLD_H-H, camY));
-
-// 灵气缓慢恢复
-if(Math.floor(Date.now()/500)%2===0&&player.spirit<player.spiritNeed){
-// 不自动回，靠收集和打怪
-}
-
-// ===== E键交互 =====
+// E键交互
 if(keys["e"]&&!interactCd){
 interactCd=15;
-// 先关对话框
 if(dialogOpen){dialogOpen=false;return}
 var interacted=false;
-// 检测NPC
 for(var npc of npcs){
-var dx=player.x-npc.x, dy=(player.y-player.h/2)-npc.y;
-var dist=Math.sqrt(dx*dx+dy*dy);
-if(dist<50){
-dialogOpen=true;
-dialogText=npc.name+"：「"+npc.text+"」";
-interacted=true;
-break;
+var dx=player.x-npc.x,dy=(player.y-player.h/2)-npc.y;
+if(Math.sqrt(dx*dx+dy*dy)<50){
+dialogOpen=true;dialogText=npc.name+"：「"+npc.text+"」";interacted=true;break;
 }
 }
-// 检测建筑
-if(!interacted){
-for(var b of buildings){
-var cx=b.x+b.w/2, cy=b.y+b.h/2;
-var dx=player.x-cx, dy=player.y-cy;
-var dist=Math.sqrt(dx*dx+dy*dy);
-if(dist<80){
-enterBuilding(b);
-interacted=true;
-break;
+if(!interacted)for(var b of buildings){
+var cx=b.x+b.w/2,cy=b.y+b.h/2;
+var dx=player.x-cx,dy=player.y-cy;
+if(Math.sqrt(dx*dx+dy*dy)<80){enterBuilding(b);interacted=true;break;}
 }
+// 药材采集
+if(!interacted)for(var h of herbs){
+if(h.respawn>0)continue;
+var dx=player.x-h.x,dy=player.y-h.y;
+if(Math.sqrt(dx*dx+dy*dy)<30){
+player.herbs[h.type]=(player.herbs[h.type]||0)+1;
+h.respawn=300;
+spawnParticles(h.x,h.y,8,"#8bc34a");
+floatTexts.push({x:h.x,y:h.y-10,text:"+1 "+h.type,color:"#8bc34a",life:40});
+interacted=true;break;
 }
 }
 if(!interacted)toastMsg="附近没有可交互的对象";
 }
 if(interactCd>0)interactCd--;
-if(keys["e"]===false)interactCd=0;
+
+// 灵气球
+for(var o of spiritOrbs){
+if(o.collected)continue;
+o.pulse+=0.1;
+var dx=player.x-o.x,dy=player.y-o.y;
+if(dx*dx+dy*dy<30*30){
+o.collected=true;player.spirit+=10;
+spawnParticles(o.x,o.y,8,"#4ecdc4");checkBreak();
+}
 }
 
-function enterBuilding(b){
-if(b.type==="sect"){
-dialogOpen=true;
-dialogText="你走进青云门大殿。掌门端坐上方。<br>（按E退出，点NPC对话）";
-}
-else if(b.type==="alchemy"){
-dialogOpen=true;
-dialogText="丹房里药香扑鼻。丹师正在炼丹。<br>（按E退出）";
-}
-else if(b.type==="shop"){
-// 商店：给点钱回血
-var cost=20;
-if(player.gold>=cost){
-player.gold-=cost;
-player.hp=player.maxHp;
-dialogOpen=true;
-dialogText="你在集市买了丹药，气血全满。-"+cost+"两";
+// 敌人AI
+var spiritMult=player.skills.indexOf("spirit_drain")>=0?1.3:1;
+for(var en of enemies){
+if(!en.hp||en.dead)continue;
+en.anim+=0.1;
+if(en.hurtCd>0)en.hurtCd--;
+
+// 夜晚敌人更强
+var nightBuff=isNight?1.5:1;
+
+if(en.isBoss){
+// Boss追踪
+var pdx=player.x-en.x,pdy=player.y-en.y;
+var dist=Math.sqrt(pdx*pdx+pdy*pdy);
+if(dist<300){en.dirX=pdx/dist*1.5;en.dirY=pdy/dist*1.5}
 }else{
-dialogOpen=true;
-dialogText="集市老板：「银两不够啊少侠」";
+en.x+=en.dirX*0.8;en.y+=en.dirY*0.8;
+if(Math.random()<0.01){en.dirX=(Math.random()-0.5)*2;en.dirY=(Math.random()-0.5)*2}
+}
+if(en.x<0||en.x>WORLD_W)en.dirX*=-1;
+if(en.y<0||en.y>WORLD_H)en.dirY*=-1;
+
+// 玩家靠近就追
+var pdx=player.x-en.x,pdy=player.y-en.y;
+var dist=Math.sqrt(pdx*pdx+pdy*pdy);
+if(dist<120){en.dirX=pdx/dist*(en.isBoss?1.5:1.2);en.dirY=pdy/dist*(en.isBoss?1.5:1.2)}
+
+// 碰玩家
+if(dist<30&&player.hurtCd<=0){
+var dmg=Math.max(1,en.atk*nightBuff-player.def);
+player.hp-=dmg;player.hurtCd=60;
+spawnParticles(player.x,player.y,8,"#e94560");
+floatTexts.push({x:player.x,y:player.y-20,text:"-"+dmg,color:"#e94560",life:40});
+if(player.hp<=0){
+player.alive=false;
+setTimeout(function(){
+player.hp=player.maxHp;player.x=400;player.y=300;player.alive=true;
+player.spirit=Math.floor(player.spirit*0.8);
+showPop("💀 你被击败，回出生点复活");
+},2000);
 }
 }
+}
+enemies=enemies.filter(e=>!e.dead);
+
+// 药材重生
+for(var h of herbs){if(h.respawn>0)h.respawn--;h.pulse+=0.05}
+
+// 镜头
+camX=Math.max(0,Math.min(WORLD_W-W,player.x-W/2));
+camY=Math.max(0,Math.min(WORLD_H-H,player.y-H/2));
 }
 
-// 突破检测
+function killEnemy(en){
+en.dead=true;
+player.gold+=en.reward;
+var spiritGain=Math.floor(en.spirit*spiritMult);
+player.spirit+=spiritGain;
+spawnParticles(en.x,en.y,20,"#ffd700");
+floatTexts.push({x:en.x,y:en.y-30,text:"+"+spiritGain+"灵气",color:"#4ecdc4",life:60});
+if(en.isBoss){showPop("👑 击败魔教主！你已是修仙第一人！");player.gold+=500;}
+checkBreak();
+}
+
 function checkBreak(){
 var need=REALM_BONUS[player.realm+1]||999999;
 if(player.spirit>=need&&player.realm<REALMS.length-1){
-player.realm++;
-player.spirit=0;
-player.maxHp+=30;
-player.hp=player.maxHp;
-player.atk+=5;
-player.def+=2;
-spawnParticles(player.x, player.y, 30, "#ffd700");
-// 弹窗提示
-showPop("✨ 突破！"+REALMS[player.realm]+" ✨");
+player.realm++;player.spirit=0;
+player.maxHp+=30;player.hp=player.maxHp;player.atk+=5;player.def+=2;
+player.skillPoints++;
+spawnParticles(player.x,player.y,30,"#ffd700");
+showPop("✨ 突破！"+REALMS[player.realm]+" ✨ 获得1技能点");
 }
 }
 
-// 特效
-var particles=[];
-var floatTexts=[];
-var attackAnim=0;
-var castAnim=0;
-function spawnParticles(x,y,n,color){
-for(var i=0;i<n;i++){
-particles.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:20+Math.random()*20,color:color});
+function enterBuilding(b){
+if(b.type==="shop"){
+if(player.gold>=20){player.gold-=20;player.hp=player.maxHp;dialogOpen=true;dialogText="你买了丹药，气血全满。-20两";}
+else{dialogOpen=true;dialogText="商人：「银两不够啊少侠」";}
 }
+else if(b.type==="alchemy"){alchemyPanelOpen=true;}
+else if(b.type==="library"){skillPanelOpen=true;}
+else{dialogOpen=true;dialogText="你走进了"+b.name;}
 }
-
-// 弹窗
-var popMsg=null, popTimer=0;
-function showPop(msg){popMsg=msg;popTimer=120}
 
 // ===== 绘制 =====
 function draw(){
 // 背景
+var nightAlpha=(player.time>0.5&&player.time<0.85)?0.5:0;
 ctx.fillStyle="#1a3a1a";
 ctx.fillRect(0,0,W,H);
 
 ctx.save();
-ctx.translate(-camX, -camY);
+ctx.translate(-camX,-camY);
 
-// 画瓦片
-var startTx=Math.floor(camX/TILE), endTx=Math.floor((camX+W)/TILE);
-var startTy=Math.floor(camY/TILE), endTy=Math.floor((camY+H)/TILE);
+var startTx=Math.floor(camX/TILE),endTx=Math.floor((camX+W)/TILE);
+var startTy=Math.floor(camY/TILE),endTy=Math.floor((camY+H)/TILE);
 
-for(var ty=startTy;ty<=endTy;ty++){
-for(var tx=startTx;tx<=endTx;tx++){
+for(var ty=startTy;ty<=endTy;ty++)for(var tx=startTx;tx<=endTx;tx++){
 if(tx<0||tx>=world[0].length||ty<0||ty>=world.length)continue;
-var t=world[ty][tx];
-var x=tx*TILE, y=ty*TILE;
+var t=world[ty][tx],x=tx*TILE,y=ty*TILE;
 switch(t){
-case T_GRASS:
-ctx.fillStyle=(tx+ty)%2===0?"#2a5a2a":"#255225";
-ctx.fillRect(x,y,TILE,TILE);
-break;
-case T_PATH:
-ctx.fillStyle="#8b7355";
-ctx.fillRect(x,y,TILE,TILE);
-break;
-case T_WATER:
-ctx.fillStyle="#2a4a7a";
-ctx.fillRect(x,y,TILE,TILE);
-break;
-case T_TREE:
-ctx.fillStyle="#2a5a2a";
-ctx.fillRect(x,y,TILE,TILE);
-ctx.fillStyle="#1a3a1a";
-ctx.beginPath();ctx.arc(x+20,y+20,15,0,Math.PI*2);ctx.fill();
-break;
-case T_ROCK:
-ctx.fillStyle="#6a6a6a";
-ctx.fillRect(x,y,TILE,TILE);
-ctx.fillStyle="#5a5a5a";
-ctx.beginPath();ctx.arc(x+15,y+25,8,0,Math.PI*2);ctx.fill();
-break;
-}
+case T_GRASS:ctx.fillStyle=(tx+ty)%2===0?"#2a5a2a":"#255225";ctx.fillRect(x,y,TILE,TILE);break;
+case T_PATH:ctx.fillStyle="#8b7355";ctx.fillRect(x,y,TILE,TILE);break;
+case T_WATER:ctx.fillStyle="#2a4a7a";ctx.fillRect(x,y,TILE,TILE);break;
+case T_TREE:ctx.fillStyle="#1a3a1a";ctx.beginPath();ctx.arc(x+20,y+20,15,0,Math.PI*2);ctx.fill();break;
+case T_ROCK:ctx.fillStyle="#6a6a6a";ctx.beginPath();ctx.arc(x+15,y+25,8,0,Math.PI*2);ctx.fill();break;
+case T_FLOWER:ctx.fillStyle="#2a5a2a";ctx.fillRect(x,y,TILE,TILE);ctx.fillStyle="#e91e63";ctx.beginPath();ctx.arc(x+15,y+20,4,0,Math.PI*2);ctx.fill();break;
 }
 }
 
-// 画建筑
+// 建筑
 for(var b of buildings){
-ctx.fillStyle="#5a3a2a";
-ctx.fillRect(b.x, b.y, b.w, b.h);
-ctx.fillStyle="#7a5a3a";
-ctx.fillRect(b.x+5, b.y+5, b.w-10, b.h-10);
-ctx.fillStyle="#c9a84c";
-ctx.font="12px 'Songti SC'";
-ctx.textAlign="center";
-ctx.fillText(b.name, b.x+b.w/2, b.y-5);
+ctx.fillStyle="#5a3a2a";ctx.fillRect(b.x,b.y,b.w,b.h);
+ctx.fillStyle="#7a5a3a";ctx.fillRect(b.x+5,b.y+5,b.w-10,b.h-10);
+ctx.fillStyle="#c9a84c";ctx.font="12px 'Songti SC'";ctx.textAlign="center";
+ctx.fillText(b.name,b.x+b.w/2,b.y-5);
 }
 
-// 画NPC
+// NPC
 for(var npc of npcs){
-ctx.fillStyle="#4ecdc4";
-ctx.beginPath();ctx.arc(npc.x, npc.y, 12, 0, Math.PI*2);ctx.fill();
-ctx.fillStyle="#fff";
-ctx.font="11px 'Songti SC'";
-ctx.fillText(npc.name, npc.x, npc.y-20);
+ctx.fillStyle="#4ecdc4";ctx.beginPath();ctx.arc(npc.x,npc.y,12,0,Math.PI*2);ctx.fill();
+ctx.fillStyle="#fff";ctx.font="11px 'Songti SC'";ctx.fillText(npc.name,npc.x,npc.y-20);
 }
 
-// 画灵气球
+// 药材
+for(var h of herbs){
+if(h.respawn>0)continue;
+ctx.fillStyle="#8bc34a";ctx.beginPath();ctx.arc(h.x,h.y,5+Math.sin(h.pulse),0,Math.PI*2);ctx.fill();
+}
+
+// 灵气球
 for(var o of spiritOrbs){
 if(o.collected)continue;
 var pulse=1+Math.sin(o.pulse)*0.3;
-ctx.fillStyle="rgba(78,205,196,0.3)";
-ctx.beginPath();ctx.arc(o.x,o.y,15*pulse,0,Math.PI*2);ctx.fill();
-ctx.fillStyle="#4ecdc4";
-ctx.beginPath();ctx.arc(o.x,o.y,6*pulse,0,Math.PI*2);ctx.fill();
+ctx.fillStyle="rgba(78,205,196,0.3)";ctx.beginPath();ctx.arc(o.x,o.y,15*pulse,0,Math.PI*2);ctx.fill();
+ctx.fillStyle="#4ecdc4";ctx.beginPath();ctx.arc(o.x,o.y,6*pulse,0,Math.PI*2);ctx.fill();
 }
 
-// 画敌人
+// 敌人
 for(var en of enemies){
 if(!en.hp||en.dead)continue;
-var drawX=en.x;
-if(en.hurtCd>0){
-drawX+=Math.random()*6-3; // 抖动
-}
+var drawX=en.x+(en.hurtCd>0?Math.random()*6-3:0);
 ctx.fillStyle=en.hurtCd>0?"#fff":en.color;
-ctx.fillRect(drawX-en.w/2, en.y-en.h/2, en.w, en.h);
-// 血条
-ctx.fillStyle="#333";
-ctx.fillRect(drawX-15, en.y-en.h/2-8, 30, 4);
-ctx.fillStyle="#e94560";
-ctx.fillRect(drawX-15, en.y-en.h/2-8, 30*en.hp/(en.hp+100), 4);
+ctx.fillRect(drawX-en.w/2,en.y-en.h/2,en.w,en.h);
+ctx.fillStyle="#333";ctx.fillRect(drawX-20,en.y-en.h/2-8,40,4);
+ctx.fillStyle="#e94560";ctx.fillRect(drawX-20,en.y-en.h/2-8,40*en.hp/en.maxhp,4);
+if(en.isBoss){ctx.fillStyle="#ffd700";ctx.font="14px 'Songti SC'";ctx.fillText("👑 Boss",drawX,en.y-en.h/2-15);}
 }
 
-// 画玩家
+// 玩家
 if(player.hurtCd<=0||Math.floor(Date.now()/100)%2===0){
-ctx.fillStyle="#e0d8c8";
-ctx.fillRect(player.x-player.w/2, player.y-player.h, player.w, player.h);
-// 道髻
-ctx.fillStyle="#1a1a2e";
-ctx.beginPath();ctx.arc(player.x, player.y-player.h+4, 6, 0, Math.PI*2);ctx.fill();
-// 衣服
-ctx.fillStyle="#4ecdc4";
-ctx.fillRect(player.x-player.w/2+3, player.y-player.h+12, player.w-6, player.h-14);
+ctx.fillStyle="#e0d8c8";ctx.fillRect(player.x-player.w/2,player.y-player.h,player.w,player.h);
+ctx.fillStyle="#1a1a2e";ctx.beginPath();ctx.arc(player.x,player.y-player.h+4,6,0,Math.PI*2);ctx.fill();
+ctx.fillStyle="#4ecdc4";ctx.fillRect(player.x-player.w/2+3,player.y-player.h+12,player.w-6,player.h-14);
 }
-// 挥剑特效
 if(attackAnim>0){
-ctx.strokeStyle="rgba(255,215,0,"+(attackAnim/8)+")";
-ctx.lineWidth=3;
-ctx.beginPath();
-ctx.arc(player.x, player.y-player.h/2, 25, player.facing>0?-0.5:Math.PI-0.5, player.facing>0?0.5:Math.PI+0.5);
-ctx.stroke();
+ctx.strokeStyle="rgba(255,215,0,"+(attackAnim/8)+")";ctx.lineWidth=3;
+ctx.beginPath();ctx.arc(player.x,player.y-player.h/2,25,player.facing>0?-0.5:Math.PI-0.5,player.facing>0?0.5:Math.PI+0.5);ctx.stroke();
 }
-// 施法特效
 if(castAnim>0){
 ctx.fillStyle="rgba(255,107,107,"+(castAnim/15*0.3)+")";
-ctx.beginPath();ctx.arc(player.x, player.y-player.h/2, 80-castAnim*3, 0, Math.PI*2);ctx.fill();
+ctx.beginPath();ctx.arc(player.x,player.y-player.h/2,100-castAnim*4,0,Math.PI*2);ctx.fill();
 }
 
 // 浮动数字
 for(var ft of floatTexts){
-ctx.globalAlpha=Math.min(1, ft.life/30);
-ctx.fillStyle=ft.color;
-ctx.font="bold 14px 'Songti SC'";
-ctx.textAlign="center";
-ctx.fillText(ft.text, ft.x, ft.y);
+ctx.globalAlpha=Math.min(1,ft.life/30);
+ctx.fillStyle=ft.color;ctx.font="bold 14px 'Songti SC'";ctx.textAlign="center";
+ctx.fillText(ft.text,ft.x,ft.y);
 }
 ctx.globalAlpha=1;
 
 // 粒子
 for(var pt of particles){
-ctx.globalAlpha=pt.life/40;
-ctx.fillStyle=pt.color;
-ctx.beginPath();ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2);ctx.fill();
+ctx.globalAlpha=pt.life/40;ctx.fillStyle=pt.color;
+ctx.beginPath();ctx.arc(pt.x,pt.y,3,0,Math.PI*2);ctx.fill();
 }
 ctx.globalAlpha=1;
 
 ctx.restore();
 
+// 夜晚遮罩
+if(nightAlpha>0){
+ctx.fillStyle="rgba(0,0,30,"+nightAlpha+")";
+ctx.fillRect(0,0,W,H);
+}
+
 // ===== HUD =====
-ctx.fillStyle="rgba(0,0,0,0.7)";
-ctx.fillRect(10,10,220,100);
-ctx.fillStyle="#c9a84c";
-ctx.font="bold 14px 'Songti SC'";
-ctx.textAlign="left";
-ctx.fillText(REALMS[player.realm], 20, 30);
-
-ctx.fillStyle="#fff";
-ctx.font="12px 'Songti SC'";
-ctx.fillText("❤️ "+player.hp+"/"+player.maxHp, 20, 50);
-ctx.fillText("✨ 灵气 "+player.spirit+"/"+(REALM_BONUS[player.realm+1]||999), 20, 68);
-ctx.fillText("⚔️"+player.atk+" 🛡️"+player.def+" 💰"+player.gold, 20, 86);
-
-// 世界坐标
-ctx.fillStyle="#888";
-ctx.fillText("位置: "+Math.floor(player.x)+","+Math.floor(player.y), 20, 100);
+ctx.fillStyle="rgba(0,0,0,0.7)";ctx.fillRect(10,10,240,120);
+ctx.fillStyle="#c9a84c";ctx.font="bold 14px 'Songti SC'";ctx.textAlign="left";
+ctx.fillText(REALMS[player.realm],20,30);
+ctx.fillStyle="#fff";ctx.font="12px 'Songti SC'";
+ctx.fillText("❤️ "+player.hp+"/"+player.maxHp,20,50);
+ctx.fillText("✨ "+player.spirit+"/"+(REALM_BONUS[player.realm+1]||999),20,68);
+ctx.fillText("⚔️"+player.atk+" 🛡️"+player.def+" 💰"+player.gold,20,86);
+ctx.fillText("📅 第"+player.day+"天 "+(player.time>0.5&&player.time<0.85?"🌙夜晚":"☀️白天"),20,104);
+ctx.fillText("技能点:"+player.skillPoints+" | 药材种类:"+Object.keys(player.herbs).length,20,120);
 
 // 弹窗
 if(popMsg){
-ctx.fillStyle="rgba(0,0,0,0.8)";
-ctx.fillRect(W/2-150, 100, 300, 50);
-ctx.fillStyle="#ffd700";
-ctx.font="bold 20px 'Songti SC'";
-ctx.textAlign="center";
-ctx.fillText(popMsg, W/2, 132);
-popTimer--;
-if(popTimer<=0)popMsg=null;
+ctx.fillStyle="rgba(0,0,0,0.8)";ctx.fillRect(W/2-200,100,400,50);
+ctx.fillStyle="#ffd700";ctx.font="bold 20px 'Songti SC'";ctx.textAlign="center";
+ctx.fillText(popMsg,W/2,132);popTimer--;if(popTimer<=0)popMsg=null;
 }
 
 // 对话框
 if(dialogOpen){
-ctx.fillStyle="rgba(0,0,0,0.85)";
-ctx.fillRect(40, H-130, W-80, 100);
-ctx.strokeStyle="#c9a84c";
-ctx.lineWidth=2;
-ctx.strokeRect(40, H-130, W-80, 100);
-ctx.fillStyle="#e0d8c8";
-ctx.font="16px 'Songti SC'";
-ctx.textAlign="left";
-// 简单换行
+ctx.fillStyle="rgba(0,0,0,0.85)";ctx.fillRect(40,H-130,W-80,100);
+ctx.strokeStyle="#c9a84c";ctx.lineWidth=2;ctx.strokeRect(40,H-130,W-80,100);
+ctx.fillStyle="#e0d8c8";ctx.font="16px 'Songti SC'";ctx.textAlign="left";
 var lines=dialogText.split("<br>");
-lines.forEach(function(line,i){
-ctx.fillText(line, 60, H-100+i*25);
-});
-ctx.fillStyle="#c9a84c";
-ctx.font="12px 'Songti SC'";
-ctx.fillText("按 E 关闭", W-120, H-45);
+lines.forEach(function(line,i){ctx.fillText(line,60,H-100+i*25)});
+ctx.fillStyle="#c9a84c";ctx.font="12px 'Songti SC'";ctx.fillText("按 E 关闭",W-120,H-45);
 }
 
-// 提示
-if(toastMsg){
-ctx.fillStyle="rgba(233,69,96,0.9)";
-ctx.fillRect(W/2-150, 60, 300, 30);
-ctx.fillStyle="#fff";
-ctx.font="14px 'Songti SC'";
-ctx.textAlign="center";
-ctx.fillText(toastMsg, W/2, 80);
-setTimeout(function(){toastMsg=""},2000);
+// 技能面板
+if(skillPanelOpen){
+ctx.fillStyle="rgba(0,0,0,0.9)";ctx.fillRect(100,50,W-200,H-100);
+ctx.strokeStyle="#c9a84c";ctx.lineWidth=2;ctx.strokeRect(100,50,W-200,H-100);
+ctx.fillStyle="#c9a84c";ctx.font="bold 20px 'Songti SC'";ctx.textAlign="center";
+ctx.fillText("📖 技能面板（按 G 关闭）",W/2,80);
+ctx.fillStyle="#fff";ctx.font="14px 'Songti SC'";ctx.textAlign="left";
+var yi=0;
+for(var sk in SKILLS){
+var s=SKILLS[sk];
+var owned=player.skills.indexOf(sk)>=0;
+ctx.fillStyle=owned?"#4ecdc4":"#888";
+ctx.fillText((owned?"✅":"⬜")+" "+s.name+" - "+s.desc+" (消耗:"+s.cost+"技能点)",150,120+yi*30);
+yi++;
+}
 }
 
-// 操作提示（靠近时）
-ctx.fillStyle="rgba(255,255,255,0.7)";
-ctx.font="12px 'Songti SC'";
-ctx.textAlign="center";
-ctx.fillText("E 交互", player.x, player.y-player.h-10);
+// 炼丹面板
+if(alchemyPanelOpen){
+ctx.fillStyle="rgba(0,0,0,0.9)";ctx.fillRect(100,50,W-200,H-100);
+ctx.strokeStyle="#c9a84c";ctx.lineWidth=2;ctx.strokeRect(100,50,W-200,H-100);
+ctx.fillStyle="#c9a84c";ctx.font="bold 20px 'Songti SC'";ctx.textAlign="center";
+ctx.fillText("⚗️ 炼丹炉（按 L 关闭）",W/2,80);
+ctx.fillStyle="#fff";ctx.font="13px 'Songti SC'";ctx.textAlign="left";
+ctx.fillText("现有药材: "+JSON.stringify(player.herbs),150,110);
+var yi=0;
+for(var p in PILLS){
+var recipe=PILLS[p];
+var canCraft=true;
+var herbStr=Object.keys(recipe.herbs).map(function(k){return k+"×"+recipe.herbs[k]}).join(" ");
+for(var herb in recipe.herbs){if((player.herbs[herb]||0)<recipe.herbs[herb])canCraft=false;}
+ctx.fillStyle=canCraft?"#4ecdc4":"#888";
+ctx.fillText((canCraft?"✅":"⬜")+" "+p+" ("+herbStr+")",150,140+yi*30);
+yi++;
+}
+ctx.fillStyle="#888";ctx.fillText("（靠近丹房按E打开，自动使用第一个可用丹药）",150,140+Object.keys(PILLS).length*30+20);
+}
 }
 
 // ===== 主循环 =====
 genWorld();
 function loop(){
 update();
-// 更新粒子
-for(var i=particles.length-1;i>=0;i--){
-var pt=particles[i];
-pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.2;pt.life--;
-if(pt.life<=0)particles.splice(i,1);
-}
-// 更新浮动数字
-for(var i=floatTexts.length-1;i>=0;i--){
-var ft=floatTexts[i];
-ft.y-=1;ft.life--;
-if(ft.life<=0)floatTexts.splice(i,1);
-}
+for(var i=particles.length-1;i>=0;i--){var pt=particles[i];pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.2;pt.life--;if(pt.life<=0)particles.splice(i,1);}
+for(var i=floatTexts.length-1;i>=0;i--){var ft=floatTexts[i];ft.y-=1;ft.life--;if(ft.life<=0)floatTexts.splice(i,1);}
 if(attackAnim>0)attackAnim--;
 if(castAnim>0)castAnim--;
 draw();
