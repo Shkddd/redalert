@@ -41,18 +41,22 @@ score=0;
 
 player={x:80,y:groundY-40,w:32,h:48,vx:0,vy:0,onGround:false,facing:1,attackCd:0,hurtCd:120,anim:0};
 
-// 平台
-var px=0;
-while(px<levelWidth){
-var pw=150+Math.random()*200;
-var py=groundY-80-Math.random()*120;
-if(Math.random()>0.3){platforms.push({x:px,y:py,w:pw,h:12});}
-px+=pw+80+Math.random()*100;
-}
-// 地面裂缝（坑）
-for(var i=0;i<lv+2;i++){
-var gx=400+i*400+Math.random()*100;
+// 地面：一整条连续地面，中间开几个坑
+platforms.push({x:0,y:groundY,w:levelWidth,h:60,ground:true});
+// 在地面上挖几个坑
+var numGaps=lv+2;
+for(var i=0;i<numGaps;i++){
+var gx=900+i*450+Math.random()*100;
 platforms.push({x:gx,y:groundY,w:80,h:60,gap:true});
+}
+
+// 空中浮动平台（跳跃用）
+var px=300;
+while(px<levelWidth-200){
+var pw=100+Math.random()*100;
+var py=groundY-100-Math.random()*100;
+platforms.push({x:px,y:py,w:pw,h:12});
+px+=pw+150+Math.random()*150;
 }
 
 // 敌人
