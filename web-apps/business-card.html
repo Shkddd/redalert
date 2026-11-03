@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>水墨名片生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#2c3e50;min-height:100vh;display:flex;gap:30px;justify-content:center;align-items:flex-start;padding:30px;font-family:"Songti SC",serif}
+.controls{width:300px;background:#ecf0f1;padding:25px;border-radius:12px}
+.controls h2{color:#2c3e50;margin-bottom:20px;font-size:18px}
+.controls label{display:block;margin:15px 0 5px;color:#7f8c8d;font-size:13px}
+.controls input{width:100%;padding:10px;border:2px solid #bdc3c7;border-radius:6px;font-size:15px;font-family:inherit}
+.controls button{width:100%;padding:12px;background:#8e44ad;color:#fff;border:none;border-radius:6px;font-size:15px;cursor:pointer;margin-top:20px;font-family:inherit}
+.controls button:hover{background:#9b59b6}
+.preview{flex:1;display:flex;justify-content:center}
+.card{width:500px;height:280px;background:linear-gradient(135deg,#f5f1e8,#e8e0d0);border-radius:10px;position:relative;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.mountain{position:absolute;bottom:0;left:0;right:0;height:150px}
+.sun{position:absolute;top:30px;right:50px;width:60px;height:60px;border-radius:50%;background:rgba(201,123,99,.3)}
+.pine{position:absolute;bottom:80px;left:40px}
+.seal{position:absolute;bottom:30px;right:40px;width:45px;height:45px;background:#b33a3a;opacity:.85;border-radius:3px;display:flex;align-items:center;justify-content:center;color:#f5f1e8;font-size:20px;font-weight:bold}
+.name{position:absolute;top:70px;left:0;right:0;text-align:center;font-size:48px;font-weight:bold;color:#1a1a2e;letter-spacing:8px}
+.title{position:absolute;top:135px;left:0;right:0;text-align:center;font-size:18px;color:#3d3d55}
+.contact{position:absolute;top:180px;left:0;right:0;text-align:center;font-size:15px;color:#3d3d55}
+.line{position:absolute;top:165px;left:50%;transform:translateX(-50%);width:100px;height:1px;background:#3d3d55;opacity:.5}
+</style>
+</head>
+<body>
+<div class="controls">
+<h2>🎴 名片设计</h2>
+<label>姓名</label>
+<input id="name" value="李先生" oninput="update()">
+<label>职位</label>
+<input id="title" value="资深精算师" oninput="update()">
+<label>联系方式</label>
+<input id="contact" value="138-0000-0000" oninput="update()">
+<button onclick="download()">📥 下载 SVG</button>
+</div>
+<div class="preview">
+<div class="card" id="card">
+<div class="sun"></div>
+<svg class="mountain" viewBox="0 0 500 150" preserveAspectRatio="none">
+<path d="M0 80 Q100 30 200 70 T400 60 L500 80 L500 150 L0 150 Z" fill="#2d2d44" opacity=".15"/>
+<path d="M0 110 Q150 60 300 100 T500 90 L500 150 L0 150 Z" fill="#2d2d44" opacity=".25"/>
+</svg>
+<svg class="pine" width="40" height="60" viewBox="0 0 40 60">
+<path d="M20 0 L10 25 L30 25 Z" fill="#0f0f1f" opacity=".6"/>
+<path d="M20 15 L5 40 L35 40 Z" fill="#0f0f1f" opacity=".6"/>
+<rect x="17" y="40" width="6" height="20" fill="#0f0f1f" opacity=".6"/>
+</svg>
+<div class="name" id="pname">李先生</div>
+<div class="title" id="ptitle">资深精算师</div>
+<div class="line"></div>
+<div class="contact" id="pcontact">138-0000-0000</div>
+<div class="seal">印</div>
+</div>
+</div>
+
+<script>
+function update(){
+document.getElementById("pname").textContent=document.getElementById("name").value||"你的名字";
+document.getElementById("ptitle").textContent=document.getElementById("title").value||"职位";
+document.getElementById("pcontact").textContent=document.getElementById("contact").value||"联系方式";
+}
+
+function download(){
+const name=document.getElementById("name").value;
+const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 280" width="500" height="280">
+<rect width="500" height="280" fill="#f5f1e8"/>
+<circle cx="420" cy="50" r="30" fill="#c97b63" opacity=".3"/>
+<path d="M0 130 Q100 80 200 120 T400 110 L500 130 L500 280 L0 280 Z" fill="#2d2d44" opacity=".15"/>
+<path d="M0 160 Q150 110 300 150 T500 140 L500 280 L0 280 Z" fill="#2d2d44" opacity=".25"/>
+<text x="250" y="110" font-size="48" font-weight="bold" text-anchor="middle" fill="#1a1a2e" letter-spacing="8">${name}</text>
+<text x="250" y="145" font-size="18" text-anchor="middle" fill="#3d3d55">${document.getElementById("title").value}</text>
+<line x1="200" y1="160" x2="300" y2="160" stroke="#3d3d55" opacity=".5"/>
+<text x="250" y="190" font-size="15" text-anchor="middle" fill="#3d3d55">${document.getElementById("contact").value}</text>
+<rect x="420" y="200" width="45" height="45" fill="#b33a3a" opacity=".85" rx="3"/>
+<text x="442" y="230" font-size="20" text-anchor="middle" fill="#f5f1e8" font-weight="bold">印</text>
+</svg>`;
+const blob=new Blob([svg],{type:"image/svg+xml"});
+const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`名片_${name}.svg`;a.click();
+}
+</script>
+</body>
+</html>

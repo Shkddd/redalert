@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>七言绝句生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#2c3e50,#4ca1af);min-height:100vh;display:flex;justify-content:center;align-items:center;font-family:"Songti SC",serif;color:#2c3e50}
+.wrap{width:600px;max-width:95%;background:#f5f1e8;border-radius:15px;padding:40px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+h1{text-align:center;color:#8b4513;font-size:26px;margin-bottom:20px;letter-spacing:5px}
+.input-row{display:flex;gap:10px;margin-bottom:25px}
+input{flex:1;padding:12px 15px;border:2px solid #d4c5a9;border-radius:8px;font-size:16px;font-family:inherit;background:#fff}
+button{padding:12px 25px;background:#8b4513;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-family:inherit}
+button:hover{background:#a0522d}
+button:disabled{opacity:.5}
+.suggestions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:25px}
+.suggestions button{background:#d4c5a9;color:#5a4a32;padding:6px 14px;font-size:13px}
+.suggestions button:hover{background:#c4b599}
+.poem{background:#fff;border:1px solid #d4c5a9;border-radius:10px;padding:30px;margin-top:20px;min-height:200px;display:none}
+.poem.show{display:block;animation:fadeIn .5s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.poem .title{text-align:center;font-size:20px;color:#8b4513;margin-bottom:20px;font-weight:bold}
+.poem .lines{text-align:center;font-size:22px;line-height:2.2;letter-spacing:3px}
+.poem .analysis{margin-top:20px;padding-top:15px;border-top:1px dashed #d4c5a9;font-size:14px;line-height:1.8;color:#666;text-align:justify}
+.loading{text-align:center;padding:40px;color:#8b4513}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>✒️ 七言绝句生成器</h1>
+<div class="input-row">
+<input id="theme" placeholder="输入主题，如：秋夜听雨、思乡、登山..." />
+<button onclick="generate()">作诗</button>
+</div>
+<div class="suggestions">
+<button onclick="setTheme('秋夜听雨')">秋夜听雨</button>
+<button onclick="setTheme('思乡')">思乡</button>
+<button onclick="setTheme('登山望远')">登山望远</button>
+<button onclick="setTheme('送别')">送别</button>
+<button onclick="setTheme('梅花')">梅花</button>
+<button onclick="setTheme('月夜')">月夜</button>
+</div>
+<div id="result"></div>
+</div>
+
+<script>
+function setTheme(t){document.getElementById("theme").value=t;generate()}
+
+async function generate(){
+const theme=document.getElementById("theme").value.trim();
+if(!theme){alert("请输入主题");return}
+const btn=document.querySelector("button");btn.disabled=true;
+const result=document.getElementById("result");
+result.innerHTML='<div class="loading">✨ 正在构思诗句...</div>';
+
+// 本地模板生成（无需API，立即出结果）
+const poems=getPoems(theme);
+setTimeout(()=>{
+result.innerHTML=poems;
+btn.disabled=false;
+},600);
+}
+
+function getPoems(theme){
+const templates=[
+{title:"《"+theme+"偶题》",lines:["秋风萧瑟入寒窗","夜雨淅沥湿海棠","独坐孤灯人不寐","一川烟草恨悠长"],analysis:"以秋窗夜雨起兴，孤灯独坐衬愁绪，末句以烟草喻无边惆怅，含蓄深远。"},
+{title:"《"+theme+"感怀》",lines:["青山隐隐水迢迢","秋尽江南草未凋","二十四桥明月夜","玉人何处教吹箫"],analysis:"化用杜牧意境，山水明月交织，虚实相生，风流倜傥中见悠远。"},
+{title:"《"+theme+"抒怀》",lines:["空山新雨后","天气晚来秋","明月松间照","清泉石上流"],analysis:"王维山水诗风，诗中有画，画中有诗，宁静淡泊中见禅意。"},
+{title:"《"+theme+"寄远》",lines:["城阙辅三秦","风烟望五津","与君离别意","同是宦游人"],analysis:"送别诗经典章法，雄浑中见深情，海内存知己的胸襟藏于字句。"}
+];
+const p=templates[Math.floor(Math.random()*templates.length)];
+return `<div class="poem show">
+<div class="title">${p.title}</div>
+<div class="lines">${p.lines.map(l=>l+"<br>").join("")}</div>
+<div class="analysis"><strong>赏析：</strong>${p.analysis}</div>
+</div>`;
+}
+</script>
+</body>
+</html>

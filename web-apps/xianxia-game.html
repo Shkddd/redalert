@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>青云录 · 修仙游戏</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;color:#e0d8c8;font-family:"Songti SC",serif;min-height:100vh;display:flex;justify-content:center;padding:20px}
+.app{width:600px;max-width:100%;background:#16213e;border-radius:12px;padding:30px;box-shadow:0 0 40px rgba(0,0,0,.5)}
+h1{text-align:center;color:#c9a84c;font-size:28px;margin-bottom:10px;letter-spacing:4px}
+.status{background:#0f3460;border-radius:8px;padding:15px;margin:15px 0;font-size:14px;line-height:1.8}
+.status span{color:#c9a84c;font-weight:bold}
+.location{background:#1a1a2e;border-left:3px solid #c9a84c;padding:15px;margin:15px 0;border-radius:0 8px 8px 0}
+.location h3{color:#e94560;margin-bottom:8px}
+.actions{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+button{background:#0f3460;color:#e0d8c8;border:1px solid #c9a84c;padding:12px 20px;border-radius:8px;cursor:pointer;font-size:15px;font-family:inherit;transition:all .2s}
+button:hover{background:#c9a84c;color:#1a1a2e;transform:translateX(5px)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.log{background:#0d1b2a;border-radius:8px;padding:15px;margin-top:20px;max-height:200px;overflow-y:auto;font-size:13px;line-height:1.8;white-space:pre-wrap}
+.breakthrough{color:#ffd700;font-size:18px;text-align:center;margin:10px 0;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>╔ 青 云 录 ╗</h1>
+<div class="status" id="status"></div>
+<div class="location" id="location"></div>
+<div class="actions" id="actions"></div>
+<div class="log" id="log"></div>
+</div>
+
+<script>
+const CULTIVATION=["炼气一层","炼气二层","炼气三层","炼气四层","炼气五层","炼气六层","炼气七层","炼气八层","炼气九层","筑基初期","筑基中期","筑基后期","金丹初期","金丹中期","金丹后期","元婴期","化神期"];
+const LOCATIONS={
+"青云山外门":{desc:"你站在青云山外门的青石牌坊下。远处云雾缭绕，偶尔有仙鹤掠过。",actions:{"打坐修炼":()=>cultivate(5,15),"下山赶集":()=>go("山下集市"),"去后山断崖":()=>go("后山断崖"),"去藏经阁":()=>go("藏经阁")}},
+"后山断崖":{desc:"冷风呼啸，谷底是黑沉沉的老林。你怀中那枚残玉隐隐发热。",actions:{"残玉引气":()=>cultivate(20,40),"眺望谷底":()=>event("crane"),"返回外门":()=>go("青云山外门")}},
+"藏经阁":{desc:"书架上密密麻麻，落着薄灰。只有最基础的功法摆在最外层。",actions:{"翻阅基础功法":()=>cultivate(10,20),"尝试偷进内室":()=>event("steal"),"返回外门":()=>go("青云山外门")}},
+"山下集市":{desc:"人声鼎沸，摊贩吆喝着各种灵药和法器。你腰间的钱袋叮当响。",actions:{"逛地摊":()=>event("stall"),"买丹药(10两)":buyPill,"返回山门":()=>go("青云山外门")}}
+};
+const EVENTS={crane:"一只雪白的老鹤从谷底飞起，唳鸣一声。你心中若有所悟。",steal:"你刚伸手碰向内室的门，一道剑气擦着耳边飞过！执事喝到：「外门弟子，不得入内。」",stall:["你在地摊发现一块灰扑扑的石头，花2两买下——正是你的残玉！","老道拉住你：「道友，《青云心法》5两。」翻了翻，是盗版。","你看到小偷偷了师姐的钱袋。"]};
+
+let state=JSON.parse(localStorage.getItem("xianxia")||"null")||{name:"林砚",location:"青云山外门",spirit:0,cult:2,gold:20,items:["残玉"],hp:100,day:1};
+
+function save(){localStorage.setItem("xianxia",JSON.stringify(state))}
+function log(msg){document.getElementById("log").textContent+=msg+"\n"}
+
+function render(){
+document.getElementById("status").innerHTML=`
+【${state.name}】 <span>${CULTIVATION[state.cult]}</span><br>
+灵气: <span>${state.spirit}</span> | 气血: <span>${state.hp}</span> | 银两: <span>${state.gold}</span>两<br>
+物品: ${state.items.join(", ")} | 第${state.day}天`;
+const loc=LOCATIONS[state.location];
+document.getElementById("location").innerHTML=`<h3>📍 ${state.location}</h3>${loc.desc}`;
+const acts=document.getElementById("actions");acts.innerHTML="";
+Object.keys(loc.actions).forEach(k=>{
+const b=document.createElement("button");b.textContent=k;b.onclick=loc.actions[k];acts.appendChild(b);
+});
+const reset=document.createElement("button");reset.textContent="🔄 重新开始";reset.onclick=()=>{if(confirm("确定重开？")){localStorage.removeItem("xianxia");location.reload()}};reset.style.marginTop="10px";acts.appendChild(reset);
+}
+
+function cultivate(min,max){
+const g=Math.floor(Math.random()*(max-min+1))+min;
+state.spirit+=g;state.day++;
+log(`打坐修炼，灵气 +${g}`);
+const need=(state.cult+1)*50;
+if(state.spirit>=need){state.cult++;state.spirit=0;log(`✨ 突破！进入【${CULTIVATION[state.cult]}】！`)}
+save();render();
+}
+
+function go(loc){state.location=loc;state.day++;log(`来到 ${loc}`);save();render()}
+
+function event(type){
+let msg;
+if(type==="crane")msg=EVENTS.crane;
+else if(type==="steal"){msg=EVENTS.steal;state.spirit+=5;log("吓出冷汗，灵气 +5")}
+else msg=EVENTS.stall[Math.floor(Math.random()*EVENTS.stall.length)];
+state.day++;log(msg);save();render();
+}
+
+function buyPill(){
+if(state.gold>=10){state.gold-=10;state.hp+=30;state.items.push("聚气丹");log("买了聚气丹，气血+30")}
+else log("银两不够！");
+state.day++;save();render();
+}
+
+render();
+log("欢迎来到青云录。你是外门弟子林砚。");
+</script>
+</body>
+</html>
